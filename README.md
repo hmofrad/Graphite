@@ -1,2 +1,2 @@
-# graphead
-Graphead
+# graphite
+Graphite
