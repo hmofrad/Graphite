@@ -584,7 +584,7 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_tiles() {
                     
                     
                     while(true) {
-                        assert(idx+1 < triples.size());
+                        //assert(idx+1 < triples.size());
                         if(triples[idx].row == triples[idx+1].row)
                             idx++;
                         else
@@ -600,7 +600,19 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_tiles() {
                 
                 //printf("%lu %lu [%d %d] [%d %d]\n", start_idx, end_idx, triples[end_idx].row, triples[end_idx].col, triples[end_idx-1].row, triples[end_idx-1].col); 
                 printf("%lu %lu %d\n", start_idx, end_idx, end_idx - start_idx); 
-                
+                start[i] = start_idx;
+                end[i] = end_idx;
+            }
+            idx = 0;
+            
+            #pragma omp parallel 
+            {
+                int tid = omp_get_thread_num();
+                for(int i = start[tid]; i < end[tid]; i++) {
+                    auto& triple = triples[i]
+                    tile.triples_t[tid]->push_back(triple); 
+                }
+                printf("%d %d\n", tid, tile.triples_t[tid]);
             }
             
             
