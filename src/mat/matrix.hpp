@@ -39,7 +39,9 @@ struct Tile2D {
     uint64_t nedges;
     void allocate_triples();
     void free_triples();
-    uint32_t npartitions;
+    int32_t npartitions;
+    std::vector<std::vector<struct Triple<Weight, Integer_Type>>*> triples_t;
+    std::vector<struct Compressed_column<Weight, Integer_Type>*> compressor_t;
 };
 
 template<typename Weight, typename Integer_Type, typename Fractional_Type>
@@ -314,7 +316,7 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_matrix() {
             }
             tile.nth   = (tile.ith * tiling->rank_ncolgrps) + tile.jth;
             tile.mth   = (tile.jth * tiling->rank_nrowgrps) + tile.ith;
-            tile.allocate_triples();
+            tile.allocate_triples();  
             //tile.allocated = false;
         }
     }
@@ -540,21 +542,111 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_tiles() {
     
     distribute();
     Triple<Weight, Integer_Type> pair;
-    ColSort<Weight, Integer_Type> f_col;
+    //ColSort<Weight, Integer_Type> f_col;
+    RowSort<Weight, Integer_Type> f_row;
     auto f_comp = [] (const Triple<Weight, Integer_Type> &a, const Triple<Weight, Integer_Type> &b) {return (a.row == b.row and a.col == b.col);};    
     for(uint32_t t: local_tiles_row_order) {
         pair = tile_of_local_tile(t);
         auto& tile = tiles[pair.row][pair.col];
-        if(tile.triples->size()) {
-            std::sort(tile.triples->begin(), tile.triples->end(), f_col);
+        std::vector<struct Triple<Weight, Integer_Type>>& triples = *(tile.triples);
+        if(triples.size()) {
+            std::sort(triples.begin(), triples.end(), f_row);
             /* remove parallel edges (duplicates), necessary for triangle couting */
             if(not parallel_edges) {
-                auto last = std::unique(tile.triples->begin(), tile.triples->end(), f_comp);
-                tile.triples->erase(last, tile.triples->end());
+                auto last = std::unique(triples.begin(), triples.end(), f_comp);
+                triples.erase(last, triples.end());
             }
+            
+            
+            //printf("Size=%lu %d\n", tile.triples->size(), tile.triples->size()/omp_get_num_threads());
+            tile.npartitions = omp_get_max_threads();
+            tile.triples_t.resize(tile.npartitions); 
+            
+            uint64_t chunk_size = tile.triples->size()/omp_get_max_threads();
+            std::vector<uint64_t> start(tile.npartitions);
+            std::vector<uint64_t> end(tile.npartitions);
+            uint64_t start_idx = 0;
+            uint64_t end_idx = 0;
+            uint64_t idx = 0;
+            for(int i = 0; i < tile.npartitions; i++) {
+                if(i == 0) {
+                    start_idx = 0;
+                }
+                else {
+                    start_idx = end_idx;
+                }
+                
+                if(i < (tile.npartitions - 1)) {
+                    //if(i == 0)
+                    //    idx = chunk_size*(i+1);
+                    //else 
+                        idx += chunk_size;
+                    
+                    
+                    while(true) {
+                        assert(idx+1 < triples.size());
+                        if(triples[idx].row == triples[idx+1].row)
+                            idx++;
+                        else
+                            break;
+                    }                        
+                    //while(triples[idx].row == triples[idx+1].row)
+                    //    idx++;
+                    end_idx = idx + 1;
+                }
+                else {
+                    end_idx = tile.triples->size();
+                }
+                
+                //printf("%lu %lu [%d %d] [%d %d]\n", start_idx, end_idx, triples[end_idx].row, triples[end_idx].col, triples[end_idx-1].row, triples[end_idx-1].col); 
+                printf("%lu %lu %d\n", start_idx, end_idx, end_idx - start_idx); 
+                
+            }
+            
+            
+            /*
+
+            //printf("size=%lu %d\n", tile.triples_t.size(), omp_get_max_threads()); 
+            
+            
+            #pragma omp parallel 
+            {
+                int nthreads = omp_get_num_threads();
+                int tid = omp_get_thread_num();
+                
+                uint32_t rows_per_thread = tile_height/nthreads;
+                
+                uint32_t start = tid * rows_per_thread;
+                uint32_t end = start + rows_per_thread;
+                start = (start > tile_height) ? (tile_height):(start);
+                end = (end > tile_height) ? (tile_height):(end);
+                end = (tid == nthreads - 1)?(tile_height):(end);
+                tile.triples_t[tid] = new std::vector<struct Triple<Weight, Integer_Type>>;
+                //std::vector<std::vector<struct Triple<Weight, Integer_Type>>*> triples_t;
+                printf("thread %d of %d in [%d %d]\n", tid, nthreads, start, end);
+                for(auto& triple: *(tile.triples)) {
+                    if((triple.row >= start) and (triple.row < end)){
+                        //printf("%d %d %d %d\n", triple.row, triple.col, tid, tile.triples_t[tid]->size());
+                        tile.triples_t[tid]->push_back(triple); 
+                        
+                    }
+                }
+                printf("%d %lu\n", tid, tile.triples_t[tid]->size());
+                
+            }
+            */
+            
+            
+            
+            
+            
         }
 		tile.nedges = tile.triples->size();
     }
+    std::exit(0);
+    
+    
+    
 }
 
 /* Inspired from LA3 code @
@@ -1221,7 +1313,30 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_tcsc()
         auto& iv_data = IV[yi];
         auto& j_data = J[xi];
         auto& jv_data = JV[xi];
+        
+        tile.compressor_t.resize(tile.npartitions);
+        
+        /*
+        #pragma omp parallel 
+        {
+            int nthreads = omp_get_num_threads();
+            int tid = omp_get_thread_num();
+            
+            uint32_t rows_per_thread = tile_height/nthreads;
+            
+            uint32_t start = tid * rows_per_thread;
+            uint32_t end = start + rows_per_thread;
+            start = (start > tile_height) ? (tile_height):(start);
+            end = (end > tile_height) ? (tile_height):(end);
+            end = (tid == nthreads - 1)?(tile_height):(end);
+            printf("thread %d of %d in [%d %d]\n", tid, nthreads, start, end);
+        }
+        */
+        
+        
+        
         tile.compressor = new TCSC_BASE<Weight, Integer_Type>(tile.nedges, c_nitems, r_nitems);
+        
         if(tile.nedges)
             tile.compressor->populate(tile.triples, tile_height, tile_width, i_data, iv_data, j_data, jv_data);
         xi++;
@@ -1230,8 +1345,10 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_tcsc()
             xi = 0;
             yi++;
         }
+        //printf("np= %d\n", tile.npartitions);
     }  
     del_classifier();
+    std::exit(0);
 }
 
 template<typename Weight, typename Integer_Type, typename Fractional_Type>
