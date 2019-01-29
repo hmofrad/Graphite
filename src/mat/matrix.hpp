@@ -144,6 +144,7 @@ class Matrix {
         void init_matrix();
         void del_triples();
         void init_tiles();
+        void init_threads();
         void init_compression();
         //void init_csr();
         void init_csc();
@@ -537,12 +538,11 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::print(std::string element)
 
 template<typename Weight, typename Integer_Type, typename Fractional_Type>
 void Matrix<Weight, Integer_Type, Fractional_Type>::init_tiles() {
-    if(Env::is_master)
-        printf("Edge distribution: Distributing edges among %d ranks\n", Env::nranks);     
-    
+
     distribute();
+    
     Triple<Weight, Integer_Type> pair;
-    //ColSort<Weight, Integer_Type> f_col;
+    ColSort<Weight, Integer_Type> f_col;
     RowSort<Weight, Integer_Type> f_row;
     auto f_comp = [] (const Triple<Weight, Integer_Type> &a, const Triple<Weight, Integer_Type> &b) {return (a.row == b.row and a.col == b.col);};    
     for(uint32_t t: local_tiles_row_order) {
@@ -595,25 +595,36 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_tiles() {
                     end_idx = idx + 1;
                 }
                 else {
-                    end_idx = tile.triples->size();
+                    end_idx = triples.size();
                 }
                 
                 //printf("%lu %lu [%d %d] [%d %d]\n", start_idx, end_idx, triples[end_idx].row, triples[end_idx].col, triples[end_idx-1].row, triples[end_idx-1].col); 
-                printf("%lu %lu %d\n", start_idx, end_idx, end_idx - start_idx); 
+                //printf("%lu %lu %lu\n", start_idx, end_idx, (end_idx - start_idx)); 
                 start[i] = start_idx;
                 end[i] = end_idx;
             }
-            idx = 0;
+            //idx = 0;
             
             #pragma omp parallel 
             {
                 int tid = omp_get_thread_num();
-                for(int i = start[tid]; i < end[tid]; i++) {
-                    auto& triple = triples[i]
+                tile.triples_t[tid] = new std::vector<struct Triple<Weight, Integer_Type>>;
+                //printf("[%d %lu %lu]\n", tid, start[tid], end[tid]);
+                for(uint64_t i = start[tid]; i < end[tid]; i++) {
+                    auto& triple = triples[i];
                     tile.triples_t[tid]->push_back(triple); 
                 }
-                printf("%d %d\n", tid, tile.triples_t[tid]);
+                //printf("%d %lu\n", tid, tile.triples_t[tid]->size());
+                std::sort(tile.triples_t[tid]->begin(), tile.triples_t[tid]->end(), f_col);
+                //printf("%d %lu [%d %d] [%d %d]\n", tid, tile.triples_t[tid]->size(),  tile.triples_t[tid]->front().row, tile.triples_t[tid]->front().col, tile.triples_t[tid]->back().row, tile.triples_t[tid]->back().col);
+                //for(auto& triple: *(tile.triples_t[tid])) {
+                    //printf("%d %d %d\n", tid, triple.row, triple.col);
+                    
+                //}
             }
+            
+            
+            
             
             
             /*
@@ -661,12 +672,25 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_tiles() {
     
 }
 
+template<typename Weight, typename Integer_Type, typename Fractional_Type>
+void Matrix<Weight, Integer_Type, Fractional_Type>::init_threads() {
+    if(Env::is_master)
+        printf("Edge distribution: Distributing edges among %d threads\n", omp_get_max_threads());     
+    
+}
+
+
+
 /* Inspired from LA3 code @
    https://github.com/cmuq-ccl/LA3/blob/master/src/matrix/dist_matrix2d.hpp
 */
 template<typename Weight, typename Integer_Type, typename Fractional_Type>
 void Matrix<Weight, Integer_Type, Fractional_Type>::distribute()
 {
+    if(Env::is_master)
+        printf("Edge distribution: Distributing edges among %d ranks\n", Env::nranks);     
+    
+    
    /* Sanity check on # of edges */
     uint64_t nedges_start_local = 0, nedges_end_local = 0,
              nedges_start_global = 0, nedges_end_global = 0;
