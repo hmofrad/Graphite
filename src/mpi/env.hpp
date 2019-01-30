@@ -11,6 +11,7 @@
 #include <cassert>
 #include <iostream>
 #include <vector>
+#include <numa.h>
 
 #include <sched.h>
 #include <unordered_set>
@@ -28,6 +29,7 @@ class Env {
     static int nranks;
     static bool is_master;
     static void init(bool comm_split_ = true);
+    static void init_t();
     static void barrier();
     static void finalize();
     static void exit(int code);
@@ -90,10 +92,8 @@ void Env::init(bool comm_split_) {
     is_master = rank == 0;
     
     MPI_WORLD = MPI_COMM_WORLD;
-    
     if(required != provided)
     {
-        //omp_set_num_threads(1);
         if(is_master)
         {
             printf("Filure to set MPI_THREAD_MULTIPLE by MPI\n"); 
@@ -105,6 +105,32 @@ void Env::init(bool comm_split_) {
         if(is_master)
             printf("Multi-threading is enabled with MPI_THREAD_MULTIPLE (%d/%d)\n", omp_get_num_threads(), omp_get_max_threads());
     }
+    
+    init_t();
+}
+
+void Env::init_t() {
+    if(is_master) {
+        printf("Initializing threads\n");
+        int nthreads = numa_num_configured_cpus();
+        int nsockets = numa_num_configured_nodes();
+        printf("nthreads=%d, nsockets=%d\n", nthreads, nsockets);
+    }
+    
+    /*
+    //int tid, sid;
+    #pragma omp parallel
+    {
+    //for (int i = 0; i < omp_get_max_threads(); i++) {
+        int tid = omp_get_thread_num();
+        int sid = get_socket_id(tid);
+      //assert(numa_run_on_node(s_i)==0);
+      //#ifdef PRINT_DEBUG_MESSAGES
+       printf("thread-%d bound to socket-%d\n", tid, sid);
+      //#endif
+    }
+    */
+
 }
 
 bool Env::get_comm_split() {
