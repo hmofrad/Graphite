@@ -1472,6 +1472,48 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::spmv_s
     Integer_Type* JA;
     Integer_Type* JC;
     Integer_Type ncols;
+    
+    
+    #pragma omp parallel
+    {
+        int tid = omp_get_thread_num();
+        #ifdef HAS_WEIGHT
+        Integer_Type* A = static_cast<TCSC_BASE<Weight, Integer_Type>*>(tile.compressor_t[tid])->A;
+        #endif
+
+        Integer_Type* IA   = static_cast<TCSC_BASE<Weight, Integer_Type>*>(tile.compressor_t[tid])->IA;
+        Integer_Type* JA   = static_cast<TCSC_BASE<Weight, Integer_Type>*>(tile.compressor_t[tid])->JA;    
+        Integer_Type ncols = static_cast<TCSC_BASE<Weight, Integer_Type>*>(tile.compressor_t[tid])->nnzcols;  
+        //printf("%d %p\n", tid, IA);
+        
+            
+        if(ordering_type == _ROW_) {
+            for(uint32_t j = 0; j < ncols; j++) {
+                for(uint32_t i = JA[j]; i < JA[j + 1]; i++) {
+                    #ifdef HAS_WEIGHT
+                    combiner(y_data[IA[i]], x_data[j], A[i]);
+                    #else
+                    combiner(y_data[IA[i]], x_data[j]);
+                    #endif
+                }
+            }
+        }
+        else {
+            for(uint32_t j = 0; j < ncols; j++) {
+                for(uint32_t i = JA[j]; i < JA[j + 1]; i++) {
+                    #ifdef HAS_WEIGHT
+                    combiner(y_data[j], x_data[IA[i]], A[i]);   
+                    #else
+                    combiner(y_data[j], x_data[IA[i]]);
+                    #endif
+                }
+            } 
+        }
+    }
+    //std::exit(0);
+    
+    
+    /*
     if(compression_type == _CSC_) {
         #ifdef HAS_WEIGHT
         A = static_cast<CSC_BASE<Weight, Integer_Type>*>(tile.compressor)->A;
@@ -1660,32 +1702,6 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::spmv_s
                             }
                         }                    
                     }
-                    /*
-                    }
-                    else {
-                        //std::vector<uint32_t>::iterator it;
-                        //it = std::unique(active_vertices.begin(), active_vertices.end());
-                        //active_vertices.resize(std::distance(active_vertices.begin(), it)); 
-                        Integer_Type* JA_SRC_R_NNZ_C = static_cast<TCSC_BASE<Weight, Integer_Type>*>(tile.compressor)->JA_SRC_R_NNZ_C;
-                        for(Integer_Type j: active_vertices) {
-                            Integer_Type k = j * 2;
-                            for(uint32_t i = JA_SRC_R_NNZ_C[k]; i < JA_SRC_R_NNZ_C[k + 1]; i++) {
-                                #ifdef HAS_WEIGHT
-                                combiner(y_data[IA[i]], x_data[j], A[i]);
-                                #else
-                                combiner(y_data[IA[i]], x_data[j]);
-                                #endif
-                            }
-                        } 
-                        
-                        
-                        
-                        //printf("Not implemented\n");
-                        //Env::barrier();
-                        //Env::exit(0);
-                        
-                    }
-                    */
                 }             
             }
             else {
@@ -1695,7 +1711,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::spmv_s
                 
         }
     }
-    
+    */
 }
 
 
@@ -1813,6 +1829,52 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::spmv_n
             std::vector<Fractional_Type> &x_data,
             std::vector<Fractional_Type> &xv_data, 
             std::vector<Integer_Type> &xi_data, std::vector<char> &t_data) {
+     
+    #pragma omp parallel
+    {
+        int tid = omp_get_thread_num();
+        #ifdef HAS_WEIGHT
+        Integer_Type* A = static_cast<TCSC_BASE<Weight, Integer_Type>*>(tile.compressor_t[tid])->A;
+        #endif
+
+        Integer_Type* IA   = static_cast<TCSC_BASE<Weight, Integer_Type>*>(tile.compressor_t[tid])->IA;
+        Integer_Type* JA   = static_cast<TCSC_BASE<Weight, Integer_Type>*>(tile.compressor_t[tid])->JA;    
+        Integer_Type ncols = static_cast<TCSC_BASE<Weight, Integer_Type>*>(tile.compressor_t[tid])->nnzcols;  
+        
+        
+        if(activity_filtering and activity_statuses[tile.cg]) {
+            Integer_Type s_nitems = msgs_activity_statuses[tile.jth] - 1;
+            Integer_Type j = 0;
+            for(Integer_Type k = 0; k < s_nitems; k++) {
+                j = xi_data[k];
+                for(uint32_t i = JA[j]; i < JA[j + 1]; i++) {
+                    #ifdef HAS_WEIGHT
+                    combiner(y_data[IA[i]], xv_data[k], A[i]);
+                    #else
+                    combiner(y_data[IA[i]], xv_data[k]);
+                    #endif
+                    t_data[IA[i]] = 1;
+                }
+            }
+        }
+        else {
+            for(uint32_t j = 0; j < ncols; j++) {
+                if(x_data[j] != infinity()) {
+                    for(uint32_t i = JA[j]; i < JA[j + 1]; i++) {
+                        #ifdef HAS_WEIGHT
+                        combiner(y_data[IA[i]], x_data[j], A[i]);
+                        #else
+                        combiner(y_data[IA[i]], x_data[j]);
+                        #endif
+                        t_data[IA[i]] = 1;
+                    }
+                }
+            }
+        }
+    }     
+                
+                
+         /*       
     #ifdef HAS_WEIGHT
     Weight* A;
     #endif
@@ -1843,31 +1905,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::spmv_n
         JA   = static_cast<TCSC_BASE<Weight, Integer_Type>*>(tile.compressor)->JA;    
         ncols = static_cast<TCSC_BASE<Weight, Integer_Type>*>(tile.compressor)->nnzcols;        
     }
- /*
-    if(ordering_type == _ROW_) {
-        if(compression_type == _TCSC_) {
-            if((not check_for_convergence) or (check_for_convergence and not converged)) {
-                if(activity_filtering and activity_statuses[tile.cg]) {
-                    Integer_Type* JA_REG_R_NNZ_C = static_cast<TCSC_BASE<Weight, Integer_Type>*>(tile.compressor)->JA_REG_R_NNZ_C;
-                    Integer_Type s_nitems = msgs_activity_statuses[tile.jth] - 1;
-                    Integer_Type j = 0;
-                    for(Integer_Type k = 0; k < s_nitems; k++) {
-                        j = xi_data[k] * 2;
-                        active_vertices.push_back(xi_data[k]);
-                        for(uint32_t i = JA_REG_R_NNZ_C[j]; i < JA_REG_R_NNZ_C[j + 1]; i++) {
-                            #ifdef HAS_WEIGHT
-                            combiner(y_data[IA[i]], xv_data[k], A[i]);
-                            #else
-                            combiner(y_data[IA[i]], xv_data[k]);
-                            #endif
-                            t_data[IA[i]] = 1;
-                        }
-                    } 
-                }                
-            }
-        }
-        else {
-        */    
+
             if(activity_filtering and activity_statuses[tile.cg]) {
                 Integer_Type s_nitems = msgs_activity_statuses[tile.jth] - 1;
                 Integer_Type j = 0;
@@ -1897,6 +1935,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::spmv_n
                     }
                 }
             }
+            */
         //}
     //}
 }
