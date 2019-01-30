@@ -6,6 +6,8 @@
 
 #ifndef MATRIX_HPP
 #define MATRIX_HPP
+
+#include <omp.h>
  
 #include <cmath>
 #include <algorithm>
@@ -13,7 +15,7 @@
 #include "mpi/types.hpp" 
 #include "mat/tiling.hpp" 
 #include "ds/indexed_sort.hpp"
-#include "omp.h"
+
 
 enum Filtering_type
 {
