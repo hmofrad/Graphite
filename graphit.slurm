@@ -1,7 +1,7 @@
 #!/bin/bash
-#SBATCH --job-name=graphid
-#SBATCH --output=graphid.out
-#SBATCH --error=graphid.err
+#SBATCH --job-name=graphit
+#SBATCH --output=graphit.out
+#SBATCH --error=graphit.err
 #SBATCH --ntasks=64
 #SBATCH --nodes=4
 #SBATCH --ntasks-per-node=16
@@ -99,8 +99,8 @@ do
     done
 done
 
-strings graphtap.out | grep 'Execute time'
-strings graphtap.out | grep 'Iterations'
-strings graphtap.out | grep 'Value checksum'
-strings graphtap.out | grep 'Reachable vertices'
+strings graphit.out | grep 'Execute time'
+strings graphit.out | grep 'Iterations'
+strings graphit.out | grep 'Value checksum'
+strings graphit.out | grep 'Reachable vertices'
 #strings graphtap.out | grep 'avg'
