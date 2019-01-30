@@ -93,19 +93,17 @@ void Env::init(bool comm_split_) {
     
     if(required != provided)
     {
-        omp_set_num_threads(1);
+        //omp_set_num_threads(1);
         if(is_master)
         {
-            printf("OpenMP multithreading is disabled\n");
-            printf("Filure to set MPI_THREAD_MULTIPLE\n");
+            printf("Filure to set MPI_THREAD_MULTIPLE by MPI\n"); 
+            printf("Multi-threading is disabled with MPI_THREAD_MULTIPLE (%d/%d)\n", omp_get_num_threads(), omp_get_max_threads());
         }
     }
     else
     {
         if(is_master)
-        {
             printf("Multi-threading is enabled with MPI_THREAD_MULTIPLE (%d/%d)\n", omp_get_num_threads(), omp_get_max_threads());
-        }
     }
 }
 
