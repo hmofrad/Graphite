@@ -11,7 +11,12 @@
 #include <cassert>
 #include <iostream>
 #include <vector>
+
+
+
 #include <numa.h>
+//#include </home/moh/numactl/libnuma/usr/local/include/numa.h>
+//#include </ihome/rmelhem/moh18/numactl/libnuma/usr/local/include/numa.h>
 
 #include <sched.h>
 #include <unordered_set>
