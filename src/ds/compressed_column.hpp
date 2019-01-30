@@ -13,6 +13,7 @@
 #include <sys/mman.h>
 #include <cstring> 
 #include <algorithm>
+#include "omp.h"
  
 enum Compression_type
 {
@@ -286,12 +287,6 @@ struct TCSC_BASE : public Compressed_column<Weight, Integer_Type> {
                               
         uint64_t nnz;
         Integer_Type nnzcols;
-        Integer_Type nnzcols_regulars;
-        Integer_Type nnzcols_regulars_local;
-        Integer_Type nnzcols_sources_local;
-        Integer_Type nnzcols_sources_regulars_local;
-        Integer_Type nnzcols_regulars_sinks_local;
-        Integer_Type nnzcols_sources_sinks_local;
         Integer_Type nnzrows;
         #ifdef HAS_WEIGHT
         Weight* A;  // WEIGHT
@@ -327,7 +322,7 @@ TCSC_BASE<Weight, Integer_Type>::TCSC_BASE(uint64_t nnz_, Integer_Type nnzcols_,
             exit(1);
         }
         memset(JA, 0, (nnzcols + 1) * sizeof(Integer_Type));
-        
+        /*
         if((JC = (Integer_Type*) mmap(nullptr, nnzcols * sizeof(Integer_Type), PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0)) == (void*) -1) {    
             fprintf(stderr, "Error mapping memory\n");
             exit(1);
@@ -339,6 +334,7 @@ TCSC_BASE<Weight, Integer_Type>::TCSC_BASE(uint64_t nnz_, Integer_Type nnzcols_,
             exit(1);
         }
         memset(IR, 0, nnzrows * sizeof(Integer_Type));
+        */
     }
 }
 
@@ -360,7 +356,7 @@ TCSC_BASE<Weight, Integer_Type>::~TCSC_BASE() {
             fprintf(stderr, "Error unmapping memory\n");
             exit(1);
         }
-        
+        /*
         if(munmap(JC, nnzcols * sizeof(Integer_Type)) == -1) {
             fprintf(stderr, "Error unmapping memory\n");
             exit(1);
@@ -370,6 +366,7 @@ TCSC_BASE<Weight, Integer_Type>::~TCSC_BASE() {
         fprintf(stderr, "Error unmapping memory\n");
         exit(1);
         }
+        */
     } 
 }
 
@@ -381,13 +378,35 @@ void TCSC_BASE<Weight, Integer_Type>::populate(const std::vector<struct Triple<W
                                                const std::vector<Integer_Type>& nnzrows_indices, 
                                                const std::vector<char>&         nnzcols_bitvector,
                                                const std::vector<Integer_Type>& nnzcols_indices) {
+//printf("NT=%d/%d\n", omp_get_thread_num(), omp_get_max_threads());
+
+
+    /*
+    #pragma omp parallel 
+    {
+        int nthreads = omp_get_num_threads();
+        int tid = omp_get_thread_num();
+        
+        uint32_t rows_per_thread = tile_height/nthreads;
+        
+        uint32_t start = tid * rows_per_thread;
+        uint32_t end = start + rows_per_thread;
+        start = (start > tile_height) ? (tile_height):(start);
+        end = (end > tile_height) ? (tile_height):(end);
+        end = (tid == nthreads - 1)?(tile_height):(end);
+        printf("thread %d of %d in [%d %d]\n", tid, nthreads, start, end);
+    }
+    */
+    
+
+
+    
     struct Triple<Weight, Integer_Type> pair;
     Integer_Type i = 0; // Row Index
     Integer_Type j = 1; // Col index
     JA[0] = 0;
     for (auto& triple : *triples) {
         pair  = {(triple.row % tile_height), (triple.col % tile_width)};
-        //printf("%d %d\n", pair.row, pair.col);
         while((j - 1) != nnzcols_indices[pair.col]) {
             j++;
             JA[j] = JA[j - 1];
@@ -403,6 +422,7 @@ void TCSC_BASE<Weight, Integer_Type>::populate(const std::vector<struct Triple<W
         j++;
         JA[j] = JA[j - 1];
     }
+    /*
     // Column indices
     Integer_Type k = 0;
     for(j = 0; j < tile_height; j++) {
@@ -421,6 +441,10 @@ void TCSC_BASE<Weight, Integer_Type>::populate(const std::vector<struct Triple<W
         }
     }
     assert(nnzrows == k);
+    */
+    
+    
+    
 }
 
 template<typename Weight, typename Integer_Type>
