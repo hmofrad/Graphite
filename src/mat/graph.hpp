@@ -162,10 +162,12 @@ void Graph<Weight, Integer_Type, Fractional_Type>::load_text(std::string filepat
     A->init_tiles();
     // Filter the graph
     A->init_filtering();
+    // Initialize threads
+    A->init_threads();
     // Compress the graph
     A->init_compression();
     // Delete triples
-    A->del_triples();
+    //A->del_triples();
 }
 
 template<typename Weight, typename Integer_Type, typename Fractional_Type>
@@ -184,10 +186,12 @@ void Graph<Weight, Integer_Type, Fractional_Type>::load_binary(std::string filep
     A->init_tiles();
     // Filter the graph
     A->init_filtering();
+    // Initialize threads
+    A->init_threads();
     // Compress the graph
     A->init_compression();
     // Delete triples
-    A->del_triples();
+    //A->del_triples();
 }
 
 template<typename Weight, typename Integer_Type, typename Fractional_Type>
