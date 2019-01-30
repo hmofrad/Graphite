@@ -512,6 +512,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::initia
         uint32_t yi = accu_segment_row;
         auto &i_data = (*I)[yi];        
         Integer_Type v_nitems = V.size();
+        #pragma omp parallel for schedule(static)
         for(uint32_t i = 0; i < v_nitems; i++) {
             Vertex_State &state = V[i]; 
             if(i_data[i])
@@ -906,6 +907,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::scatte
     std::vector<Fractional_Type>& x_data = X[xo];
     Integer_Type v_nitems = V.size();
     if(compression_type == _CSC_) {
+        #pragma omp parallel for schedule(static)
         for(uint32_t i = 0; i < v_nitems; i++) {
             Vertex_State& state = V[i];
             x_data[i] = messenger(state);
@@ -915,6 +917,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::scatte
     else {    
         auto& JC = (*colgrp_nnz_columns);
         Integer_Type JC_nitems = JC.size();
+        #pragma omp parallel for schedule(static)
         for(uint32_t j = 0; j < JC_nitems; j++) {
             Vertex_State& state = V[JC[j]];
             x_data[j] = messenger(state);
@@ -956,6 +959,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::scatte
     Integer_Type v_nitems = V.size();
     Integer_Type k = 0;
     if(compression_type == _CSC_) {
+        //#pragma omp parallel for schedule(static)
         for(uint32_t i = 0; i < v_nitems; i++) {
             Vertex_State &state = V[i];
             if(C[i]) {
@@ -977,6 +981,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::scatte
             auto& JC = (*colgrp_nnz_columns);
             Integer_Type JC_nitems = JC.size();
             Integer_Type i = 0;
+            //#pragma omp parallel for schedule(static)
             for(Integer_Type j = 0; j < JC_nitems; j++) {
                 i = JC[j];
                 Vertex_State &state = V[i];
@@ -1969,6 +1974,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::combin
             accu = follower_rowgrp_ranks_accu_seg[j];
         std::vector<Fractional_Type> &yj_data = Y[yi][accu];
         Integer_Type yj_nitems = yj_data.size();
+        #pragma omp parallel for schedule(static)
         for(uint32_t i = 0; i < yj_nitems; i++)
             combiner(y_data[i], yj_data[i]);
     }
@@ -1991,6 +1997,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::combin
             if(accus_activity_statuses[accu] > 1) {
                 std::vector<Integer_Type> &yij_data = YI[yi][accu];
                 std::vector<Fractional_Type> &yvj_data = YV[yi][accu];
+                #pragma omp parallel for schedule(static)
                 for(uint32_t i = 0; i < accus_activity_statuses[accu] - 1; i++) {
                     Integer_Type k = yij_data[i];
                     combiner(y_data[k], yvj_data[i]);
@@ -2000,6 +2007,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::combin
         else {
             std::vector<Fractional_Type> &yj_data = Y[yi][accu];
             Integer_Type yj_nitems = yj_data.size();
+            #pragma omp parallel for schedule(static)
             for(uint32_t i = 0; i < yj_nitems; i++)
                 combiner(y_data[i], yj_data[i]);
         }
@@ -2080,6 +2088,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::apply_
     Integer_Type v_nitems = V.size();
     if((compression_type == _CSC_) or (compression_type == _DCSC_)){
         //if(not converged) {
+            #pragma omp parallel for schedule(static)
             for(uint32_t i = 0; i < v_nitems; i++)
             {
                 Vertex_State &state = V[i];
@@ -2090,13 +2099,16 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::apply_
     else if (compression_type == _TCSC_){
         //if(not converged) {
             auto& i_data = (*I)[yi];
-            Integer_Type j = 0;
+            auto &iv_data = (*IV)[yi];
+            //Integer_Type j = 0;
+            #pragma omp parallel for schedule(static)
             for(uint32_t i = 0; i < v_nitems; i++)
             {
                 Vertex_State &state = V[i];
                 if(i_data[i]) {
-                    C[i] = applicator(state, y_data[j]);
-                    j++;
+                    //C[i] = applicator(state, y_data[j]);
+                    //j++;
+                    C[i] = applicator(state, y_data[iv_data[i]]);
                 }
                 else
                     C[i] = applicator(state);
@@ -2139,12 +2151,14 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::apply_
     if((compression_type == _CSC_) or (compression_type == _DCSC_)) {
         //if(not converged) {
             if(apply_depends_on_iter) {
+                //#pragma omp parallel for schedule(static)
                 for(uint32_t i = 0; i < v_nitems; i++) {
                     Vertex_State &state = V[i];
                     C[i] = applicator(state, y_data[i], iteration);
                 }
             }
             else {
+                //#pragma omp parallel for schedule(static)
                 for(uint32_t i = 0; i < v_nitems; i++) {
                     Vertex_State &state = V[i];
                     C[i] = applicator(state, y_data[i]);
@@ -2162,6 +2176,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::apply_
                 {
                     auto &i_data = (*I)[yi];
                     auto &iv_data = (*IV)[yi];
+                    #pragma omp parallel for schedule(static)
                     for(uint32_t i = 0; i < v_nitems; i++)
                     {
                         Vertex_State &state = V[i];
@@ -2177,8 +2192,11 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::apply_
                     auto& iv_data = (*IV)[yi];
                     auto& IR = (*rowgrp_nnz_rows);
                     Integer_Type IR_nitems = IR.size();
-                    Integer_Type i = 0;
-                    for(Integer_Type i: IR) {
+                    //Integer_Type i = 0;
+                    #pragma omp parallel for schedule(static)
+                    //for(Integer_Type i: IR) {
+                    for(Integer_Type k = 0; k < IR_nitems; k++) {
+                        Integer_Type i =  IR[k];
                         Vertex_State &state = V[i];
                         j = iv_data[i];    
                         C[i] = applicator(state, y_data[j], iteration);
@@ -2209,6 +2227,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::apply_
                 {
                     auto &i_data = (*I)[yi];
                     auto &iv_data = (*IV)[yi];
+                    #pragma omp parallel for schedule(static)
                     for(uint32_t i = 0; i < v_nitems; i++)
                     {
                         Vertex_State &state = V[i];
@@ -2221,15 +2240,18 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::apply_
                 }
                 else
                 {
-                    Integer_Type j = 0;
+                    //Integer_Type j = 0;
                     auto& iv_data = (*IV)[yi];
                     auto& IR = (*rowgrp_nnz_rows);
                     Integer_Type IR_nitems = IR.size();
-                    Integer_Type i = 0;
-                    for(Integer_Type i: IR) {
+                    //Integer_Type i = 0;
+                    #pragma omp parallel for schedule(static)
+                    //for(Integer_Type i: IR) {
+                    for(Integer_Type k = 0; k < IR_nitems; k++) {
+                        Integer_Type i =  IR[k];
                         Vertex_State &state = V[i];
-                        j = iv_data[i];    
-                        C[i] = applicator(state, y_data[j]);
+                        //j = iv_data[i];    
+                        C[i] = applicator(state, y_data[iv_data[i]]);
                     }
                     
                     /*
