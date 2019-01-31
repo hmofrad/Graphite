@@ -13,9 +13,9 @@
 #include <vector>
 
 
-
+//#ifdef __linux__
 #include <numa.h>
-//#include </home/moh/numactl/libnuma/usr/local/include/numa.h>
+//#endif 
 //#include </ihome/rmelhem/moh18/numactl/libnuma/usr/local/include/numa.h>
 
 #include <sched.h>
@@ -114,12 +114,57 @@ void Env::init(bool comm_split_) {
     init_t();
 }
 
+/*
+inline int get_socket_id(int thread_id) {
+    return thread_id / threads_per_socket;
+  }
+
+inline int get_socket_offset(int thread_id) {
+    return thread_id % threads_per_socket;
+  }
+  */
+
 void Env::init_t() {
     if(is_master) {
+        //assert( numa_available() != -1 );
         printf("Initializing threads\n");
         int nthreads = numa_num_configured_cpus();
         int nsockets = numa_num_configured_nodes();
-        printf("nthreads=%d, nsockets=%d\n", nthreads, nsockets);
+        nsockets = (nsockets) ? nsockets : 1;
+        int nthreads_per_socket = nthreads / nsockets;
+        printf("nthreads=%d, nsockets=%d, nthreads_per_socket=%d\n", nthreads, nsockets, nthreads_per_socket);
+        
+        char nodestring[nsockets*2+1];
+        nodestring[0] = '0';
+        for(int i = 1; i < nsockets; i++) {
+          nodestring[i*2-1] = ',';
+          nodestring[i*2] = '0' + i;
+        }
+        struct bitmask * nodemask = numa_parse_nodestring(nodestring);
+        //numa_set_interleave_mask(nodemask);   
+
+        omp_set_dynamic(0);
+        omp_set_num_threads(nthreads);
+        
+        #pragma omp parallel
+        {
+            int tid = omp_get_thread_num();
+            int sid =  tid / nthreads_per_socket;
+            int sof =  tid % nthreads_per_socket;
+            printf("%d %d %d %d\n", tid,  sid, sof, numa_run_on_node(sid));
+        }
+        
+        
+        
+        
+        
+        //for(int i = 0; i < (nsockets*2+1); i++)
+        //    printf("%c ", nodestring[i]);
+        //printf("\n");
+
+        
+        
+        
     }
     
     /*
