@@ -133,7 +133,7 @@ void Env::init_t() {
         nsockets = (nsockets) ? nsockets : 1;
         int nthreads_per_socket = nthreads / nsockets;
         printf("nthreads=%d, nsockets=%d, nthreads_per_socket=%d\n", nthreads, nsockets, nthreads_per_socket);
-        
+        /*
         char nodestring[nsockets*2+1];
         nodestring[0] = '0';
         for(int i = 1; i < nsockets; i++) {
@@ -141,8 +141,8 @@ void Env::init_t() {
           nodestring[i*2] = '0' + i;
         }
         struct bitmask * nodemask = numa_parse_nodestring(nodestring);
-        //numa_set_interleave_mask(nodemask);   
-
+        numa_set_interleave_mask(nodemask);   
+        */
         omp_set_dynamic(0);
         omp_set_num_threads(nthreads);
         
@@ -151,7 +151,10 @@ void Env::init_t() {
             int tid = omp_get_thread_num();
             int sid =  tid / nthreads_per_socket;
             int sof =  tid % nthreads_per_socket;
-            printf("%d %d %d %d\n", tid,  sid, sof, numa_run_on_node(sid));
+            char* test = numa_alloc_onnode(2, sid);
+            test[0] = tid;
+            test[1] = 0;
+            printf("%d %d %s\n", tid,  sid, test);
         }
         
         
