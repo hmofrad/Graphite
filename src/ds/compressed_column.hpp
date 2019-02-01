@@ -275,7 +275,7 @@ void DCSC_BASE<Weight, Integer_Type>::populate(const std::vector<struct Triple<W
 template<typename Weight, typename Integer_Type>
 struct TCSC_BASE : public Compressed_column<Weight, Integer_Type> {
     public:
-        TCSC_BASE(uint64_t nnz_, Integer_Type nnzcols_, Integer_Type nnzrows_);
+        TCSC_BASE(uint64_t nnz_, Integer_Type nnzcols_, Integer_Type nnzrows_, int socket_id = 0);
         ~TCSC_BASE();
         virtual void populate(const std::vector<struct Triple<Weight, Integer_Type>>* triples,
                               const Integer_Type tile_height, 
@@ -298,30 +298,48 @@ struct TCSC_BASE : public Compressed_column<Weight, Integer_Type> {
 };
 
 template<typename Weight, typename Integer_Type>
-TCSC_BASE<Weight, Integer_Type>::TCSC_BASE(uint64_t nnz_, Integer_Type nnzcols_, Integer_Type nnzrows_) {
+TCSC_BASE<Weight, Integer_Type>::TCSC_BASE(uint64_t nnz_, Integer_Type nnzcols_, Integer_Type nnzrows_, int socket_id) {
     nnz = nnz_;
     nnzcols = nnzcols_;
     nnzrows = nnzrows_;
     if(nnz and nnzcols and nnzrows) {
+        //printf("socket_id = %d nnz=%lu\n", socket_id, nnz);
+        //send_buffer[i][s_i] = (MessageBuffer*)numa_alloc_onnode( sizeof(MessageBuffer), s_i);
+        
+        #ifdef HAS_WEIGHT
+        A = (Weight*) numa_alloc_onnode(nnz * sizeof(Weight), socket_id);
+        memset(A, 0, nnz * sizeof(Weight));
+        #endif
+        IA = (Integer_Type*) numa_alloc_onnode(nnz * sizeof(Integer_Type), socket_id);
+        memset(IA, 0, nnz * sizeof(Integer_Type));
+        JA = (Integer_Type*) numa_alloc_onnode((nnzcols + 1) * sizeof(Integer_Type), socket_id);
+        memset(JA, 0, (nnzcols + 1) * sizeof(Integer_Type));
+        
+        /*
         #ifdef HAS_WEIGHT
         if((A = (Weight*) mmap(nullptr, nnz * sizeof(Weight), PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0)) == (void*) -1) {    
             fprintf(stderr, "Error mapping memory\n");
             exit(1);
         }
         memset(A, 0, nnz * sizeof(Weight));
+        numa_tonode_memory(A, nnz * sizeof(Weight), socket_id);
         #endif
+        
         
         if((IA = (Integer_Type*) mmap(nullptr, nnz * sizeof(Integer_Type), PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0)) == (void*) -1) {    
             fprintf(stderr, "Error mapping memory\n");
             exit(1);
         }
         memset(IA, 0, nnz * sizeof(Integer_Type));
+        numa_tonode_memory(IA, nnz * sizeof(Integer_Type), socket_id);
         
         if((JA = (Integer_Type*) mmap(nullptr, (nnzcols + 1) * sizeof(Integer_Type), PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0)) == (void*) -1) {    
             fprintf(stderr, "Error mapping memory\n");
             exit(1);
         }
         memset(JA, 0, (nnzcols + 1) * sizeof(Integer_Type));
+        numa_tonode_memory(JA, (nnzcols + 1) * sizeof(Integer_Type), socket_id);
+        */
         /*
         if((JC = (Integer_Type*) mmap(nullptr, nnzcols * sizeof(Integer_Type), PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0)) == (void*) -1) {    
             fprintf(stderr, "Error mapping memory\n");
@@ -341,6 +359,14 @@ TCSC_BASE<Weight, Integer_Type>::TCSC_BASE(uint64_t nnz_, Integer_Type nnzcols_,
 template<typename Weight, typename Integer_Type>
 TCSC_BASE<Weight, Integer_Type>::~TCSC_BASE() {
     if(nnz and nnzcols and nnzrows) {
+        
+        #ifdef HAS_WEIGHT
+        numa_free(A, (nnz * sizeof(Weight)));
+        #endif
+        numa_free(IA, (nnz * sizeof(Integer_Type)));
+        numa_free(JA, ((nnzcols + 1) * sizeof(Integer_Type)));
+        
+        /*
         #ifdef HAS_WEIGHT
         if(munmap(A, nnz * sizeof(Weight)) == -1) {
             fprintf(stderr, "Error unmapping memory\n");
@@ -356,6 +382,7 @@ TCSC_BASE<Weight, Integer_Type>::~TCSC_BASE() {
             fprintf(stderr, "Error unmapping memory\n");
             exit(1);
         }
+        */
         /*
         if(munmap(JC, nnzcols * sizeof(Integer_Type)) == -1) {
             fprintf(stderr, "Error unmapping memory\n");
@@ -400,27 +427,28 @@ void TCSC_BASE<Weight, Integer_Type>::populate(const std::vector<struct Triple<W
     
 
 
-    
-    struct Triple<Weight, Integer_Type> pair;
-    Integer_Type i = 0; // Row Index
-    Integer_Type j = 1; // Col index
-    JA[0] = 0;
-    for (auto& triple : *triples) {
-        pair  = {(triple.row % tile_height), (triple.col % tile_width)};
-        while((j - 1) != nnzcols_indices[pair.col]) {
+    if(nnz and nnzcols and nnzrows) {
+        struct Triple<Weight, Integer_Type> pair;
+        Integer_Type i = 0; // Row Index
+        Integer_Type j = 1; // Col index
+        JA[0] = 0;
+        for (auto& triple : *triples) {
+            pair  = {(triple.row % tile_height), (triple.col % tile_width)};
+            while((j - 1) != nnzcols_indices[pair.col]) {
+                j++;
+                JA[j] = JA[j - 1];
+            }            
+            #ifdef HAS_WEIGHT
+            A[i] = triple.weight;
+            #endif
+            JA[j]++;
+            IA[i] = nnzrows_indices[pair.row];
+            i++;
+        }
+        while((j + 1) < (nnzcols + 1)) {
             j++;
             JA[j] = JA[j - 1];
-        }            
-        #ifdef HAS_WEIGHT
-        A[i] = triple.weight;
-        #endif
-        JA[j]++;
-        IA[i] = nnzrows_indices[pair.row];
-        i++;
-    }
-    while((j + 1) < (nnzcols + 1)) {
-        j++;
-        JA[j] = JA[j - 1];
+        }
     }
     /*
     // Column indices
