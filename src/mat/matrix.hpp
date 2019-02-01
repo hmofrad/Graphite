@@ -148,6 +148,7 @@ class Matrix {
         void del_triples_t();
         void init_tiles();
         void init_threads();
+        void closest();
         void init_compression();
         //void init_csr();
         void init_csc();
@@ -562,6 +563,58 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_tiles() {
 		tile.nedges = tile.triples->size();
     }
 }
+/*
+template<typename Weight, typename Integer_Type, typename Fractional_Type>
+void Matrix<Weight, Integer_Type, Fractional_Type>::closest() {
+
+    int jl = q - 1;
+    int jr = q + 1;
+    while((jl >= 0) and (jr < n)) {
+        if(c == s[jl]) {
+            fl = true;
+        }
+        if(c == s[jr]) {
+            fr = true;
+        }
+        if(fl or fr)
+            break;
+        jl--;
+        jr++;
+    }
+    
+    if(fl and fr) {
+        if((q - jl) <= (jr - q))
+            output[i] = jl;
+        else
+            output[i] = jr;
+    }
+    else if(fl) {
+        output[i] = jl;
+    }
+    else if(fr) {
+        output[i] = jr;
+    } else {
+        if(jl >= 0) {
+            while(jl >= 0) {
+                if(c == s[jl]) {
+                    output[i] = jl;
+                    break;
+                }
+                jl--;
+            }
+        }
+        else {
+            while(jr < n) {
+                if(c == s[jr]) {
+                    output[i] = jr;
+                    break;
+                }
+                jr++;
+            }
+        }
+    }
+}
+*/
 
 template<typename Weight, typename Integer_Type, typename Fractional_Type>
 void Matrix<Weight, Integer_Type, Fractional_Type>::init_threads() {
@@ -584,6 +637,9 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_threads() {
             uint64_t start_idx = 0;
             uint64_t end_idx = 0;
             uint64_t idx = 0;
+            bool sentinel = false;
+            
+            //printf("size=%d chunk_size=%d, %d\n", tile.triples->size(), chunk_size, tile.npartitions);
             for(int i = 0; i < tile.npartitions; i++) {
                 if(i == 0)
                     start_idx = 0;
@@ -591,24 +647,39 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_threads() {
                     start_idx = end_idx;
                 
                 if(i < (tile.npartitions - 1)) {
+                    
                     idx += chunk_size;
+                    //printf("i=%d idx=%d\n", i, idx);
+                    
                     while(true) {
+                        if(idx+1 > triples.size()) {
+                            sentinel = true;
+                            break;
+                        }
+                        //    printf("ERROR: i=%d idx=%d\n", i, idx);
                         //assert(idx+1 < triples.size());
                         if(triples[idx].row == triples[idx+1].row)
                             idx++;
                         else
                             break;
-                    }            
-                    end_idx = idx + 1;
+                    }
+                    
+                    if(not sentinel)
+                        end_idx = idx + 1;
+                    else
+                        end_idx = triples.size();
                 }
                 else
                     end_idx = triples.size();
                 
                 start[i] = start_idx;
                 end[i] = end_idx;
+                //avg_nnz += (end[i] - start[i]);
+                //printf("%d %d %d\n", i, start[i], end[i]);
             }
-
-            #pragma omp parallel 
+            std::vector<uint64_t> nnz_local(tile.npartitions);
+            //uint64_t nnz_global = 0;
+            #pragma omp parallel //private(nnz_local) reduction(+:nnz_global)
             {
                 int tid = omp_get_thread_num();
                 tile.triples_t[tid] = new std::vector<struct Triple<Weight, Integer_Type>>;
@@ -617,8 +688,19 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_threads() {
                     tile.triples_t[tid]->push_back(triple); 
                 }
                 std::sort(tile.triples_t[tid]->begin(), tile.triples_t[tid]->end(), f_col);
+                nnz_local[tid] = tile.triples_t[tid]->size();
+                //nnz_global += nnz_local;
                 //printf("%d %lu\n", tid, tile.triples_t[tid]->size());
             }
+            
+            
+            
+            double sum = std::accumulate(nnz_local.begin(), nnz_local.end(), 0.0);
+            double mean = sum / tile.npartitions;
+            double sq_sum = std::inner_product(nnz_local.begin(), nnz_local.end(), nnz_local.begin(), 0.0);
+            double std_dev = std::sqrt(sq_sum / tile.npartitions - mean * mean);
+            if(!Env::rank)
+                printf("Edge distribution: Rank %d tile %d - Threads edges (sum: avg +/- std_dev)= %f: %f +/- %f\n", Env::rank, t, sum, mean, std_dev);
         }
     }
     del_triples();
@@ -1301,8 +1383,20 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_tcsc()
             #pragma omp parallel 
             {
                 int tid = omp_get_thread_num();
-                tile.compressor_t[tid] = new TCSC_BASE<Weight, Integer_Type>(tile.triples_t[tid]->size(), c_nitems, r_nitems);
+                int cid = sched_getcpu();
+                int sid =  cid / Env::nthreads_per_socket;
+                /*
+                if(sid)
+                    sid = 0;
+                else
+                    sid = 1;
+                */
+                //printf("%d nnz=%d\n", tid, tile.triples_t[tid]->size());
+                tile.compressor_t[tid] = new TCSC_BASE<Weight, Integer_Type>(tile.triples_t[tid]->size(), c_nitems, r_nitems, sid);
                 tile.compressor_t[tid]->populate(tile.triples_t[tid], tile_height, tile_width, i_data, iv_data, j_data, jv_data);
+                //numa_tonode_memory(array + sizeof(T) * local_partition_offset[s_i], sizeof(T) * (local_partition_offset[s_i+1] - local_partition_offset[s_i]), s_i);
+                //numa_tonode_memory
+                
                 
                 Integer_Type* IA   = static_cast<TCSC_BASE<Weight, Integer_Type>*>(tile.compressor_t[tid])->IA;
                 Integer_Type* JA   = static_cast<TCSC_BASE<Weight, Integer_Type>*>(tile.compressor_t[tid])->JA;    
