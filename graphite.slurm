@@ -6,6 +6,7 @@
 #SBATCH --nodes=4
 #SBATCH --ntasks-per-node=16
 #SBATCH --cpus-per-task=1
+##SBATCH --ntasks-per-socket=1
 ##SBATCH --mem=50000
 ##SBATCH --sockets-per-node=2
 ##SBATCH --ntasks-per-socket=8
