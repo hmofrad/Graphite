@@ -1482,38 +1482,41 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::spmv_s
     #pragma omp parallel
     {
         int tid = omp_get_thread_num();
-        #ifdef HAS_WEIGHT
-        Integer_Type* A = static_cast<TCSC_BASE<Weight, Integer_Type>*>(tile.compressor_t[tid])->A;
-        #endif
+        //uint64_t nnz = static_cast<TCSC_BASE<Weight, Integer_Type>*>(tile.compressor_t[tid])->nnz;
+        //if(nnz) {
+            #ifdef HAS_WEIGHT
+            Integer_Type* A = static_cast<TCSC_BASE<Weight, Integer_Type>*>(tile.compressor_t[tid])->A;
+            #endif
 
-        Integer_Type* IA   = static_cast<TCSC_BASE<Weight, Integer_Type>*>(tile.compressor_t[tid])->IA;
-        Integer_Type* JA   = static_cast<TCSC_BASE<Weight, Integer_Type>*>(tile.compressor_t[tid])->JA;    
-        Integer_Type ncols = static_cast<TCSC_BASE<Weight, Integer_Type>*>(tile.compressor_t[tid])->nnzcols;  
-        //printf("%d %p\n", tid, IA);
-        
+            Integer_Type* IA   = static_cast<TCSC_BASE<Weight, Integer_Type>*>(tile.compressor_t[tid])->IA;
+            Integer_Type* JA   = static_cast<TCSC_BASE<Weight, Integer_Type>*>(tile.compressor_t[tid])->JA;    
+            Integer_Type ncols = static_cast<TCSC_BASE<Weight, Integer_Type>*>(tile.compressor_t[tid])->nnzcols;  
+            //printf("%d %p\n", tid, IA);
             
-        if(ordering_type == _ROW_) {
-            for(uint32_t j = 0; j < ncols; j++) {
-                for(uint32_t i = JA[j]; i < JA[j + 1]; i++) {
-                    #ifdef HAS_WEIGHT
-                    combiner(y_data[IA[i]], x_data[j], A[i]);
-                    #else
-                    combiner(y_data[IA[i]], x_data[j]);
-                    #endif
+                
+            if(ordering_type == _ROW_) {
+                for(uint32_t j = 0; j < ncols; j++) {
+                    for(uint32_t i = JA[j]; i < JA[j + 1]; i++) {
+                        #ifdef HAS_WEIGHT
+                        combiner(y_data[IA[i]], x_data[j], A[i]);
+                        #else
+                        combiner(y_data[IA[i]], x_data[j]);
+                        #endif
+                    }
                 }
             }
-        }
-        else {
-            for(uint32_t j = 0; j < ncols; j++) {
-                for(uint32_t i = JA[j]; i < JA[j + 1]; i++) {
-                    #ifdef HAS_WEIGHT
-                    combiner(y_data[j], x_data[IA[i]], A[i]);   
-                    #else
-                    combiner(y_data[j], x_data[IA[i]]);
-                    #endif
-                }
-            } 
-        }
+            else {
+                for(uint32_t j = 0; j < ncols; j++) {
+                    for(uint32_t i = JA[j]; i < JA[j + 1]; i++) {
+                        #ifdef HAS_WEIGHT
+                        combiner(y_data[j], x_data[IA[i]], A[i]);   
+                        #else
+                        combiner(y_data[j], x_data[IA[i]]);
+                        #endif
+                    }
+                } 
+            }
+        //}
     }
     //std::exit(0);
     
