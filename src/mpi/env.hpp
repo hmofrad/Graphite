@@ -76,7 +76,7 @@ int  Env::rank_rg = -1;
 int  Env::nranks_rg = -1;
 
 MPI_Group Env::colgrps_group_;
-MPI_Group Env::colgrps_group;
+MPI_Group Env::colgrps_group;   
 MPI_Comm Env::colgrps_comm;
 int  Env::rank_cg = -1;
 int  Env::nranks_cg = -1;
@@ -151,10 +151,10 @@ void Env::init_t() {
             int tid = omp_get_thread_num();
             int sid =  tid / nthreads_per_socket;
             int sof =  tid % nthreads_per_socket;
-            char* test = numa_alloc_onnode(2, sid);
+            int* test = (int*) numa_alloc_onnode(2, sid);
             test[0] = tid;
-            test[1] = 0;
-            printf("%d %d %s\n", tid,  sid, test);
+            
+            printf("%d %d %d\n", tid,  sid, test[0]);
         }
         
         
