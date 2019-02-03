@@ -1459,6 +1459,7 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_tcsc()
     del_triples_t();
     del_classifier();
     //printf("[x] init_tcsc()\n");
+    //Env::barrier();
     //std::exit(0);
 }
 
