@@ -1,7 +1,7 @@
 #!/bin/bash
-#SBATCH --job-name=graphit
-#SBATCH --output=graphit.out
-#SBATCH --error=graphit.err
+#SBATCH --job-name=graphite
+#SBATCH --output=graphite.out
+#SBATCH --error=graphite.err
 #SBATCH --ntasks=64
 #SBATCH --nodes=4
 #SBATCH --ntasks-per-node=16
