@@ -343,7 +343,7 @@ void Graph<Weight, Integer_Type, Fractional_Type>::parread_binary() {
         uint64_t start = offset + (share_t * tid);
         uint64_t end = offset + start + share_t;
         end = (end > endpos)   ? endpos : end;
-        end = (tid == tid - 1) ? endpos : end;
+        end = (tid == nthreads - 1) ? endpos : end;
         
         
         /*
@@ -411,15 +411,11 @@ void Graph<Weight, Integer_Type, Fractional_Type>::parread_binary() {
         fin.close();
         assert(start == end);
         nedges_local_r += nedges_local;
-        
+        //printf("%d %d %d %d %d\n", Env::rank, tid, start, end, nedges_local);
         
         
 
-    }
-    
-    
-    
-        
+    }        
     
     /*
     uint64_t nedges_local = 0;
@@ -466,7 +462,9 @@ void Graph<Weight, Integer_Type, Fractional_Type>::parread_binary() {
     */
     //assert(offset == endpos);
     
+    
     MPI_Allreduce(&nedges_local_r, &nedges_global_r, 1, MPI_UNSIGNED_LONG, MPI_SUM, Env::MPI_WORLD);
+   // printf("%d %d\n", nedges, nedges_global_r);
     assert(nedges == nedges_global_r);
     
     
@@ -479,7 +477,7 @@ void Graph<Weight, Integer_Type, Fractional_Type>::parread_binary() {
     
     
     
-    MPI_Barrier(MPI_COMM_WORLD);
+    Env::barrier();
     if(Env::is_master)
         printf("\n%s: Read %lu edges\n", filepath.c_str(), nedges);
     //Env::barrier();
