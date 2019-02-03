@@ -1482,8 +1482,8 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::spmv_s
     #pragma omp parallel
     {
         int tid = omp_get_thread_num();
-        //uint64_t nnz = static_cast<TCSC_BASE<Weight, Integer_Type>*>(tile.compressor_t[tid])->nnz;
-        //if(nnz) {
+        uint64_t nnz = static_cast<TCSC_BASE<Weight, Integer_Type>*>(tile.compressor_t[tid])->nnz;
+        if(nnz) {
             #ifdef HAS_WEIGHT
             Integer_Type* A = static_cast<TCSC_BASE<Weight, Integer_Type>*>(tile.compressor_t[tid])->A;
             #endif
@@ -1516,7 +1516,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::spmv_s
                     }
                 } 
             }
-        //}
+        }
     }
     //std::exit(0);
     
