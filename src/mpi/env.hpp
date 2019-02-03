@@ -146,8 +146,10 @@ void Env::init_t() {
         
         //assert( numa_available() != -1 );
         //printf("Initializing threads\n");
-            nthreads = numa_num_configured_cpus();
+            nthreads = omp_get_max_threads();
+            //nthreads = numa_num_configured_cpus();
             nsockets = numa_num_configured_nodes();
+            
             //nsockets = (nsockets) ? nsockets : 1;
             nthreads_per_socket = nthreads / nsockets;
             
