@@ -341,7 +341,7 @@ void Graph<Weight, Integer_Type, Fractional_Type>::parread_binary() {
         uint64_t share_t = (triples_range / nthreads) / sizeof(Triple<Weight, Integer_Type>) * sizeof(Triple<Weight, Integer_Type>);
         assert(share_t % sizeof(Triple<Weight, Integer_Type>) == 0);
         uint64_t start = offset + (share_t * tid);
-        uint64_t end = offset + start + share_t;
+        uint64_t end = start + share_t;
         end = (end > endpos)   ? endpos : end;
         end = (tid == nthreads - 1) ? endpos : end;
         
@@ -360,7 +360,7 @@ void Graph<Weight, Integer_Type, Fractional_Type>::parread_binary() {
         fin.seekg(start, std::ios_base::beg);
         uint64_t position = fin.tellg();
         
-        //if(!Env::rank)
+        //if(Env::rank)
         //    printf("rank=%d tid=%d start=%lu end=%lu nt=%d pos=%lu\n", Env::rank, tid, start, end, (end - start)/sizeof(Triple<Weight, Integer_Type>) ,position);
         
         
@@ -464,16 +464,20 @@ void Graph<Weight, Integer_Type, Fractional_Type>::parread_binary() {
     
     
     MPI_Allreduce(&nedges_local_r, &nedges_global_r, 1, MPI_UNSIGNED_LONG, MPI_SUM, Env::MPI_WORLD);
-   // printf("%d %d\n", nedges, nedges_global_r);
     assert(nedges == nedges_global_r);
+   //printf("%d %d %d\n", nedges, nedges_local_r, nedges_global_r);
     
     
     
+    int s = 0;
     for(int i = 0; i < omp_get_max_threads(); i++) {
         auto& triples = triples_for_threads[i]; 
         for(auto& triple: triples)
             A->insert(triple);
+        //s += nedges_local_t[i];
     }
+    //printf("sum=%d\n", s);
+    //Env::barrier();
     
     
     
