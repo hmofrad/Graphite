@@ -11,19 +11,19 @@
 #include <cassert>
 #include <iostream>
 #include <vector>
-
-
-//#ifdef __linux__
-//#include <numa.h>
-//#endif 
-#include </ihome/rmelhem/moh18/numactl/libnuma/usr/local/include/numa.h>
-
 #include <sched.h>
 #include <unordered_set>
 #include <set>
 #include <cstring>
 #include <numeric>
 #include <algorithm>
+
+
+//#ifdef __linux__
+#include <numa.h>
+//#endif 
+//#include </ihome/rmelhem/moh18/numactl/libnuma/usr/local/include/numa.h>
+//#ifdef NUMA_AVAILABLE 
 
 class Env {
     public:
@@ -142,30 +142,45 @@ void Env::init_t() {
         MPI_Get_processor_name(core_name, &cpu_name_len);
         core_id = sched_getcpu();
         
-        assert( numa_available() != -1 );
-        printf("Initializing threads\n");
-        nthreads = numa_num_configured_cpus();
-        nsockets = numa_num_configured_nodes();
-        nsockets = (nsockets) ? nsockets : 1;
-        nthreads_per_socket = nthreads / nsockets;
-        printf("nthreads=%d, nsockets=%d, nthreads_per_socket=%d\n", nthreads, nsockets, nthreads_per_socket);
+        if(numa_available() != -1) {
         
-        int nodestring_size = nsockets*2+1;
-        char nodestring[nodestring_size];
-        memset(nodestring, 0, nodestring_size);
-        nodestring[0] = '0';
-        for(int i = 1; i < nsockets; i++) {
-          nodestring[i*2-1] = ',';
-          nodestring[i*2] = '0' + i;
+        //assert( numa_available() != -1 );
+        //printf("Initializing threads\n");
+            nthreads = numa_num_configured_cpus();
+            nsockets = numa_num_configured_nodes();
+            //nsockets = (nsockets) ? nsockets : 1;
+            nthreads_per_socket = nthreads / nsockets;
+            
+            
+            int nodestring_size = nsockets*2+1;
+            char nodestring[nodestring_size];
+            memset(nodestring, 0, nodestring_size);
+            nodestring[0] = '0';
+            for(int i = 1; i < nsockets; i++) {
+              nodestring[i*2-1] = ',';
+              nodestring[i*2] = '0' + i;
+            }
+            
+            //printf("nodestring=%s %d\n", nodestring, nsockets*2+1);
+            struct bitmask * nodemask = numa_parse_nodestring(nodestring);
+            numa_set_interleave_mask(nodemask);   
+            
+            omp_set_dynamic(0);
+            //omp_set_num_threads(nthreads);
+            if(is_master)
+                printf("NUMA-aware OpenMP is enabled with %d threads, %d sockets, and %d threads per socket\n", nthreads, nsockets, nthreads_per_socket);
+        }
+        else {
+            nthreads = omp_get_max_threads();
+            nsockets = 1;
+            nthreads_per_socket = nthreads / nsockets;
+            if(is_master)
+                printf("NUMA-aware OpenMP is disabled with %d threads, %d sockets, and %d threads per socket\n", nthreads, nsockets, nthreads_per_socket);
         }
         
-        //printf("nodestring=%s %d\n", nodestring, nsockets*2+1);
-        struct bitmask * nodemask = numa_parse_nodestring(nodestring);
-        numa_set_interleave_mask(nodemask);   
         
-        omp_set_dynamic(0);
-        //omp_set_num_threads(nthreads);
         
+        /*
         #pragma omp parallel
         {
             int tid = omp_get_thread_num();
@@ -178,6 +193,7 @@ void Env::init_t() {
                 printf("rid=%d core_name=%s, core_id=%d, %d tid=%d sid=%d sof=%d\n", Env::rank, core_name, core_id, sched_getcpu(), tid,  sid, sof);
             }
         }
+        */
         //printf("\n\n");
         
         
