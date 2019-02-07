@@ -570,17 +570,85 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::closest(std::vector<struct T
                    int32_t npartitions, uint64_t chunk_size, std::vector<uint64_t>& start, std::vector<uint64_t>& end) {
                        
     printf("size=%lu chunk_size=%lu, npartitions=%d\n", triples.size(), chunk_size, npartitions);
-    
-    int idx = 0;
-    for(int i = 0; i < npartitions - 1; i++) {
-        idx = (i + 1) * chunk_size;
-        printf("%d %d\n", i, idx);
+    uint64_t m = triples.size();
+    uint32_t k = 0;
+    //start[0] = 0;
+    //end[npartitions - 1] = m;
+    for(int i = 0; i < npartitions; i++) {
+        if(i == 0)
+            start[i] = 0;
+        else
+            start[i] = end[i-1];
+        
+        bool fl = false;
+        bool fr = false;
+        bool f = false;
+        k = (i + 1) * chunk_size;
+        uint32_t jl = k - 1;
+        uint32_t jr = k + 1;
+        uint32_t r = triples[k].row;
+        //if(triples[idx].row == triples[idx+1].row) {
+        while((jl >= start[i]) and (jr < m)) {
+            if(r != triples[jl].row) {
+                fl = true;
+            }
+            if(r != triples[jr].row) {
+                fr = true;
+            }
+            if(fl or fr)
+                break;
+            jl--;
+            jr++;
+        }
+        
+        if(fl and fr) {
+            if((k - jl) <= (k - jr))
+                end[i] = jl;
+            else
+                end[i] = jr;
+        }
+        else if(fl) {
+            end[i] = jl;
+        }
+        else if(fr) {
+            end[i] = jr;
+        } else {
+            if(jl >= start[i]) {
+                while(jl >= start[i]) {
+                    if(r != triples[jl].row) {
+                        end[i] = jl;
+                        f = true;
+                        break;
+                    }
+                    jl--;
+                }
+            }
+            else {
+                while(jr < m) {
+                    if(r != triples[jr].row) {
+                        end[i] = jr;
+                        f = true;
+                        break;
+                    }
+                    jr++;
+                }
+            }
+        }
+        
+        if(not(fl or fr)) {
+            if(not f)
+                end[i] = start[i];
+        }
+        
+        if(i == npartitions - 1)
+            end[i] = m;
+        printf("%d [%lu %lu]: %lu [%lu %lu] %d %d\n", i, start[i], end[i], end[i] - start[i], i* chunk_size, (i + 1) * chunk_size, jl, jr);
     }
     
     
     
-    Env::barrier();
-    std::exit(0);
+    //Env::barrier();
+    //std::exit(0);
 /*
     int jl = q - 1;
     int jr = q + 1;
@@ -761,7 +829,7 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::distribute()
              
     for (uint32_t i = 0; i < nrowgrps; i++) {
         for (uint32_t j = 0; j < ncolgrps; j++) {
-            auto &tile = tiles[i][j];
+            auto& tile = tiles[i][j];
             if(tile.triples->size() > 0)
                 nedges_start_local += tile.triples->size();
         }
@@ -776,9 +844,9 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::distribute()
     std::vector<uint32_t> inbox_sizes(Env::nranks);
     for (uint32_t i = 0; i < nrowgrps; i++) {
         for (uint32_t j = 0; j < ncolgrps; j++)   {
-            auto &tile = tiles[i][j];
+            auto& tile = tiles[i][j];
             if(tile.rank != Env::rank) {
-                auto &outbox = outboxes[tile.rank];
+                auto& outbox = outboxes[tile.rank];
                 outbox.insert(outbox.end(), tile.triples->begin(), tile.triples->end());
                 tile.free_triples();
             }
@@ -789,7 +857,7 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::distribute()
     //for (int32_t i = 0; i < Env::nranks; i++) {
         //int32_t r = (Env::rank + i) % Env::nranks;
         if (r != Env::rank) {
-            auto &outbox = outboxes[r];
+            auto& outbox = outboxes[r];
             uint32_t outbox_size = outbox.size();
             MPI_Sendrecv(&outbox_size, 1, MPI_UNSIGNED, r, Env::rank, &inbox_sizes[r], 1, MPI_UNSIGNED,
                                                         r, r, Env::MPI_WORLD, MPI_STATUS_IGNORE);
@@ -854,7 +922,7 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::distribute()
     
     for (int32_t r = 0; r < Env::nranks; r++) {
         if (r != Env::rank) {
-            auto &inbox = inboxes[r];
+            auto& inbox = inboxes[r];
             for (uint32_t i = 0; i < inbox_sizes[r]; i++) {
                 test(inbox[i]);
                 insert(inbox[i]);
