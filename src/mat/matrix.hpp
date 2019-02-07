@@ -1049,6 +1049,7 @@ template<typename Weight, typename Integer_Type, typename Fractional_Type>
 void Matrix<Weight, Integer_Type, Fractional_Type>::init_filtering() {
     printf("[-]init_filtering()\n");
     filter_rows();
+    filter_cols();
     printf("[x]init_filtering()\n");
     Env::barrier();
     Env::exit(0);
@@ -1296,7 +1297,35 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::filter_rows() {
 
 template<typename Weight, typename Integer_Type, typename Fractional_Type>
 void Matrix<Weight, Integer_Type, Fractional_Type>::filter_cols() {
+    std::vector<char> F(tile_width);
+    std::vector<std::vector<char>> F_all;
+    if(!Env::rank) {
+        F_all.resize(tiling->rowgrp_nranks, std::vector<char>(tile_height));
+        //for(uint32_t i = 0; i < tiling->rowgrp_nranks; i++) {
+        //    F_all[i].resize(tile_length, 0);
+        //}
+    }
+   
+    auto &tile = tiles[0][Env::rank];
+    for (auto& triple : *(tile.triples)) {
+        auto pair = rebase(triple);
+        if(!F[pair.col]) {
+            F[pair.col] = 1;
+        }
+    }
     
+    JJ.resize(tile_width , 0);
+    JJ = F;
+    F.clear();
+    F.shrink_to_fit();
+    JJV.resize(tile_width, 0);
+    Integer_Type j = 0;
+    for(Integer_Type i = 0; i < tile_width; i++) {
+        if(JJ[i]) {
+            JJV[i] = j; 
+            j++;
+        }
+    }    
 }
 
 template<typename Weight, typename Integer_Type, typename Fractional_Type>
