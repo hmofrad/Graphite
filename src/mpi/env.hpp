@@ -113,7 +113,7 @@ void Env::init(bool comm_split_) {
     {
         if(is_master)
         {
-            printf("Filure to set MPI_THREAD_MULTIPLE by MPI\n"); 
+            printf("Failure to set MPI_THREAD_MULTIPLE by MPI\n"); 
             printf("Multi-threading is disabled with MPI_THREAD_MULTIPLE (%d/%d)\n", omp_get_num_threads(), omp_get_max_threads());
         }
     }
@@ -146,13 +146,13 @@ void Env::init_t() {
         
         //assert( numa_available() != -1 );
         //printf("Initializing threads\n");
-            nthreads = omp_get_max_threads();
-            //nthreads = numa_num_configured_cpus();
+            
+            nthreads = numa_num_configured_cpus();
             nsockets = numa_num_configured_nodes();
-            
-            //nsockets = (nsockets) ? nsockets : 1;
+            nsockets = (nsockets) ? nsockets : 1;
             nthreads_per_socket = nthreads / nsockets;
-            
+            nthreads_per_socket = (nthreads_per_socket) ? nthreads_per_socket : 1;
+            nthreads = omp_get_max_threads();
             
             int nodestring_size = nsockets*2+1;
             char nodestring[nodestring_size];
@@ -180,24 +180,21 @@ void Env::init_t() {
                 printf("NUMA-aware OpenMP is disabled with %d threads, %d sockets, and %d threads per socket\n", nthreads, nsockets, nthreads_per_socket);
         }
         
-        
-        
         /*
-        #pragma omp parallel
-        {
-            int tid = omp_get_thread_num();
-            int cid = sched_getcpu();
-            int sid =  cid / nthreads_per_socket;
-            int sof =  cid % nthreads_per_socket;
-            //int* test = (int*) numa_alloc_onnode(2, sid);
-            //test[0] = tid;
-            if(Env::rank == 0 or Env::rank == 1) {
-                printf("rid=%d core_name=%s, core_id=%d, %d tid=%d sid=%d sof=%d\n", Env::rank, core_name, core_id, sched_getcpu(), tid,  sid, sof);
+        if(is_master) {
+            #pragma omp parallel
+            {
+                int tid = omp_get_thread_num();
+                int cid = sched_getcpu();
+                int sid =  cid / nthreads_per_socket;
+                int sof =  cid % nthreads_per_socket;
+                //int* test = (int*) numa_alloc_onnode(2, sid);
+                //test[0] = tid;
+                printf("rid=%d, tid=%d, core_id=%d, sid=%d sof=%d\n", Env::rank, tid, cid, sid, sof);
+                
             }
         }
         */
-        //printf("\n\n");
-        
         
         
         
