@@ -88,10 +88,17 @@ class Matrix {
         std::vector<Integer_Type> IIV;  // Nonzero rows indices    (from tile width)
         std::vector<char> JJ;           // Nonzero cols bitvectors (from tile height)
         std::vector<Integer_Type> JJV;  // Nonzero cols indices    (from tile height)
+        std::vector<Integer_Type> rows_sizes;
+        Integer_Type rows_size;
         std::vector<Integer_Type> nnz_rows_sizes;
         Integer_Type nnz_rows_size;
         std::vector<Integer_Type> nnz_cols_sizes;
         Integer_Type nnz_cols_size;
+        std::vector<Integer_Type> start_dense;
+        std::vector<Integer_Type> end_dense;
+        std::vector<Integer_Type> start_sparse;
+        std::vector<Integer_Type> end_sparse;        
+        
         std::vector<std::vector<char>> I;           // Nonzero rows bitvectors (from tile width)
         std::vector<std::vector<Integer_Type>> IV;  // Nonzero rows indices    (from tile width)
         std::vector<std::vector<char>> J;           // Nonzero cols bitvectors (from tile height)
@@ -1190,61 +1197,113 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::filter_rows() {
     out_requests.clear();
     MPI_Waitall(in_requests.size(), in_requests.data(), MPI_STATUSES_IGNORE);
     in_requests.clear();
+
+    rows_sizes.resize(Env::nranks);
+    rows_sizes[Env::rank] = tile_width;
+    for (int32_t j = 0; j < Env::nranks; j++) {
+        if (j != Env::rank)
+            MPI_Sendrecv(&rows_sizes[Env::rank], 1, TYPE_INT, j, 0, &rows_sizes[j], 1, TYPE_INT, 
+                                                                         j, 0, Env::MPI_WORLD, MPI_STATUS_IGNORE);
+    }
+    Env::barrier();
     
+    
+    
+    start_dense.resize(Env::nranks);
+    end_dense.resize(Env::nranks);
+    for(int32_t i = 0; i < Env::nranks; i++) {
+        if(i == 0)
+            start_dense[i] = 0;
+        else 
+            start_dense[i] = std::accumulate(rows_sizes.begin(), rows_sizes.end() - Env::nranks + i, 0);
+        
+        end_dense[i] = std::accumulate(rows_sizes.begin(), rows_sizes.end() - Env::nranks + i + 1, 0);
+    }
     
     /*
-    nnz_rows_size = 0;
-    Integer_Type f_nitems = F.size();
-    for(uint32_t i = 0; i < f_nitems; i++) {
-        if(F[i])
-            nnz_rows_size++;
+    Integer_Type start = 0;
+    Integer_Type end = 0;
+    if(!Env::rank) {
+        start = 0;
     }
-    printf("%d %d %d %d\n", Env::rank, nnz_rows_size, f_nitems, tile_width);
-    nnz_rows_sizes.resize(Env::nranks);
-    nnz_rows_sizes[Env::rank] = tile_width;
+    else {
+        start = std::accumulate(rows_sizes.begin(), rows_sizes.end() - Env::nranks + Env::rank, 0);
+    }
+    end = std::accumulate(rows_sizes.begin(), rows_sizes.end() - Env::nranks + Env::rank + 1, 0);
+    
+    printf("%d start=%d end=%d\n", Env::rank, start, end);
+    */
+    
+    nnz_rows_sizes.resize(Env::nranks, 0);
+    II.resize(tile_height , 0);
+    II = F;
+    F.clear();
+    F.shrink_to_fit();
+    IIV.resize(tile_height, 0);
+    Integer_Type k = 0;
+    for(Integer_Type i = 0; i < tile_height; i++) {
+        if(II[i]) {
+            IIV[i] = k; 
+            k++;
+            //rowgrp_nnz_rows.push_back(i);
+        }
+        if((i >= start_dense[Env::rank]) and (i < end_dense[Env::rank]) and II[i]) {
+            nnz_rows_sizes[Env::rank]++;
+        }
+        
+    }
+    rowgrp_nnz_rows.resize(nnz_rows_sizes[Env::rank]);
+    k = 0;
+    for(Integer_Type i = 0; i < tile_height; i++) {
+        if((i >= start_dense[Env::rank]) and (i < end_dense[Env::rank]) and II[i]) {
+            rowgrp_nnz_rows[k] = i;
+            k++;
+        }
+    }
+    
+    //nnz_rows_sizes[Env::rank] = k;
     for (int32_t j = 0; j < Env::nranks; j++) {
         if (j != Env::rank)
             MPI_Sendrecv(&nnz_rows_sizes[Env::rank], 1, TYPE_INT, j, 0, &nnz_rows_sizes[j], 1, TYPE_INT, 
                                                                          j, 0, Env::MPI_WORLD, MPI_STATUS_IGNORE);
     }
+    Env::barrier();
     
+    /*
     if(!Env::rank) {
         for(int32_t j = 0; j < Env::nranks; j++) {
             printf("%d ", nnz_rows_sizes[j]);
         }
         printf("\n");
     }
+    
     */
     
-    II.resize(tile_height , 0);
-    II = F;
-    F.clear();
-    F.shrink_to_fit();
-    IIV.resize(tile_height, 0);
-    Integer_Type j = 0;
-    for(Integer_Type i = 0; i < tile_height; i++) {
-        if(II[i]) {
-            IIV[i] = j; 
-            j++;
-        }
-    }
 
-    nnz_rows_sizes.resize(Env::nranks);
-    nnz_rows_sizes[Env::rank] = tile_width;
-    for (int32_t j = 0; j < Env::nranks; j++) {
-        if (j != Env::rank)
-            MPI_Sendrecv(&nnz_rows_sizes[Env::rank], 1, TYPE_INT, j, 0, &nnz_rows_sizes[j], 1, TYPE_INT, 
-                                                                         j, 0, Env::MPI_WORLD, MPI_STATUS_IGNORE);
-    }
     
+    /*
     if(!Env::rank) {
         for(int32_t j = 0; j < Env::nranks; j++) {
-            printf("%d ", nnz_rows_sizes[j]);
+            printf("%d ", rows_sizes[j]);
         }
-        printf(" %d %d\n", std::accumulate(nnz_rows_sizes.begin(), nnz_rows_sizes.end(), 0), tile_height);
+        printf(" %d %d\n", std::accumulate(rows_sizes.begin(), rows_sizes.end(), 0), tile_height);
     }    
-    assert(std::accumulate(nnz_rows_sizes.begin(), nnz_rows_sizes.end(), 0) == tile_height);
+    */
+    //Integer_Type rows_all_sum = std::accumulate(rows_sizes.begin(), rows_sizes.end(), 0);
+    //assert(rows_all_sum == tile_height);
+    //printf("%d rows_sizes=%d nnz_rows_sizes=%d\n", Env::rank, rows_sizes[Env::rank], nnz_rows_sizes[Env::rank]);
     
+    
+    /*
+    rowgrp_nnz_rows.resize(nnz_row_sizes_loc[io]);
+    Integer_Type k = 0;
+    for(Integer_Type i = 0; i < tile_height; i++) {
+        if(i_data[i]) {
+            rowgrp_nnz_rows[k] = i;
+            k++;
+        }
+    } 
+    */
     
     /*
     I.resize(tiling->rank_nrowgrps);
@@ -1326,6 +1385,22 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::filter_cols() {
             j++;
         }
     }    
+    
+    /*
+    uint32_t jo = accu_segment_col;
+    auto& j_data = J[jo];
+    colgrp_nnz_columns.resize(nnz_col_sizes_loc[jo]);
+    k = 0;
+    for(Integer_Type j = 0; j < tile_width; j++) {
+        if(j_data[j]) {
+            colgrp_nnz_columns[k] = j;
+            k++;
+        }
+    }
+    */
+    
+    
+    
 }
 
 template<typename Weight, typename Integer_Type, typename Fractional_Type>
