@@ -11,8 +11,9 @@
 #include <cmath>
  
 enum Tiling_type {
-  _2D_,
-  _2DT_
+    _1D_COL_,
+    _2D_,
+    _2DT_
 };
 
 class Tiling {    
@@ -41,9 +42,10 @@ Tiling::Tiling(uint32_t nranks_, uint32_t ntiles_, uint32_t nrowgrps_, uint32_t 
     ntiles = ntiles_;
     nrowgrps = nrowgrps_;
     ncolgrps = ncolgrps_;
-    rank_ntiles = ntiles_ / Env::nranks;
+    rank_ntiles = ntiles / nranks;
     tiling_type = tiling_type_;
     assert(rank_ntiles * nranks == ntiles);
+    
     if (tiling_type == Tiling_type::_2D_) {
         integer_factorize(nranks, rowgrp_nranks, colgrp_nranks);
         assert(rowgrp_nranks * colgrp_nranks == nranks);
@@ -57,6 +59,14 @@ Tiling::Tiling(uint32_t nranks_, uint32_t ntiles_, uint32_t nrowgrps_, uint32_t 
         rank_nrowgrps = nrowgrps / colgrp_nranks;
         rank_ncolgrps = ncolgrps / rowgrp_nranks;        
         assert(rank_nrowgrps * rank_ncolgrps == rank_ntiles);
+    }
+    else if (tiling_type == Tiling_type::_1D_COL_) {
+        colgrp_nranks = 1;
+        rowgrp_nranks = nranks;
+        rank_nrowgrps = nranks;
+        rank_ncolgrps = 1;
+        //printf("nranks=%d ntiles=%d nrowgrps=%d ncolgrps=%d\n", nranks, ntiles, nrowgrps, ncolgrps);
+        //printf("rank_ntiles=%d rank_nrowgrps=%d rank_ncolgrps=%d\n", rank_ntiles, rank_nrowgrps, rank_ncolgrps);
     }
 };
 
