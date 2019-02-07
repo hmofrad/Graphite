@@ -195,10 +195,20 @@ Matrix<Weight, Integer_Type, Fractional_Type>::Matrix(Integer_Type nrows_,
     nrows = nrows_;
     ncols = ncols_;
     ntiles = ntiles_;
-    nrowgrps = sqrt(ntiles_);
-    ncolgrps = ntiles_ / nrowgrps;
-    tile_height = (nrows_ / nrowgrps) + 1;
-    tile_width  = (ncols_ / ncolgrps) + 1;
+    if((tiling_type_ == _2D_) or (tiling_type_ == _2DT_)){
+        nrowgrps = sqrt(ntiles_);
+        ncolgrps = ntiles_ / nrowgrps;
+        tile_height = (nrows_ / nrowgrps) + 1;
+        tile_width  = (ncols_ / ncolgrps) + 1;
+    }
+    else {
+        nrowgrps = 1;
+        ncolgrps = ntiles_;
+        tile_height = nrows_;
+        tile_width  = ncols_ / ncolgrps;
+    }
+    
+    
     directed = directed_;
     transpose = transpose_;
     parallel_edges = parallel_edges_;
@@ -255,10 +265,10 @@ struct Triple<Weight, Integer_Type> Matrix<Weight, Integer_Type, Fractional_Type
 template<typename Weight, typename Integer_Type, typename Fractional_Type>
 void Matrix<Weight, Integer_Type, Fractional_Type>::test(const struct Triple<Weight, Integer_Type>& triple) {        
     struct Triple<Weight, Integer_Type> pair = tile_of_triple(triple);
-    uint32_t t = (pair.row * tiling->ncolgrps) + pair.col;
-    if(not (std::find(local_tiles.begin(), local_tiles.end(), t) != local_tiles.end())) {
-        printf("Invalid[r=%d,t=%d]: Tile[%d][%d] [%d %d]\n", Env::rank, t, pair.row, pair.col, triple.row, triple.col);
-        fprintf(stderr, "Invalid[r=%d,t=%d]: Tile[%d][%d] [%d %d]\n", Env::rank, t, pair.row, pair.col, triple.row, triple.col);
+    //uint32_t t = (pair.row * tiling->ncolgrps) + pair.col;
+    //if(not (std::find(local_tiles.begin(), local_tiles.end(), t) != local_tiles.end())) {
+    if(tiles[pair.row][pair.col].rank != Env::rank) {
+        printf("Rank=%d: Invalid entry for tile[%d][%d]=[%d %d]\n", Env::rank, pair.row, pair.col, triple.row, triple.col);
         Env::exit(1);
     }
 }
@@ -283,6 +293,10 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_matrix() {
     for (uint32_t i = 0; i < nrowgrps; i++)
         tiles[i].resize(ncolgrps);
     // Initialize tiles 
+    
+    
+    
+    
     for (uint32_t i = 0; i < nrowgrps; i++) {
         for (uint32_t j = 0; j < ncolgrps; j++) {
             auto& tile = tiles[i][j];
@@ -320,185 +334,198 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_matrix() {
                 tile.leader_rank_rg_rg = i;
                 tile.leader_rank_cg_cg = j;
             }
+            else if(tiling->tiling_type == Tiling_type::_1D_COL_) {
+                tile.rank = (i % tiling->colgrp_nranks) * tiling->rowgrp_nranks
+                                                        + (j % tiling->rowgrp_nranks);
+                
+                tile.ith = tile.rg / tiling->colgrp_nranks; 
+                tile.jth = tile.cg / tiling->rowgrp_nranks;
+                
+            }
+            
             tile.nth   = (tile.ith * tiling->rank_ncolgrps) + tile.jth;
             tile.mth   = (tile.jth * tiling->rank_nrowgrps) + tile.ith;
-            tile.allocate_triples();  
-            //tile.allocated = false;
+            tile.allocate_triples();
         }
     }
-    /*
-    * Reorganize the tiles so that each rank is placed in
-    * at least one diagonal tile then calculate 
-    * the leader ranks per row group.
-    */
-    leader_ranks.resize(nrowgrps, -1);
-    leader_ranks_rg.resize(nrowgrps);
-    leader_ranks_cg.resize(ncolgrps);
-    for (uint32_t i = 0; i < nrowgrps; i++) {
-        for (uint32_t j = i; j < ncolgrps; j++) {
-            if(not (std::find(leader_ranks.begin(), leader_ranks.end(), tiles[j][i].rank)
-                 != leader_ranks.end())) {
-                std::swap(tiles[j], tiles[i]);
-                break;
-            }
-        }
-        leader_ranks[i] = tiles[i][i].rank;
-        leader_ranks_rg[i] = tiles[i][i].rank_rg;
-        leader_ranks_cg[i] = tiles[i][i].rank_cg;
-    }
-    
-    //Calculate local tiles and local column segments
-    struct Triple<Weight, Integer_Type> pair;
-    for (uint32_t i = 0; i < nrowgrps; i++) {
-        for (uint32_t j = 0; j < ncolgrps; j++) {
-            auto& tile = tiles[i][j];
-            tile.rg = i;
-            tile.cg = j;
-            tile.kth   = (tile.rg * tiling->ncolgrps) + tile.cg;
-            if(tile.rank == Env::rank) {
-                pair.row = i;
-                pair.col = j;    
-                local_tiles.push_back(tile.kth);
-                local_tiles_row_order.push_back(tile.kth);
-                if (std::find(local_col_segments.begin(), local_col_segments.end(), pair.col) == local_col_segments.end())
-                    local_col_segments.push_back(pair.col);
-                
-                if (std::find(local_row_segments.begin(), local_row_segments.end(), pair.row) == local_row_segments.end())
-                    local_row_segments.push_back(pair.row);
-            }
-            tile.leader_rank_rg = tiles[i][i].rank;
-            tile.leader_rank_cg = tiles[j][j].rank;
-                
-            tile.leader_rank_rg_rg = tiles[i][i].rank_rg;
-            tile.leader_rank_cg_cg = tiles[j][j].rank_cg;
-            if((tile.rank == Env::rank) and (i == j)) {
-                owned_segment = i;
-                //owned_segment_vec.push_back(owned_segment);
-            }
-        }
-    }
-    
-    for (uint32_t j = 0; j < ncolgrps; j++) {
+
+    if((tiling->tiling_type == Tiling_type::_2D_) or (tiling->tiling_type == Tiling_type::_2DT_)) {
+        /*
+        * Reorganize the tiles so that each rank is placed in
+        * at least one diagonal tile then calculate 
+        * the leader ranks per row group.
+        */
+        leader_ranks.resize(nrowgrps, -1);
+        leader_ranks_rg.resize(nrowgrps);
+        leader_ranks_cg.resize(ncolgrps);
         for (uint32_t i = 0; i < nrowgrps; i++) {
-            auto& tile = tiles[i][j];
-            if(tile.rank == Env::rank)
-                local_tiles_col_order.push_back(tile.kth);
+            for (uint32_t j = i; j < ncolgrps; j++) {
+                if(not (std::find(leader_ranks.begin(), leader_ranks.end(), tiles[j][i].rank)
+                     != leader_ranks.end())) {
+                    std::swap(tiles[j], tiles[i]);
+                    break;
+                }
+            }
+            leader_ranks[i] = tiles[i][i].rank;
+            leader_ranks_rg[i] = tiles[i][i].rank_rg;
+            leader_ranks_cg[i] = tiles[i][i].rank_cg;
         }
-    }
-    
-    for(uint32_t t: local_tiles_row_order) {
-        pair = tile_of_local_tile(t);
-        if(pair.row == pair.col) {            
-            for(uint32_t j = 0; j < ncolgrps; j++) {
-                if(tiles[pair.row][j].rank == Env::rank) {
-                    if(std::find(all_rowgrp_ranks.begin(), all_rowgrp_ranks.end(), tiles[pair.row][j].rank) 
-                              == all_rowgrp_ranks.end()) {
-                        all_rowgrp_ranks.push_back(tiles[pair.row][j].rank);
-                        all_rowgrp_ranks_accu_seg.push_back(tiles[pair.row][j].cg);
+        
+        //Calculate local tiles and local column segments
+        struct Triple<Weight, Integer_Type> pair;
+        for (uint32_t i = 0; i < nrowgrps; i++) {
+            for (uint32_t j = 0; j < ncolgrps; j++) {
+                auto& tile = tiles[i][j];
+                tile.rg = i;
+                tile.cg = j;
+                tile.kth   = (tile.rg * tiling->ncolgrps) + tile.cg;
+                if(tile.rank == Env::rank) {
+                    pair.row = i;
+                    pair.col = j;    
+                    local_tiles.push_back(tile.kth);
+                    local_tiles_row_order.push_back(tile.kth);
+                    if (std::find(local_col_segments.begin(), local_col_segments.end(), pair.col) == local_col_segments.end())
+                        local_col_segments.push_back(pair.col);
+                    
+                    if (std::find(local_row_segments.begin(), local_row_segments.end(), pair.row) == local_row_segments.end())
+                        local_row_segments.push_back(pair.row);
+                }
+                tile.leader_rank_rg = tiles[i][i].rank;
+                tile.leader_rank_cg = tiles[j][j].rank;
+                    
+                tile.leader_rank_rg_rg = tiles[i][i].rank_rg;
+                tile.leader_rank_cg_cg = tiles[j][j].rank_cg;
+                if((tile.rank == Env::rank) and (i == j)) {
+                    owned_segment = i;
+                    //owned_segment_vec.push_back(owned_segment);
+                }
+            }
+        }
+        
+        for (uint32_t j = 0; j < ncolgrps; j++) {
+            for (uint32_t i = 0; i < nrowgrps; i++) {
+                auto& tile = tiles[i][j];
+                if(tile.rank == Env::rank)
+                    local_tiles_col_order.push_back(tile.kth);
+            }
+        }
+        
+        for(uint32_t t: local_tiles_row_order) {
+            pair = tile_of_local_tile(t);
+            if(pair.row == pair.col) {            
+                for(uint32_t j = 0; j < ncolgrps; j++) {
+                    if(tiles[pair.row][j].rank == Env::rank) {
+                        if(std::find(all_rowgrp_ranks.begin(), all_rowgrp_ranks.end(), tiles[pair.row][j].rank) 
+                                  == all_rowgrp_ranks.end()) {
+                            all_rowgrp_ranks.push_back(tiles[pair.row][j].rank);
+                            all_rowgrp_ranks_accu_seg.push_back(tiles[pair.row][j].cg);
+                    
+                            all_rowgrp_ranks_rg.push_back(tiles[pair.row][j].rank_rg);
+                            all_rowgrp_ranks_accu_seg_rg.push_back(tiles[pair.row][j].cg);
+                        }
+                    }
+                    else {
+                        if(std::find(follower_rowgrp_ranks.begin(), follower_rowgrp_ranks.end(), tiles[pair.row][j].rank) 
+                                == follower_rowgrp_ranks.end()) {
+                            all_rowgrp_ranks.push_back(tiles[pair.row][j].rank);
+                            all_rowgrp_ranks_accu_seg.push_back(tiles[pair.row][j].cg);
+                            
+                            all_rowgrp_ranks_rg.push_back(tiles[pair.row][j].rank_rg);
+                            all_rowgrp_ranks_accu_seg_rg.push_back(tiles[pair.row][j].cg);
+                            
+                            follower_rowgrp_ranks.push_back(tiles[pair.row][j].rank);
+                            follower_rowgrp_ranks_accu_seg.push_back(tiles[pair.row][j].cg);
+                            
+                            follower_rowgrp_ranks_rg.push_back(tiles[pair.row][j].rank_rg);
+                            follower_rowgrp_ranks_accu_seg_rg.push_back(tiles[pair.row][j].cg);
+                        }
+                    }
+                }
+                for(uint32_t i = 0; i < nrowgrps; i++) {
+                    if(tiles[i][pair.col].rank == Env::rank) {
+                        if(std::find(all_colgrp_ranks.begin(), all_colgrp_ranks.end(), tiles[i][pair.col].rank) 
+                                  == all_colgrp_ranks.end()) {
+                            all_colgrp_ranks.push_back(tiles[i][pair.col].rank);
+                            all_colgrp_ranks_accu_seg.push_back(tiles[i][pair.col].rg);
                 
-                        all_rowgrp_ranks_rg.push_back(tiles[pair.row][j].rank_rg);
-                        all_rowgrp_ranks_accu_seg_rg.push_back(tiles[pair.row][j].cg);
+                            all_colgrp_ranks_cg.push_back(tiles[i][pair.col].rank_cg);
+                            all_colgrp_ranks_accu_seg_cg.push_back(tiles[i][pair.col].rg);
+                        }
+                    }
+                    else {
+                        if(std::find(follower_colgrp_ranks.begin(), follower_colgrp_ranks.end(), tiles[i][pair.col].rank) 
+                                  == follower_colgrp_ranks.end()) {
+                            all_colgrp_ranks.push_back(tiles[i][pair.col].rank);
+                            all_colgrp_ranks_accu_seg.push_back(tiles[i][pair.col].rg);
+                            
+                            all_colgrp_ranks_cg.push_back(tiles[i][pair.col].rank_cg);
+                            all_colgrp_ranks_accu_seg_cg.push_back(tiles[i][pair.col].rg);
+                            
+                            follower_colgrp_ranks.push_back(tiles[i][pair.col].rank);
+                            follower_colgrp_ranks_accu_seg.push_back(tiles[i][pair.col].rg);
+                            
+                            follower_colgrp_ranks_cg.push_back(tiles[i][pair.col].rank_cg);
+                            follower_colgrp_ranks_accu_seg_cg.push_back(tiles[i][pair.col].rg);
+                        }
                     }
                 }
-                else {
-                    if(std::find(follower_rowgrp_ranks.begin(), follower_rowgrp_ranks.end(), tiles[pair.row][j].rank) 
-                            == follower_rowgrp_ranks.end()) {
-                        all_rowgrp_ranks.push_back(tiles[pair.row][j].rank);
-                        all_rowgrp_ranks_accu_seg.push_back(tiles[pair.row][j].cg);
-                        
-                        all_rowgrp_ranks_rg.push_back(tiles[pair.row][j].rank_rg);
-                        all_rowgrp_ranks_accu_seg_rg.push_back(tiles[pair.row][j].cg);
-                        
-                        follower_rowgrp_ranks.push_back(tiles[pair.row][j].rank);
-                        follower_rowgrp_ranks_accu_seg.push_back(tiles[pair.row][j].cg);
-                        
-                        follower_rowgrp_ranks_rg.push_back(tiles[pair.row][j].rank_rg);
-                        follower_rowgrp_ranks_accu_seg_rg.push_back(tiles[pair.row][j].cg);
-                    }
-                }
+                break;
+                /* We do not keep iterating as the ranks in row/col groups are the same */
             }
-            for(uint32_t i = 0; i < nrowgrps; i++) {
-                if(tiles[i][pair.col].rank == Env::rank) {
-                    if(std::find(all_colgrp_ranks.begin(), all_colgrp_ranks.end(), tiles[i][pair.col].rank) 
-                              == all_colgrp_ranks.end()) {
-                        all_colgrp_ranks.push_back(tiles[i][pair.col].rank);
-                        all_colgrp_ranks_accu_seg.push_back(tiles[i][pair.col].rg);
-            
-                        all_colgrp_ranks_cg.push_back(tiles[i][pair.col].rank_cg);
-                        all_colgrp_ranks_accu_seg_cg.push_back(tiles[i][pair.col].rg);
-                    }
-                }
-                else {
-                    if(std::find(follower_colgrp_ranks.begin(), follower_colgrp_ranks.end(), tiles[i][pair.col].rank) 
-                              == follower_colgrp_ranks.end()) {
-                        all_colgrp_ranks.push_back(tiles[i][pair.col].rank);
-                        all_colgrp_ranks_accu_seg.push_back(tiles[i][pair.col].rg);
-                        
-                        all_colgrp_ranks_cg.push_back(tiles[i][pair.col].rank_cg);
-                        all_colgrp_ranks_accu_seg_cg.push_back(tiles[i][pair.col].rg);
-                        
-                        follower_colgrp_ranks.push_back(tiles[i][pair.col].rank);
-                        follower_colgrp_ranks_accu_seg.push_back(tiles[i][pair.col].rg);
-                        
-                        follower_colgrp_ranks_cg.push_back(tiles[i][pair.col].rank_cg);
-                        follower_colgrp_ranks_accu_seg_cg.push_back(tiles[i][pair.col].rg);
-                    }
-                }
-            }
-            break;
-            /* We do not keep iterating as the ranks in row/col groups are the same */
         }
-    }
+        
+        // Spilitting communicator among row/col groups       
+        indexed_sort<int32_t, int32_t>(all_rowgrp_ranks, all_rowgrp_ranks_accu_seg);
+        indexed_sort<int32_t, int32_t>(all_rowgrp_ranks_rg, all_rowgrp_ranks_accu_seg_rg);
+        // Make sure there is at least one follower
+        if(follower_rowgrp_ranks.size() > 1) {
+            indexed_sort<int32_t, int32_t>(follower_rowgrp_ranks, follower_rowgrp_ranks_accu_seg);
+            indexed_sort<int32_t, int32_t>(follower_rowgrp_ranks_rg, follower_rowgrp_ranks_accu_seg_rg);
+        }
+        indexed_sort<int32_t, int32_t>(all_colgrp_ranks, all_colgrp_ranks_accu_seg);
+        indexed_sort<int32_t, int32_t>(all_colgrp_ranks_cg, all_colgrp_ranks_accu_seg_cg);
+        // Make sure there is at least one follower
+        if(follower_colgrp_ranks.size() > 1) {
+            indexed_sort<int32_t, int32_t>(follower_colgrp_ranks, follower_colgrp_ranks_accu_seg);
+            indexed_sort<int32_t, int32_t>(follower_colgrp_ranks_cg, follower_colgrp_ranks_accu_seg_cg);
+        }
+        if(Env::comm_split and not Env::get_comm_split()) {
+            Env::rowgrps_init(all_rowgrp_ranks, tiling->rowgrp_nranks);
+            Env::colgrps_init(all_colgrp_ranks, tiling->colgrp_nranks);
+            Env::set_comm_split();
+        }
+        // Which column index in my rowgrps is mine when I'm the accumulator
+        for(uint32_t j = 0; j < tiling->rank_nrowgrps; j++) {
+            if(all_rowgrp_ranks[j] == Env::rank)
+                accu_segment_rg = j;
+        }
+        // Which row index in my colgrps is mine when I'm the accumulator
+        for(uint32_t j = 0; j < tiling->rank_ncolgrps; j++) {
+            if(all_colgrp_ranks[j] == Env::rank)
+                accu_segment_cg = j;
+        } 
+        // Which rowgrp is mine
+        for(uint32_t j = 0; j < tiling->rank_nrowgrps; j++) {
+            if(leader_ranks[local_row_segments[j]] == Env::rank)
+                accu_segment_row = j;
+        }
+        // Which colgrp is mine
+        for(uint32_t j = 0; j < tiling->rank_ncolgrps; j++) {
+            if(leader_ranks[local_col_segments[j]] == Env::rank)
+                accu_segment_col = j;
+        } 
+    }   
     
-    // Spilitting communicator among row/col groups       
-    indexed_sort<int32_t, int32_t>(all_rowgrp_ranks, all_rowgrp_ranks_accu_seg);
-    indexed_sort<int32_t, int32_t>(all_rowgrp_ranks_rg, all_rowgrp_ranks_accu_seg_rg);
-    // Make sure there is at least one follower
-    if(follower_rowgrp_ranks.size() > 1) {
-        indexed_sort<int32_t, int32_t>(follower_rowgrp_ranks, follower_rowgrp_ranks_accu_seg);
-        indexed_sort<int32_t, int32_t>(follower_rowgrp_ranks_rg, follower_rowgrp_ranks_accu_seg_rg);
-    }
-    indexed_sort<int32_t, int32_t>(all_colgrp_ranks, all_colgrp_ranks_accu_seg);
-    indexed_sort<int32_t, int32_t>(all_colgrp_ranks_cg, all_colgrp_ranks_accu_seg_cg);
-    // Make sure there is at least one follower
-    if(follower_colgrp_ranks.size() > 1) {
-        indexed_sort<int32_t, int32_t>(follower_colgrp_ranks, follower_colgrp_ranks_accu_seg);
-        indexed_sort<int32_t, int32_t>(follower_colgrp_ranks_cg, follower_colgrp_ranks_accu_seg_cg);
-    }
-    if(Env::comm_split and not Env::get_comm_split()) {
-        Env::rowgrps_init(all_rowgrp_ranks, tiling->rowgrp_nranks);
-        Env::colgrps_init(all_colgrp_ranks, tiling->colgrp_nranks);
-        Env::set_comm_split();
-    }
-    // Which column index in my rowgrps is mine when I'm the accumulator
-    for(uint32_t j = 0; j < tiling->rank_nrowgrps; j++) {
-        if(all_rowgrp_ranks[j] == Env::rank)
-            accu_segment_rg = j;
-    }
-    // Which row index in my colgrps is mine when I'm the accumulator
-    for(uint32_t j = 0; j < tiling->rank_ncolgrps; j++) {
-        if(all_colgrp_ranks[j] == Env::rank)
-            accu_segment_cg = j;
-    } 
-    // Which rowgrp is mine
-    for(uint32_t j = 0; j < tiling->rank_nrowgrps; j++) {
-        if(leader_ranks[local_row_segments[j]] == Env::rank)
-            accu_segment_row = j;
-    }
-    // Which colgrp is mine
-    for(uint32_t j = 0; j < tiling->rank_ncolgrps; j++) {
-        if(leader_ranks[local_col_segments[j]] == Env::rank)
-            accu_segment_col = j;
-    } 
+    
     // Print tiling assignment
     if(Env::is_master) {
         printf("Tiling Info: %d x %d [nrows x ncols]\n", nrows, ncols);
-        printf("Tiling Info: %d x %d [rowgrps x colgrps] with height of %d\n", nrowgrps, ncolgrps, tile_height);
+        printf("Tiling Info: %d x %d [rowgrps x colgrps]\n", nrowgrps, ncolgrps);
+        printf("Tiling Info: %d x %d [height x width]\n", tile_height, tile_width);
         printf("Tiling Info: %d x %d [rowgrp_nranks x colgrp_nranks]\n", tiling->rowgrp_nranks, tiling->colgrp_nranks);
         printf("Tiling Info: %d x %d [rank_nrowgrps x rank_ncolgrps]\n", tiling->rank_nrowgrps, tiling->rank_ncolgrps);
     }
     print("rank");
-    Env::barrier();
 }
 
 template<typename Weight, typename Integer_Type, typename Fractional_Type>
@@ -516,6 +543,10 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::print(std::string element)
                 else if(element.compare("ith") == 0) 
                     printf("%2d ", tile.ith);
                 else if(element.compare("jth") == 0) 
+                    printf("%2d ", tile.jth);
+                else if(element.compare("nth") == 0) 
+                    printf("%2d ", tile.jth);
+                else if(element.compare("mth") == 0) 
                     printf("%2d ", tile.jth);
                 else if(element.compare("rank_rg") == 0) 
                     printf("%2d ", tile.rank_rg);
@@ -543,8 +574,25 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::print(std::string element)
 
 template<typename Weight, typename Integer_Type, typename Fractional_Type>
 void Matrix<Weight, Integer_Type, Fractional_Type>::init_tiles() {
-
+    
+    
+    /*
+    if(Env::is_master) {
+        for (uint32_t i = 0; i < nrowgrps; i++) {
+            for (uint32_t j = 0; j < ncolgrps; j++) {
+                auto& tile = tiles[i][j];
+                std::vector<struct Triple<Weight, Integer_Type>>& triples = *(tile.triples);
+                printf( "%d ", triples.size());
+            }
+            printf( "\n");
+        }
+    }
+    */
+    
+    
     distribute();
+    Env::barrier();
+    Env::exit(0);
     
     Triple<Weight, Integer_Type> pair;
     RowSort<Weight, Integer_Type> f_row;
@@ -564,6 +612,163 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_tiles() {
 		tile.nedges = tile.triples->size();
     }
 }
+
+
+/* Inspired from LA3 code @
+   https://github.com/cmuq-ccl/LA3/blob/master/src/matrix/dist_matrix2d.hpp
+*/
+template<typename Weight, typename Integer_Type, typename Fractional_Type>
+void Matrix<Weight, Integer_Type, Fractional_Type>::distribute()
+{
+    if(Env::is_master)
+        printf("Edge distribution: Distributing edges among %d ranks\n", Env::nranks);     
+    
+    
+   /* Sanity check on # of edges */
+    uint64_t nedges_start_local = 0, nedges_end_local = 0,
+             nedges_start_global = 0, nedges_end_global = 0;
+             
+    std::vector<MPI_Request> out_requests;
+    std::vector<MPI_Request> in_requests;
+    MPI_Request request;                 
+             
+    for (uint32_t i = 0; i < nrowgrps; i++) {
+        for (uint32_t j = 0; j < ncolgrps; j++) {
+            auto& tile = tiles[i][j];
+            if(tile.triples->size() > 0)
+                nedges_start_local += tile.triples->size();
+        }
+    }
+
+    MPI_Datatype MANY_TRIPLES;
+    const uint32_t many_triples_size = 1;
+    MPI_Type_contiguous(many_triples_size * sizeof(Triple<Weight, Integer_Type>), MPI_BYTE, &MANY_TRIPLES);
+    MPI_Type_commit(&MANY_TRIPLES);
+    std::vector<std::vector<Triple<Weight, Integer_Type>>> outboxes(Env::nranks);
+    std::vector<std::vector<Triple<Weight, Integer_Type>>> inboxes(Env::nranks);
+    std::vector<uint32_t> inbox_sizes(Env::nranks);
+    for (uint32_t i = 0; i < nrowgrps; i++) {
+        for (uint32_t j = 0; j < ncolgrps; j++)   {
+            auto& tile = tiles[i][j];
+            if(tile.rank != Env::rank) {
+                auto& outbox = outboxes[tile.rank];
+                outbox.insert(outbox.end(), tile.triples->begin(), tile.triples->end());
+                tile.free_triples();
+            }
+        }
+    }
+  
+    for (int32_t r = 0; r < Env::nranks; r++) {
+    //for (int32_t i = 0; i < Env::nranks; i++) {
+        //int32_t r = (Env::rank + i) % Env::nranks;
+        if (r != Env::rank) {
+            auto& outbox = outboxes[r];
+            uint32_t outbox_size = outbox.size();
+            MPI_Sendrecv(&outbox_size, 1, MPI_UNSIGNED, r, Env::rank, &inbox_sizes[r], 1, MPI_UNSIGNED,
+                                                        r, r, Env::MPI_WORLD, MPI_STATUS_IGNORE);
+            auto &inbox = inboxes[r];
+            inbox.resize(inbox_sizes[r]);
+            MPI_Sendrecv(outbox.data(), outbox.size(), MANY_TRIPLES, r, Env::rank, inbox.data(), inbox.size(), MANY_TRIPLES,
+                                                        r, r, Env::MPI_WORLD, MPI_STATUS_IGNORE);
+        }
+    }
+    MPI_Barrier(MPI_COMM_WORLD);
+  
+
+/*
+    MPI_Barrier(MPI_COMM_WORLD);    
+    for (int32_t r = 0; r < Env::nranks; r++) {
+        if (r != Env::rank) {
+            auto &outbox = outboxes[r];
+            uint32_t outbox_size = outbox.size();
+            MPI_Sendrecv(&outbox_size, 1, MPI_UNSIGNED, r, Env::rank, &inbox_sizes[r], 1, MPI_UNSIGNED, 
+                                                        r, r, Env::MPI_WORLD, MPI_STATUS_IGNORE);
+        }
+    }
+    MPI_Barrier(MPI_COMM_WORLD);    
+    
+    
+    for (int32_t r = 0; r < Env::nranks; r++) {
+        if (r != Env::rank) {
+            auto &inbox = inboxes[r];
+            inbox.resize(inbox_sizes[r]);
+            auto &outbox = outboxes[r];
+            MPI_Sendrecv(outbox.data(), outbox.size(), MANY_TRIPLES, r, Env::rank, inbox.data(), inbox.size(), MANY_TRIPLES, 
+                                                        r, r, Env::MPI_WORLD, MPI_STATUS_IGNORE);
+        }
+    }
+    MPI_Barrier(MPI_COMM_WORLD);    
+   */ 
+    
+    /*
+    for (int32_t i = 0; i < Env::nranks; i++) {
+        int32_t r = (Env::rank + i) % Env::nranks;
+        if(r != Env::rank) {
+            auto &inbox = inboxes[r];
+            inbox.resize(inbox_sizes[r]);
+            MPI_Irecv(inbox.data(), inbox.size(), MANY_TRIPLES, r, 1, Env::MPI_WORLD, &request);    
+            in_requests.push_back(request);
+        }
+    }
+    for (int32_t i = 0; i < Env::nranks; i++) {
+        int32_t r = (Env::rank + i) % Env::nranks;
+        if(r != Env::rank) {
+            auto &outbox = outboxes[r];
+            MPI_Isend(outbox.data(), outbox.size(), MANY_TRIPLES, r, 1, Env::MPI_WORLD, &request);
+            out_requests.push_back(request);
+        }
+    }     
+    MPI_Waitall(in_requests.size(), in_requests.data(), MPI_STATUSES_IGNORE);
+    in_requests.clear();
+    MPI_Waitall(out_requests.size(), out_requests.data(), MPI_STATUSES_IGNORE);   
+    out_requests.clear();
+    
+    */
+
+    for (int32_t r = 0; r < Env::nranks; r++) {
+        if (r != Env::rank) {
+            auto& inbox = inboxes[r];
+            for (uint32_t i = 0; i < inbox_sizes[r]; i++) {
+                test(inbox[i]);
+                insert(inbox[i]);
+            }
+            inbox.clear();
+            inbox.shrink_to_fit();
+        }
+    }
+
+    
+    for (uint32_t i = 0; i < nrowgrps; i++) {
+        for (uint32_t j = 0; j < ncolgrps; j++) {
+            auto& tile = tiles[i][j];
+            if(tile.rank == Env::rank) {
+                std::vector<struct Triple<Weight, Integer_Type>>& triples = *(tile.triples);
+                nedges_end_local += triples.size();
+            }
+        }
+    }
+    
+    
+    /*
+    Triple<Weight, Integer_Type> pair;
+    for(uint32_t t: local_tiles_row_order) {
+        pair = tile_of_local_tile(t);
+        auto& tile = tiles[pair.row][pair.col];
+        nedges_end_local += tile.triples->size();
+    }
+    */
+    
+    MPI_Allreduce(&nedges_start_local, &nedges_start_global, 1, MPI_UNSIGNED_LONG, MPI_SUM, Env::MPI_WORLD);
+    MPI_Allreduce(&nedges_end_local, &nedges_end_global, 1, MPI_UNSIGNED_LONG, MPI_SUM, Env::MPI_WORLD);
+    assert(nedges_start_global == nedges_end_global);
+    if(Env::is_master)
+        printf("Edge distribution: Sanity check for exchanging %lu edges is done\n", nedges_end_global);
+    auto retval = MPI_Type_free(&MANY_TRIPLES);
+    assert(retval == MPI_SUCCESS);   
+    Env::barrier();
+}
+
+
 
 template<typename Weight, typename Integer_Type, typename Fractional_Type>
 void Matrix<Weight, Integer_Type, Fractional_Type>::closest(std::vector<struct Triple<Weight, Integer_Type>>& triples,
@@ -809,146 +1014,6 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_threads() {
 
 
 
-/* Inspired from LA3 code @
-   https://github.com/cmuq-ccl/LA3/blob/master/src/matrix/dist_matrix2d.hpp
-*/
-template<typename Weight, typename Integer_Type, typename Fractional_Type>
-void Matrix<Weight, Integer_Type, Fractional_Type>::distribute()
-{
-    if(Env::is_master)
-        printf("Edge distribution: Distributing edges among %d ranks\n", Env::nranks);     
-    
-    
-   /* Sanity check on # of edges */
-    uint64_t nedges_start_local = 0, nedges_end_local = 0,
-             nedges_start_global = 0, nedges_end_global = 0;
-             
-    std::vector<MPI_Request> out_requests;
-    std::vector<MPI_Request> in_requests;
-    MPI_Request request;                 
-             
-    for (uint32_t i = 0; i < nrowgrps; i++) {
-        for (uint32_t j = 0; j < ncolgrps; j++) {
-            auto& tile = tiles[i][j];
-            if(tile.triples->size() > 0)
-                nedges_start_local += tile.triples->size();
-        }
-    }
-
-    MPI_Datatype MANY_TRIPLES;
-    const uint32_t many_triples_size = 1;
-    MPI_Type_contiguous(many_triples_size * sizeof(Triple<Weight, Integer_Type>), MPI_BYTE, &MANY_TRIPLES);
-    MPI_Type_commit(&MANY_TRIPLES);
-    std::vector<std::vector<Triple<Weight, Integer_Type>>> outboxes(Env::nranks);
-    std::vector<std::vector<Triple<Weight, Integer_Type>>> inboxes(Env::nranks);
-    std::vector<uint32_t> inbox_sizes(Env::nranks);
-    for (uint32_t i = 0; i < nrowgrps; i++) {
-        for (uint32_t j = 0; j < ncolgrps; j++)   {
-            auto& tile = tiles[i][j];
-            if(tile.rank != Env::rank) {
-                auto& outbox = outboxes[tile.rank];
-                outbox.insert(outbox.end(), tile.triples->begin(), tile.triples->end());
-                tile.free_triples();
-            }
-        }
-    }
-  
-    for (int32_t r = 0; r < Env::nranks; r++) {
-    //for (int32_t i = 0; i < Env::nranks; i++) {
-        //int32_t r = (Env::rank + i) % Env::nranks;
-        if (r != Env::rank) {
-            auto& outbox = outboxes[r];
-            uint32_t outbox_size = outbox.size();
-            MPI_Sendrecv(&outbox_size, 1, MPI_UNSIGNED, r, Env::rank, &inbox_sizes[r], 1, MPI_UNSIGNED,
-                                                        r, r, Env::MPI_WORLD, MPI_STATUS_IGNORE);
-            auto &inbox = inboxes[r];
-            inbox.resize(inbox_sizes[r]);
-            MPI_Sendrecv(outbox.data(), outbox.size(), MANY_TRIPLES, r, Env::rank, inbox.data(), inbox.size(), MANY_TRIPLES,
-                                                        r, r, Env::MPI_WORLD, MPI_STATUS_IGNORE);
-        }
-    }
-    MPI_Barrier(MPI_COMM_WORLD);
-  
-
-/*
-    MPI_Barrier(MPI_COMM_WORLD);    
-    for (int32_t r = 0; r < Env::nranks; r++) {
-        if (r != Env::rank) {
-            auto &outbox = outboxes[r];
-            uint32_t outbox_size = outbox.size();
-            MPI_Sendrecv(&outbox_size, 1, MPI_UNSIGNED, r, Env::rank, &inbox_sizes[r], 1, MPI_UNSIGNED, 
-                                                        r, r, Env::MPI_WORLD, MPI_STATUS_IGNORE);
-        }
-    }
-    MPI_Barrier(MPI_COMM_WORLD);    
-    
-    
-    for (int32_t r = 0; r < Env::nranks; r++) {
-        if (r != Env::rank) {
-            auto &inbox = inboxes[r];
-            inbox.resize(inbox_sizes[r]);
-            auto &outbox = outboxes[r];
-            MPI_Sendrecv(outbox.data(), outbox.size(), MANY_TRIPLES, r, Env::rank, inbox.data(), inbox.size(), MANY_TRIPLES, 
-                                                        r, r, Env::MPI_WORLD, MPI_STATUS_IGNORE);
-        }
-    }
-    MPI_Barrier(MPI_COMM_WORLD);    
-   */ 
-    
-    /*
-    for (int32_t i = 0; i < Env::nranks; i++) {
-        int32_t r = (Env::rank + i) % Env::nranks;
-        if(r != Env::rank) {
-            auto &inbox = inboxes[r];
-            inbox.resize(inbox_sizes[r]);
-            MPI_Irecv(inbox.data(), inbox.size(), MANY_TRIPLES, r, 1, Env::MPI_WORLD, &request);    
-            in_requests.push_back(request);
-        }
-    }
-    for (int32_t i = 0; i < Env::nranks; i++) {
-        int32_t r = (Env::rank + i) % Env::nranks;
-        if(r != Env::rank) {
-            auto &outbox = outboxes[r];
-            MPI_Isend(outbox.data(), outbox.size(), MANY_TRIPLES, r, 1, Env::MPI_WORLD, &request);
-            out_requests.push_back(request);
-        }
-    }     
-    MPI_Waitall(in_requests.size(), in_requests.data(), MPI_STATUSES_IGNORE);
-    in_requests.clear();
-    MPI_Waitall(out_requests.size(), out_requests.data(), MPI_STATUSES_IGNORE);   
-    out_requests.clear();
-    
-    */
-    
-    for (int32_t r = 0; r < Env::nranks; r++) {
-        if (r != Env::rank) {
-            auto& inbox = inboxes[r];
-            for (uint32_t i = 0; i < inbox_sizes[r]; i++) {
-                test(inbox[i]);
-                insert(inbox[i]);
-            }
-            inbox.clear();
-            inbox.shrink_to_fit();
-        }
-    }
-    
-    
-    Triple<Weight, Integer_Type> pair;
-    for(uint32_t t: local_tiles_row_order) {
-        pair = tile_of_local_tile(t);
-        auto& tile = tiles[pair.row][pair.col];
-        nedges_end_local += tile.triples->size();
-    }
-    
-    MPI_Allreduce(&nedges_start_local, &nedges_start_global, 1, MPI_UNSIGNED_LONG, MPI_SUM, Env::MPI_WORLD);
-    MPI_Allreduce(&nedges_end_local, &nedges_end_global, 1, MPI_UNSIGNED_LONG, MPI_SUM, Env::MPI_WORLD);
-    assert(nedges_start_global == nedges_end_global);
-    if(Env::is_master)
-        printf("Edge distribution: Sanity check for exchanging %lu edges is done\n", nedges_end_global);
-    auto retval = MPI_Type_free(&MANY_TRIPLES);
-    assert(retval == MPI_SUCCESS);   
-    Env::barrier();
-}
 
 template<typename Weight, typename Integer_Type, typename Fractional_Type>
 void Matrix<Weight, Integer_Type, Fractional_Type>::init_filtering() {
