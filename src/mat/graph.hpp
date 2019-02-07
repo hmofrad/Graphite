@@ -94,8 +94,15 @@ void Graph<Weight, Integer_Type, Fractional_Type>::init_graph(std::string filepa
     self_loops = self_loops_;
     acyclic = acyclic_;
     parallel_edges = parallel_edges_;
+    
+    uint32_t ntiles_;
+    if((tiling_type_ == _2D_) or (tiling_type_ == _2DT_))
+        ntiles_ = Env::nranks * Env::nranks;
+    else
+        ntiles_ = Env::nranks;
+    
     // Initialize matrix
-    A = new Matrix<Weight, Integer_Type, Fractional_Type>(nrows, ncols, Env::nranks * Env::nranks, directed_, 
+    A = new Matrix<Weight, Integer_Type, Fractional_Type>(nrows, ncols, ntiles_, directed_, 
                                                transpose_, parallel_edges_, tiling_type_, compression_type_);
 }
 
