@@ -83,6 +83,15 @@ class Matrix {
         bool transpose;
         bool parallel_edges;
 
+        
+        std::vector<char> II;           // Nonzero rows bitvectors (from tile width)
+        std::vector<Integer_Type> IIV;  // Nonzero rows indices    (from tile width)
+        std::vector<char> JJ;           // Nonzero cols bitvectors (from tile height)
+        std::vector<Integer_Type> JJV;  // Nonzero cols indices    (from tile height)
+        std::vector<Integer_Type> nnz_rows_sizes;
+        Integer_Type nnz_rows_size;
+        std::vector<Integer_Type> nnz_cols_sizes;
+        Integer_Type nnz_cols_size;
         std::vector<std::vector<char>> I;           // Nonzero rows bitvectors (from tile width)
         std::vector<std::vector<Integer_Type>> IV;  // Nonzero rows indices    (from tile width)
         std::vector<std::vector<char>> J;           // Nonzero cols bitvectors (from tile height)
@@ -142,6 +151,7 @@ class Matrix {
         std::vector<Integer_Type> nnz_row_sizes_loc;
         std::vector<Integer_Type> nnz_col_sizes_loc;
         
+        
         void free_tiling();
         void init_matrix();
         void del_triples();
@@ -173,6 +183,8 @@ class Matrix {
         void init_filtering();
         void filter_vertices(Filtering_type filtering_type_);
         void classify_vertices();
+        void filter_rows();
+        void filter_cols();
         
         
         struct Triple<Weight, Integer_Type> tile_of_local_tile(const uint32_t local_tile);
@@ -196,16 +208,18 @@ Matrix<Weight, Integer_Type, Fractional_Type>::Matrix(Integer_Type nrows_,
     ncols = ncols_;
     ntiles = ntiles_;
     if((tiling_type_ == _2D_) or (tiling_type_ == _2DT_)){
-        nrowgrps = sqrt(ntiles_);
-        ncolgrps = ntiles_ / nrowgrps;
-        tile_height = (nrows_ / nrowgrps) + 1;
-        tile_width  = (ncols_ / ncolgrps) + 1;
+        nrowgrps = sqrt(ntiles);
+        ncolgrps = ntiles / nrowgrps;
+        tile_height = (nrows / nrowgrps) + 1;
+        tile_width  = (ncols / ncolgrps) + 1;
     }
     else {
         nrowgrps = 1;
-        ncolgrps = ntiles_;
-        tile_height = nrows_;
-        tile_width  = ncols_ / ncolgrps;
+        ncolgrps = ntiles;
+        tile_height = nrows;
+        tile_width  = ncols / ncolgrps;
+        //if(Env::rank == (Env::nranks - 1))
+        //    tile_width = ncols  - ((Env::nranks - 1) * (ncols / ncolgrps));
     }
     
     
@@ -514,7 +528,15 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_matrix() {
             if(leader_ranks[local_col_segments[j]] == Env::rank)
                 accu_segment_col = j;
         } 
-    }   
+    } 
+    else if(tiling->tiling_type == Tiling_type::_1D_COL_) {
+        accu_segment_row = Env::rank;
+        //follower_rowgrp_ranks.resize(Env::nranks - 1);
+        for(uint32_t j = 0; j < tiling->rowgrp_nranks; j++) {
+            if(j != (uint32_t) Env::rank)
+                follower_rowgrp_ranks.push_back(j);
+        }
+    }
     
     
     // Print tiling assignment
@@ -591,25 +613,32 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_tiles() {
     
     
     distribute();
-    Env::barrier();
-    Env::exit(0);
+
     
-    Triple<Weight, Integer_Type> pair;
+    //Triple<Weight, Integer_Type> pair;
     RowSort<Weight, Integer_Type> f_row;
     auto f_comp = [] (const Triple<Weight, Integer_Type> &a, const Triple<Weight, Integer_Type> &b) {return (a.row == b.row and a.col == b.col);};    
-    for(uint32_t t: local_tiles_row_order) {
-        pair = tile_of_local_tile(t);
-        auto& tile = tiles[pair.row][pair.col];
-        std::vector<struct Triple<Weight, Integer_Type>>& triples = *(tile.triples);
-        if(triples.size()) {
-            std::sort(triples.begin(), triples.end(), f_row);
-            /* remove parallel edges (duplicates), necessary for triangle couting */
-            if(not parallel_edges) {
-                auto last = std::unique(triples.begin(), triples.end(), f_comp);
-                triples.erase(last, triples.end());
+    
+    //for(uint32_t t: local_tiles_row_order) {
+        //pair = tile_of_local_tile(t);
+        //auto& tile = tiles[pair.row][pair.col];
+    for (uint32_t i = 0; i < nrowgrps; i++) {
+        for (uint32_t j = 0; j < ncolgrps; j++) {
+            auto& tile = tiles[i][j];
+            if(tile.rank == Env::rank) {
+                std::vector<struct Triple<Weight, Integer_Type>>& triples = *(tile.triples);
+                if(triples.size()) {
+                    std::sort(triples.begin(), triples.end(), f_row);
+                    /* remove parallel edges (duplicates), necessary for triangle couting */
+                    if(not parallel_edges) {
+                        auto last = std::unique(triples.begin(), triples.end(), f_comp);
+                        triples.erase(last, triples.end());
+                    }
+                }
+                //tile.nedges = tile.triples->size();
+                //printf("%d %d\n", Env::rank, tile.nedges);
             }
         }
-		tile.nedges = tile.triples->size();
     }
 }
 
@@ -909,7 +938,8 @@ template<typename Weight, typename Integer_Type, typename Fractional_Type>
 void Matrix<Weight, Integer_Type, Fractional_Type>::init_threads() {
     if(Env::is_master)
         printf("Edge distribution: Distributing edges among %d threads\n", omp_get_max_threads());     
-    
+    Env::barrier();
+    Env::exit(0);
     
     Triple<Weight, Integer_Type> pair;
     ColSort<Weight, Integer_Type> f_col;
@@ -1017,7 +1047,13 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_threads() {
 
 template<typename Weight, typename Integer_Type, typename Fractional_Type>
 void Matrix<Weight, Integer_Type, Fractional_Type>::init_filtering() {
+    printf("[-]init_filtering()\n");
+    filter_rows();
+    printf("[x]init_filtering()\n");
+    Env::barrier();
+    Env::exit(0);
 
+    /*
     I.resize(tiling->rank_nrowgrps);
     for (uint32_t i = 0; i < tiling->rank_nrowgrps; i++)
         I[i].resize(tile_height);
@@ -1060,6 +1096,206 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_filtering() {
     rowgrp_source_rows = source_rows[io];
     colgrp_sink_columns = sink_columns[jo];
     Env::barrier();
+    */
+}
+
+
+template<typename Weight, typename Integer_Type, typename Fractional_Type>
+void Matrix<Weight, Integer_Type, Fractional_Type>::filter_rows() {
+    MPI_Datatype TYPE_INT = Types<Weight, Integer_Type, Integer_Type>::get_data_type();
+    MPI_Datatype TYPE_CHAR = Types<Weight, Integer_Type, char>::get_data_type();
+    std::vector<MPI_Request> out_requests;
+    std::vector<MPI_Request> in_requests;
+    MPI_Request request;
+
+    std::vector<char> F(tile_height);
+    std::vector<std::vector<char>> F_all;
+    if(!Env::rank) {
+        F_all.resize(tiling->rowgrp_nranks, std::vector<char>(tile_height));
+        //for(uint32_t i = 0; i < tiling->rowgrp_nranks; i++) {
+        //    F_all[i].resize(tile_length, 0);
+        //}
+    }
+   
+    auto &tile = tiles[0][Env::rank];
+    for (auto& triple : *(tile.triples)) {
+        if(!F[triple.row]) {
+            F[triple.row] = 1;
+        }
+    }
+    /*
+    if(Env::rank == 2) {
+        for(int i = 0; i < tiling->rowgrp_nranks - 1; i++) {
+            printf("%d ", follower_rowgrp_ranks[i]);
+        }
+        printf("\n");
+    }
+    */
+    int32_t leader, follower;//, my_rank, accu, this_segment;
+    leader = 0;
+    if(Env::is_master) {
+        for(int32_t j = 0; j < Env::nranks - 1; j++) {
+            follower = follower_rowgrp_ranks[j];
+            auto& fj_data = F_all[j];
+            Integer_Type fj_nitems = F_all[j].size();
+            MPI_Irecv(fj_data.data(), fj_nitems, TYPE_CHAR, follower, 0, Env::MPI_WORLD, &request);
+            in_requests.push_back(request);
+        }
+    }
+    else {
+        auto& f_data = F;
+        Integer_Type f_nitems = F.size();
+        MPI_Isend(f_data.data(), f_nitems, TYPE_CHAR, leader, 0, Env::MPI_WORLD, &request);
+        out_requests.push_back(request);
+    }
+    MPI_Waitall(out_requests.size(), out_requests.data(), MPI_STATUSES_IGNORE);
+    out_requests.clear();
+    MPI_Waitall(in_requests.size(), in_requests.data(), MPI_STATUSES_IGNORE);
+    in_requests.clear();
+    
+    
+    
+    if(Env::is_master) {
+        
+        for(int32_t j = 0; j < Env::nranks - 1; j++) {
+            //accu = follower_rowgrp_ranks[j];
+            auto &fj_data = F_all[j];
+            Integer_Type fj_nitems = F_all[j].size();                  
+            for(uint32_t i = 0; i < fj_nitems; i++) {
+                if(fj_data[i] and !F[i])
+                    F[i] = 1;
+            }
+        }
+    }
+    
+    
+    if(Env::is_master) {
+        for(int32_t j = 0; j < Env::nranks - 1; j++) {
+            follower = follower_rowgrp_ranks[j];
+            auto& f_data = F;
+            Integer_Type f_nitems = F.size();
+            MPI_Isend(f_data.data(), f_nitems, TYPE_CHAR, follower, 0, Env::MPI_WORLD, &request);
+            out_requests.push_back(request);
+        }
+    }
+    else {
+        std::fill(F.begin(), F.end(), 0);
+        auto& f_data = F;
+        Integer_Type f_nitems = F.size();
+        MPI_Irecv(f_data.data(), f_nitems, TYPE_CHAR, leader, 0, Env::MPI_WORLD, &request);
+        out_requests.push_back(request);
+    }
+    MPI_Waitall(out_requests.size(), out_requests.data(), MPI_STATUSES_IGNORE);
+    out_requests.clear();
+    MPI_Waitall(in_requests.size(), in_requests.data(), MPI_STATUSES_IGNORE);
+    in_requests.clear();
+    
+    
+    /*
+    nnz_rows_size = 0;
+    Integer_Type f_nitems = F.size();
+    for(uint32_t i = 0; i < f_nitems; i++) {
+        if(F[i])
+            nnz_rows_size++;
+    }
+    printf("%d %d %d %d\n", Env::rank, nnz_rows_size, f_nitems, tile_width);
+    nnz_rows_sizes.resize(Env::nranks);
+    nnz_rows_sizes[Env::rank] = tile_width;
+    for (int32_t j = 0; j < Env::nranks; j++) {
+        if (j != Env::rank)
+            MPI_Sendrecv(&nnz_rows_sizes[Env::rank], 1, TYPE_INT, j, 0, &nnz_rows_sizes[j], 1, TYPE_INT, 
+                                                                         j, 0, Env::MPI_WORLD, MPI_STATUS_IGNORE);
+    }
+    
+    if(!Env::rank) {
+        for(int32_t j = 0; j < Env::nranks; j++) {
+            printf("%d ", nnz_rows_sizes[j]);
+        }
+        printf("\n");
+    }
+    */
+    
+    II.resize(tile_height , 0);
+    II = F;
+    F.clear();
+    F.shrink_to_fit();
+    IIV.resize(tile_height, 0);
+    Integer_Type j = 0;
+    for(Integer_Type i = 0; i < tile_height; i++) {
+        if(II[i]) {
+            IIV[i] = j; 
+            j++;
+        }
+    }
+
+    nnz_rows_sizes.resize(Env::nranks);
+    nnz_rows_sizes[Env::rank] = tile_width;
+    for (int32_t j = 0; j < Env::nranks; j++) {
+        if (j != Env::rank)
+            MPI_Sendrecv(&nnz_rows_sizes[Env::rank], 1, TYPE_INT, j, 0, &nnz_rows_sizes[j], 1, TYPE_INT, 
+                                                                         j, 0, Env::MPI_WORLD, MPI_STATUS_IGNORE);
+    }
+    
+    if(!Env::rank) {
+        for(int32_t j = 0; j < Env::nranks; j++) {
+            printf("%d ", nnz_rows_sizes[j]);
+        }
+        printf(" %d %d\n", std::accumulate(nnz_rows_sizes.begin(), nnz_rows_sizes.end(), 0), tile_height);
+    }    
+    assert(std::accumulate(nnz_rows_sizes.begin(), nnz_rows_sizes.end(), 0) == tile_height);
+    
+    
+    /*
+    I.resize(tiling->rank_nrowgrps);
+    for (uint32_t i = 0; i < tiling->rank_nrowgrps; i++)
+        I[i].resize(tile_height);
+    IV.resize(tiling->rank_nrowgrps);
+    for (uint32_t i = 0; i < tiling->rank_nrowgrps; i++)
+        IV[i].resize(tile_height);
+    */
+    
+    
+    
+    /*
+    for(uint32_t j = 0; j < rank_nrowgrps_; j++) {
+        this_segment = local_row_segments_[j];
+        nnz_sizes_loc.push_back(nnz_sizes_all[this_segment]);
+    }
+    if(nnz_sizes_all[owned_segment]) {
+        uint32_t ko = accu_segment_row_;
+        auto &kj_data =  (*K)[ko];
+        auto &kvj_data = (*KV)[ko];
+        Integer_Type j = 0;
+        for(uint32_t i = 0; i < f_nitems; i++) {
+            if(f_data[i]) {
+                kj_data[i] = 1;
+                kvj_data[i] = j; 
+                j++;
+            }
+            else {
+                kj_data[i] = 0;
+                kvj_data[i] = 0;
+            }
+        }
+        assert(j == nnz_sizes_all[owned_segment]);
+    }
+    
+    */
+    
+    Env::barrier();     
+    
+    
+    
+    
+    
+    
+    
+    
+
+}
+
+template<typename Weight, typename Integer_Type, typename Fractional_Type>
+void Matrix<Weight, Integer_Type, Fractional_Type>::filter_cols() {
     
 }
 
@@ -1117,9 +1353,10 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::filter_vertices(Filtering_ty
     uint32_t tile_th, pair_idx;
     bool vec_owner, communication;
     uint32_t fi = 0, fo = 0;
+
     
     /* F is a temprorary 3D array designated to the filtering step. We'd 
-       rather use tack for this because of narrowing down the heap usage.*/
+       rather use char for this because of narrowing down the heap usage.*/
     std::vector<std::vector<std::vector<char>>> F;
     F.resize(rank_nrowgrps_);
     for(uint32_t j = 0; j < rank_nrowgrps_; j++) {
@@ -1133,6 +1370,7 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::filter_vertices(Filtering_ty
             F[j][0].resize(tile_length, 0);
         }
     }
+    
 
     for(uint32_t t: local_tiles_row_order_) {
         auto pair = tile_of_local_tile(t);
@@ -1643,6 +1881,8 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_tcsc()
     //tilet.riples_t[tid]
     del_triples_t();
     del_classifier();
+        Env::barrier();
+    Env::exit(0);
     //printf("[x] init_tcsc()\n");
     //Env::barrier();
     //std::exit(0);
