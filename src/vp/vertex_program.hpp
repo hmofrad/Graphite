@@ -189,6 +189,10 @@ class Vertex_Program
         std::vector<Integer_Type>* IIV;
         std::vector<char>* JJ;
         std::vector<Integer_Type>* JJV;
+        std::vector<Integer_Type> start_dense;
+        std::vector<Integer_Type> end_dense;   
+        std::vector<Integer_Type> start_sparse;
+        std::vector<Integer_Type> end_sparse;        
         
         
         std::vector<Integer_Type>* rowgrp_nnz_rows;
@@ -312,6 +316,10 @@ Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::Vertex_Prog
         nnz_cols_sizes = Graph.A->nnz_cols_sizes;
         nnz_rows_size = Graph.A->nnz_rows_size;
         nnz_cols_size = Graph.A->nnz_cols_size;
+        start_dense = Graph.A->start_dense;
+        end_dense = Graph.A->end_dense;
+        start_sparse = Graph.A->start_sparse;
+        end_sparse = Graph.A->end_sparse;
         
         
         //rowgrp_REG = &(Graph.A->rowgrp_REG);
@@ -382,6 +390,10 @@ Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::Vertex_Prog
         nnz_cols_sizes = Graph.A->nnz_rows_sizes;
         nnz_rows_size = Graph.A->nnz_cols_size;
         nnz_cols_size = Graph.A->nnz_rows_size;
+        start_dense = Graph.A->start_dense;
+        end_dense = Graph.A->end_dense;
+        start_sparse = Graph.A->start_sparse;
+        end_sparse = Graph.A->end_sparse;
         
         
         
@@ -615,12 +627,12 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::init_s
     //YY.resize(nnz_rows_sizes[Env::rank]);
     YY.resize(nnz_rows_size);
     YYY.resize(rowgrp_nranks - 1);
-    int32_t i = 0;    
-    for(uint32_t j = 0; j < rowgrp_nranks; j++) {
-        if(j != (uint32_t) Env::rank) {
-            YYY[i].resize(nnz_rows_sizes[j]);
-            i++;
-        }
+    //int32_t i = 0;    
+    for(uint32_t j = 0; j < rowgrp_nranks - 1; j++) {
+        //if(j != (uint32_t) Env::rank) {
+            YYY[j].resize(nnz_rows_sizes[Env::rank]);
+          //  i++;
+        //}
     }
     //printf("%lu %lu %lu %lu %d\n", XX.size(), YY.size(), YYY.size(), nnz_cols_sizes[Env::rank], nnz_rows_sizes[Env::rank]);
     //if(!Env::rank) {
@@ -1500,36 +1512,62 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::combin
     auto &tile = A->tiles[0][Env::rank];
     spmv_stationary(tile, YY, XX);
     
-    int32_t leader, follower;//, my_rank, accu, this_segment;
-    
-    for(int32_t i = 0; i < Env::nraks; i++) {
-        
-    }
-    
-    
-    if(Env::is_master) {
-        for(int32_t j = 0; j < Env::nranks - 1; j++) {
-            follower = follower_rowgrp_ranks[j];
-            auto& fj_data = F_all[j];
-            Integer_Type fj_nitems = F_all[j].size();
-            MPI_Irecv(fj_data.data(), fj_nitems, TYPE_CHAR, follower, 0, Env::MPI_WORLD, &request);
-            in_requests.push_back(request);
+    MPI_Request request;
+    int32_t leader, follower, tag;//, my_rank, accu, this_segment;
+    int32_t k = 0;
+   // if(!Env::rank) {
+    for(int32_t i = 0; i < Env::nranks; i++) {        
+        if(i == Env::rank) {
+            for(int32_t j = 0; j < Env::nranks; j++) {
+                if(j != Env::rank) {
+                    std::vector<Fractional_Type>& yj_data = YYY[k];
+                    Integer_Type yj_nitems = yj_data.size();
+                    follower = j;
+                    tag = i;
+                    //printf("%d: recv from %d with size %d %d\n", Env::rank, j, end_sparse[i] - start_sparse[i], yj_nitems);
+                    MPI_Irecv(yj_data.data(), yj_nitems, TYPE_DOUBLE, follower, tag, Env::MPI_WORLD, &request);
+                    in_requests.push_back(request);
+                    k++;
+                }
+            }
+        }
+        else {
+            //printf("%d: send to %d with size %d\n", Env::rank, i, end_sparse[i] - start_sparse[i]);
+            leader = i;
+            tag = i;
+            MPI_Isend(YY.data() + start_sparse[i], end_sparse[i] - start_sparse[i], TYPE_DOUBLE, leader, tag, Env::MPI_WORLD, &request);
+            out_requests.push_back(request);
         }
     }
-    else {
-        auto& f_data = F;
-        Integer_Type f_nitems = F.size();
-        MPI_Isend(f_data.data(), f_nitems, TYPE_CHAR, leader, 0, Env::MPI_WORLD, &request);
-        out_requests.push_back(request);
-    }
+    /*
+    if(Env::rank) {
+       for(int32_t i = 0; i < Env::nranks; i++) {  
+            printf("%d ", nnz_rows_sizes[i]);
+       }
+       printf("\n");
+       
+       for(int32_t i = 0; i < Env::nranks - 1; i++) {  
+            printf("%d ", YYY[i].size());
+       }
+       printf("\n");
+       
+   }
+   */
+    
+  //  for(int32_t i = 0; i < Env::nranks - 1; i++) {
+        
+        //MPI_Irecv(yj_data.data(), yj_nitems, TYPE_DOUBLE, follower, pair_idx, communicator, &request);
+        //in_requests.push_back(request);
+    //}
+    
     MPI_Waitall(out_requests.size(), out_requests.data(), MPI_STATUSES_IGNORE);
     out_requests.clear();
     MPI_Waitall(in_requests.size(), in_requests.data(), MPI_STATUSES_IGNORE);
-    in_requests.clear();
+    in_requests.clear();    
     
+
     
-    Env::barrier();
-    Env::exit(0);
+  
     
     
     
@@ -2098,6 +2136,21 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::combin
 template<typename Weight, typename Integer_Type, typename Fractional_Type, typename Vertex_State>
 void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::combine_postprocess_stationary_for_all()
 {
+      
+
+    for(uint32_t j = 0; j < rowgrp_nranks - 1; j++) {
+        
+        std::vector<Fractional_Type>& yj_data = YYY[j];
+        Integer_Type yj_nitems = yj_data.size();
+        
+        #pragma omp parallel for schedule(static)
+        for(uint32_t i = 0; i < yj_nitems; i++) {
+            combiner(YY[i + start_sparse[Env::rank]], yj_data[i]);
+        }
+    }
+    
+    
+    /*
     wait_for_recvs();
     uint32_t accu = 0;
     uint32_t yi = accu_segment_row;
@@ -2115,6 +2168,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::combin
             combiner(y_data[i], yj_data[i]);
     }
     wait_for_sends();
+    */
 }
 
 template<typename Weight, typename Integer_Type, typename Fractional_Type, typename Vertex_State>
@@ -2218,6 +2272,12 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::apply(
 
 template<typename Weight, typename Integer_Type, typename Fractional_Type, typename Vertex_State>
 void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::apply_stationary() {
+    
+    Env::barrier();
+    Env::exit(0);
+    
+    
+    
     uint32_t yi = accu_segment_row;
     uint32_t yo = accu_segment_rg;
     std::vector<Fractional_Type> &y_data = Y[yi][yo];
