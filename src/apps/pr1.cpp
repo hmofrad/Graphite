@@ -28,7 +28,7 @@ int main(int argc, char** argv) {
     bool self_loops = true;
     bool acyclic = false;
     bool parallel_edges = true;
-    Tiling_type TT = _2DT_;
+    Tiling_type TT = _1D_COL_;
     Compression_type CT = _TCSC_;
     
     /* Degree execution */
@@ -52,7 +52,7 @@ int main(int argc, char** argv) {
     V.free();
     VR.execute(num_iterations); // Vertex execution
     VR.checksum();
-    VR.display();
+    //VR.display();
     VR.free();
     GR.free();
     
