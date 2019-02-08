@@ -2008,16 +2008,31 @@ template<typename Weight, typename Integer_Type, typename Fractional_Type>
 void Matrix<Weight, Integer_Type, Fractional_Type>::init_tcsc()
 {
     printf("[+]init_tcsc\n");
+    auto& tile = tiles[i][Env::rank];
+    std::vector<struct Triple<Weight, Integer_Type>>& triples = *(tile.triples);
+    if(triples->size()) {
+        tile.compressor_t.resize(tile.npartitions);
+        #pragma omp parallel 
+        {
+            int tid = omp_get_thread_num();
+            int cid = sched_getcpu();
+            int sid =  cid / Env::nthreads_per_socket;
+            
+            Integer_Type c_nitems = nnz_cols_sizes[Env::rank];
+            Integer_Type r_nitems = nnz_rows_size;
+
+            /*
+            tile.compressor_t[tid] = new TCSC_BASE<Weight, Integer_Type>(tile.triples_t[tid]->size(), c_nitems, r_nitems, sid);
+            tile.compressor_t[tid]->populate(tile.triples_t[tid], tile_height, tile_width, II, IIV, JJ, JJV);
+
+            Integer_Type* IA   = static_cast<TCSC_BASE<Weight, Integer_Type>*>(tile.compressor_t[tid])->IA;
+            Integer_Type* JA   = static_cast<TCSC_BASE<Weight, Integer_Type>*>(tile.compressor_t[tid])->JA;    
+            Integer_Type nnzcols = static_cast<TCSC_BASE<Weight, Integer_Type>*>(tile.compressor_t[tid])->nnzcols;
+            */
+        }
+    }
     
-        for (uint32_t i = 0; i < nrowgrps; i++) {
-        for (uint32_t j = 0; j < ncolgrps; j++) {
-            auto& tile = tiles[i][j];
-            if(tile.rank == Env::rank) {
-                std::vector<struct Triple<Weight, Integer_Type>>& triples = *(tile.triples);
-                if(triples.size()) {
-    
-    
-    
+
     
     
     Env::barrier();
