@@ -227,6 +227,8 @@ Matrix<Weight, Integer_Type, Fractional_Type>::Matrix(Integer_Type nrows_,
         ncolgrps = ntiles;
         tile_height = nrows;
         tile_width  = ncols / ncolgrps;
+        printf("rank=%d tile_height=%d tile_width=%d\n", Env::rank, tile_height, tile_width);
+        
         //if(Env::rank == (Env::nranks - 1))
         //    tile_width = ncols  - ((Env::nranks - 1) * (ncols / ncolgrps));
     }
@@ -2235,6 +2237,8 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::del_classifier() {
 
 template<typename Weight, typename Integer_Type, typename Fractional_Type>
 void Matrix<Weight, Integer_Type, Fractional_Type>::del_filter() {
+    
+    /*
     for(uint32_t i = 0; i < tiling->rank_nrowgrps; i++) {
         I[i].clear();
         I[i].shrink_to_fit();
@@ -2270,6 +2274,7 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::del_filter() {
     colgrp_nnz_columns.shrink_to_fit();
     colgrp_sink_columns.clear();
     colgrp_sink_columns.shrink_to_fit();
+    */
 }
 
 template<typename Weight, typename Integer_Type, typename Fractional_Type>
