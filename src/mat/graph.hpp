@@ -98,8 +98,15 @@ void Graph<Weight, Integer_Type, Fractional_Type>::init_graph(std::string filepa
     uint32_t ntiles_;
     if((tiling_type_ == _2D_) or (tiling_type_ == _2DT_))
         ntiles_ = Env::nranks * Env::nranks;
-    else
+    else { 
         ntiles_ = Env::nranks;
+        //printf("nrows=%d %d\n", nrows, nrows % Env::nranks);
+        while(nrows % Env::nranks) {
+            nrows++;
+            ncols = nrows;
+        }
+        //printf("nrows=%d %d\n", nrows, nrows % Env::nranks);
+    }
     
     // Initialize matrix
     A = new Matrix<Weight, Integer_Type, Fractional_Type>(nrows, ncols, ntiles_, directed_, 
