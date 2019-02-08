@@ -92,6 +92,7 @@ class Matrix {
         Integer_Type rows_size;
         std::vector<Integer_Type> nnz_rows_sizes;
         Integer_Type nnz_rows_size;
+        std::vector<Integer_Type> nnz_rows_values;
         std::vector<Integer_Type> nnz_cols_sizes;
         Integer_Type nnz_cols_size;
         std::vector<Integer_Type> start_dense;
@@ -1252,22 +1253,59 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::filter_rows() {
         }
         
     }
-    rowgrp_nnz_rows.resize(nnz_rows_sizes[Env::rank]);
-    k = 0;
-    for(Integer_Type i = 0; i < tile_height; i++) {
-        if((i >= start_dense[Env::rank]) and (i < end_dense[Env::rank]) and II[i]) {
-            rowgrp_nnz_rows[k] = i;
-            k++;
-        }
-    }
     
-    //nnz_rows_sizes[Env::rank] = k;
     for (int32_t j = 0; j < Env::nranks; j++) {
         if (j != Env::rank)
             MPI_Sendrecv(&nnz_rows_sizes[Env::rank], 1, TYPE_INT, j, 0, &nnz_rows_sizes[j], 1, TYPE_INT, 
                                                                          j, 0, Env::MPI_WORLD, MPI_STATUS_IGNORE);
     }
     Env::barrier();
+    
+    
+    nnz_rows_size = k;
+    nnz_rows_values.resize(nnz_rows_size);
+    rowgrp_nnz_rows.resize(nnz_rows_sizes[Env::rank]);
+    k = 0;
+    Integer_Type l = 0;
+    for(Integer_Type i = 0; i < tile_height; i++) {
+        if(II[i]) {
+            nnz_rows_values[l] = i;
+            l++;
+        }
+        if((i >= start_dense[Env::rank]) and (i < end_dense[Env::rank]) and II[i]) {
+            rowgrp_nnz_rows[k] = i;
+            k++;
+        }
+    }
+    
+    k = 0;
+    l = 0;
+    start_sparse.resize(Env::nranks);
+    end_sparse.resize(Env::nranks);
+    for(int32_t i = 0; i < Env::nranks; i++) {
+        if(i == 0)
+            start_sparse[i] = nnz_rows_values[0];
+        else 
+            start_sparse[i] = nnz_rows_values[std::accumulate(nnz_rows_sizes.begin(), nnz_rows_sizes.end() - Env::nranks + i, 0)];
+        
+        end_dense[i] = nnz_rows_values[std::accumulate(nnz_rows_sizes.begin(), nnz_rows_sizes.end() - Env::nranks + i + 1, 0)];
+    }
+    
+    printf("rank=%d rows_sizes=%d nnz_rows_sizes=%d\n", Env::rank, rows_sizes[Env::rank], nnz_rows_sizes[Env::rank]);
+    printf("rank=%d start=%d end=%d start=%d end=%d\n", Env::rank, start_dense[Env::rank], end_dense[Env::rank], start_sparse[Env::rank], end_sparse[Env::rank]);
+    
+    
+    //nnz_rows_sizes[Env::rank] = k;
+
+    
+    
+    //if(Env::is_master) {
+      //  for(int i = 0; i < 
+    //}
+    
+    //for (int32_t j = 0; j < Env::nranks - 1; j++) {
+    
+    
     
     /*
     if(!Env::rank) {
@@ -1357,13 +1395,13 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::filter_rows() {
 template<typename Weight, typename Integer_Type, typename Fractional_Type>
 void Matrix<Weight, Integer_Type, Fractional_Type>::filter_cols() {
     std::vector<char> F(tile_width);
-    std::vector<std::vector<char>> F_all;
-    if(!Env::rank) {
-        F_all.resize(tiling->rowgrp_nranks, std::vector<char>(tile_height));
+    //std::vector<std::vector<char>> F_all;
+    //if(!Env::rank) {
+      //  F_all.resize(tiling->rowgrp_nranks, std::vector<char>(tile_height));
         //for(uint32_t i = 0; i < tiling->rowgrp_nranks; i++) {
         //    F_all[i].resize(tile_length, 0);
         //}
-    }
+    //}
    
     auto &tile = tiles[0][Env::rank];
     for (auto& triple : *(tile.triples)) {
@@ -1384,23 +1422,15 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::filter_cols() {
             JJV[i] = j; 
             j++;
         }
-    }    
-    
-    /*
-    uint32_t jo = accu_segment_col;
-    auto& j_data = J[jo];
-    colgrp_nnz_columns.resize(nnz_col_sizes_loc[jo]);
-    k = 0;
+    }  
+    colgrp_nnz_columns.resize(j);
+    Integer_Type k = 0;
     for(Integer_Type j = 0; j < tile_width; j++) {
-        if(j_data[j]) {
-            colgrp_nnz_columns[k] = j;
+        if(JJ[j]) {
+            colgrp_nnz_columns[k] = start_dense[Env::rank] + j;
             k++;
         }
-    }
-    */
-    
-    
-    
+    }    
 }
 
 template<typename Weight, typename Integer_Type, typename Fractional_Type>
