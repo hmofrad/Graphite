@@ -2008,9 +2008,9 @@ template<typename Weight, typename Integer_Type, typename Fractional_Type>
 void Matrix<Weight, Integer_Type, Fractional_Type>::init_tcsc()
 {
     printf("[+]init_tcsc\n");
-    auto& tile = tiles[i][Env::rank];
+    auto& tile = tiles[0][Env::rank];
     std::vector<struct Triple<Weight, Integer_Type>>& triples = *(tile.triples);
-    if(triples->size()) {
+    if(triples.size()) {
         tile.compressor_t.resize(tile.npartitions);
         #pragma omp parallel 
         {
@@ -2021,23 +2021,36 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_tcsc()
             Integer_Type c_nitems = nnz_cols_sizes[Env::rank];
             Integer_Type r_nitems = nnz_rows_size;
 
-            /*
+            
             tile.compressor_t[tid] = new TCSC_BASE<Weight, Integer_Type>(tile.triples_t[tid]->size(), c_nitems, r_nitems, sid);
             tile.compressor_t[tid]->populate(tile.triples_t[tid], tile_height, tile_width, II, IIV, JJ, JJV);
-
+            
             Integer_Type* IA   = static_cast<TCSC_BASE<Weight, Integer_Type>*>(tile.compressor_t[tid])->IA;
             Integer_Type* JA   = static_cast<TCSC_BASE<Weight, Integer_Type>*>(tile.compressor_t[tid])->JA;    
             Integer_Type nnzcols = static_cast<TCSC_BASE<Weight, Integer_Type>*>(tile.compressor_t[tid])->nnzcols;
-            */
         }
     }
     
-
+    /*
+    if(!Env::rank){
+        int tid = 11;
+        Integer_Type* IA   = static_cast<TCSC_BASE<Weight, Integer_Type>*>(tile.compressor_t[tid])->IA;
+        Integer_Type* JA   = static_cast<TCSC_BASE<Weight, Integer_Type>*>(tile.compressor_t[tid])->JA;    
+        Integer_Type nnzcols = static_cast<TCSC_BASE<Weight, Integer_Type>*>(tile.compressor_t[tid])->nnzcols;
+        
+        for(uint32_t j = 0; j < nnzcols; j++) {
+            printf("j=%d\n", j);
+            for(uint32_t i = JA[j]; i < JA[j + 1]; i++) {
+                printf(" IA[%d]=%d, j=%d\n", i, IA[i], j);
+            }
+        }
+    }
+    */
     
     
-    Env::barrier();
-    Env::exit(0);
-    
+    del_triples_t();
+   
+    /*
     uint32_t yi = 0, xi = 0, next_row = 0;
     for(uint32_t t: local_tiles_row_order)
     {
@@ -2056,7 +2069,7 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_tcsc()
                 int tid = omp_get_thread_num();
                 int cid = sched_getcpu();
                 int sid =  cid / Env::nthreads_per_socket;
-                
+                */
                 /*
                 if(sid)
                     sid = 0;
@@ -2064,6 +2077,7 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_tcsc()
                     sid = 1;
                 */
                 //printf("%d nnz=%d\n", tid, tile.triples_t[tid]->size());
+                /*
                 tile.compressor_t[tid] = new TCSC_BASE<Weight, Integer_Type>(tile.triples_t[tid]->size(), c_nitems, r_nitems, sid);
                 tile.compressor_t[tid]->populate(tile.triples_t[tid], tile_height, tile_width, i_data, iv_data, j_data, jv_data);
                 //numa_tonode_memory(array + sizeof(T) * local_partition_offset[s_i], sizeof(T) * (local_partition_offset[s_i+1] - local_partition_offset[s_i]), s_i);
@@ -2073,7 +2087,7 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_tcsc()
                 Integer_Type* IA   = static_cast<TCSC_BASE<Weight, Integer_Type>*>(tile.compressor_t[tid])->IA;
                 Integer_Type* JA   = static_cast<TCSC_BASE<Weight, Integer_Type>*>(tile.compressor_t[tid])->JA;    
                 Integer_Type nnzcols = static_cast<TCSC_BASE<Weight, Integer_Type>*>(tile.compressor_t[tid])->nnzcols;
-                
+                */
                 //if(tid == 3) {
                     /*
                     int r = 0;
@@ -2092,8 +2106,8 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_tcsc()
                 
                 
                 
-            }
-        }
+            //}
+        //}
         
         /*
         #pragma omp parallel 
@@ -2119,6 +2133,7 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_tcsc()
         if(tile.nedges)
             tile.compressor->populate(tile.triples, tile_height, tile_width, i_data, iv_data, j_data, jv_data);
         */
+        /*
         xi++;
         next_row = (((tile.nth + 1) % tiling->rank_ncolgrps) == 0);
         if(next_row) {
@@ -2130,8 +2145,8 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_tcsc()
     //tilet.riples_t[tid]
     del_triples_t();
     del_classifier();
-        Env::barrier();
-    Env::exit(0);
+    */
+    
     //printf("[x] init_tcsc()\n");
     //Env::barrier();
     //std::exit(0);
