@@ -95,6 +95,7 @@ class Matrix {
         std::vector<Integer_Type> nnz_rows_values;
         std::vector<Integer_Type> nnz_cols_sizes;
         Integer_Type nnz_cols_size;
+        Integer_Type nnz_cols_size_loc;
         std::vector<Integer_Type> start_dense;
         std::vector<Integer_Type> end_dense;
         std::vector<Integer_Type> start_sparse;
@@ -1496,7 +1497,7 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::filter_cols() {
             k++;
         }
     }  
-    Integer_Type nnz_cols_size_loc = k;
+    nnz_cols_size_loc = k;
     colgrp_nnz_columns.resize(nnz_cols_size_loc);
     k = 0;
     for(Integer_Type j = 0; j < tile_width; j++) {
@@ -1507,7 +1508,7 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::filter_cols() {
     }
     //nnz_cols_size = k;
     nnz_cols_sizes.resize(Env::nranks);
-    nnz_cols_sizes[Env::rank] = k;
+    nnz_cols_sizes[Env::rank] = nnz_cols_size_loc;
     
     for (int32_t j = 0; j < Env::nranks; j++) {
         if (j != Env::rank)
@@ -2007,7 +2008,7 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_dcsc() {
 template<typename Weight, typename Integer_Type, typename Fractional_Type>
 void Matrix<Weight, Integer_Type, Fractional_Type>::init_tcsc()
 {
-    printf("[+]init_tcsc\n");
+    //printf("[+]init_tcsc\n");
     auto& tile = tiles[0][Env::rank];
     std::vector<struct Triple<Weight, Integer_Type>>& triples = *(tile.triples);
     if(triples.size()) {
