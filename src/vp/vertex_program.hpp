@@ -573,17 +573,22 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::initia
         //auto &i_data = (*I)[yi];  
         auto &i_data = (*II);          
         Integer_Type v_nitems = V.size();
-        printf("v_nitems=%d %d\n", Env::rank, v_nitems);
+        //printf("v_nitems=%d %d\n", Env::rank, v_nitems);
         Integer_Type j = 0;
         //#pragma omp parallel for schedule(static) private(j)
+        //int s = 0;
         for(uint32_t i = 0; i < v_nitems; i++) {
             Vertex_State &state = V[i];
             j = i + start_dense[Env::rank];
             if(i_data[j])
                 C[i] = initializer(get_vid(i), state, (const State&) VProgram.V[i]);
-            //printf("%d %d\n", i, i_data[i]);
+            //if(Env::rank)
+              //  printf("%d %d %d\n", i, j, i_data[j]);
+          //  s += C[i];
         }
-
+        //printf("ini s=%d\n", s);       
+        //Env::barrier();
+        //Env::exit(0);
 
         //init_stationary_postprocess();
     }
@@ -616,6 +621,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::init_s
     }
     // Initialize messages
     XX.resize(nnz_cols_sizes[Env::rank]);
+
     
     /*
     std::vector<Integer_Type> x_sizes;
@@ -997,12 +1003,13 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::scatte
     
     auto& JC = (*colgrp_nnz_columns);
     Integer_Type JC_nitems = JC.size();
-    //#pragma omp parallel for schedule(static)
+    #pragma omp parallel for schedule(static)
     for(uint32_t j = 0; j < JC_nitems; j++) {
         Vertex_State& state = V[JC[j]];
         XX[j] = messenger(state);
+        //printf("%d %d %d %lu\n", Env::rank, j, JC[j], V.size());
     }
-
+    //assert(JC_nitems == nnz_cols_sizes[Env::rank]);
     
     /*
     uint32_t xo = accu_segment_col;    
@@ -1526,10 +1533,11 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::combin
     
     MPI_Request request;
     int32_t leader, follower, tag;//, my_rank, accu, this_segment;
-    int32_t k = 0;
+    
    // if(!Env::rank) {
     for(int32_t i = 0; i < Env::nranks; i++) {        
         if(i == Env::rank) {
+            int32_t k = 0;
             for(int32_t j = 0; j < Env::nranks; j++) {
                 if(j != Env::rank) {
                     std::vector<Fractional_Type>& yj_data = YYY[k];
@@ -2151,26 +2159,42 @@ template<typename Weight, typename Integer_Type, typename Fractional_Type, typen
 void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::combine_postprocess_stationary_for_all()
 {
       
-    
+    Integer_Type k = 0;
     for(uint32_t j = 0; j < rowgrp_nranks - 1; j++) {
         
-        std::vector<Fractional_Type>& yj_data = YYY[j];
-        Integer_Type yj_nitems = yj_data.size();
-        Integer_Type k = 0;
-        //#pragma omp parallel for schedule(static) private(k)
-        for(uint32_t i = 0; i < yj_nitems; i++) {
-            k = i + start_sparse[Env::rank];
-            combiner(YY[k], yj_data[i]);
-            //s += YY[k];
-        }
+        //if(j != (uint32_t) Env::rank) {
+            Integer_Type k = 0;
+            std::vector<Fractional_Type>& yj_data = YYY[j];
+            Integer_Type yj_nitems = yj_data.size();
+            
+            #pragma omp parallel for schedule(static) private(k)
+            for(uint32_t i = 0; i < yj_nitems; i++) {
+                
+                //s += YY[k];
+                
+                k = i + start_sparse[Env::rank];
+                //if(l > YY.size()) {
+                  //  printf("%d %d %d %d [%d %d]\n", Env::rank, l, YY.size(), yj_nitems, start_sparse[j],  end_sparse[j]);
+                    //printf("cccccccccccccccccccccccccccccc\n");
+                    //std::exit(0);
+                //}
+                
+                
+                combiner(YY[k], yj_data[i]);
+                
+            }
+            //k++;
+        //}
     }
     
+
+    /*
     double s = 0;
     for(uint32_t i = start_sparse[Env::rank]; i < end_sparse[Env::rank]; i++) {
         s += YY[i];
     }
     printf("rank=%d combine [s = %f]\n", Env::rank, s);
-    
+    */
     /*
     wait_for_recvs();
     uint32_t accu = 0;
@@ -2300,17 +2324,18 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::apply_
     Integer_Type j = 0;
     
     Integer_Type v_nitems = V.size();
-    //#pragma omp parallel for schedule(static) private(j)
-    double s = 0;
+    //double s = 0;
+    #pragma omp parallel for schedule(static) private(j)
     for(uint32_t i = 0; i < v_nitems; i++)
     {
         Vertex_State& state = V[i];
         j = i + start_dense[Env::rank];
         if(i_data[j]) {
+            
             //C[i] = applicator(state, y_data[j]);
             //j++;
             C[i] = applicator(state, YY[iv_data[j]]);
-            s += state.get_state();
+            //s += state.get_state();
         }
         else
             C[i] = applicator(state);
@@ -2319,13 +2344,14 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::apply_
         //    printf("i=%d j=%d I=%d IV=%d %f %f\n", i, j, i_data[j], iv_data[j], YY[iv_data[j]], state.get_state());
     }    
     
-    Env::barrier();
-    printf("rank=%d, sum=%f\n", Env::rank, s);
+    
+    //printf("rank=%d, sum=%f\n", Env::rank, s);
+    
     std::fill(YY.begin(), YY.end(), 0);
     for(uint32_t j = 0; j < rowgrp_nranks - 1; j++) {        
         std::fill(YYY[j].begin(), YYY[j].end(), 0);
     }
-
+//Env::barrier();
     
     
     
@@ -2900,7 +2926,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::checks
     for(uint32_t i = 0; i < v_nitems; i++)
     {
         Vertex_State &state = V[i];
-        //if((state.get_state() != infinity()) and (get_vid(i) < nrows))    
+        if((state.get_state() != infinity()) and (get_vid(i) < nrows))    
                 v_sum_local += state.get_state();
             
     }
