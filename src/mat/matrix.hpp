@@ -646,7 +646,7 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_tiles() {
                         triples.erase(last, triples.end());
                     }
                 }
-                //tile.nedges = tile.triples->size();
+                tile.nedges = tile.triples->size();
                 //printf("%d %d\n", Env::rank, tile.nedges);
             }
         }
@@ -1504,7 +1504,8 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::filter_cols() {
     k = 0;
     for(Integer_Type j = 0; j < tile_width; j++) {
         if(JJ[j]) {
-            colgrp_nnz_columns[k] = start_dense[Env::rank] + j;
+            //colgrp_nnz_columns[k] = start_dense[Env::rank] + j;
+            colgrp_nnz_columns[k] = j;
             k++;
         }
     }
@@ -2290,16 +2291,19 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::del_compression() {
 
 template<typename Weight, typename Integer_Type, typename Fractional_Type>
 void Matrix<Weight, Integer_Type, Fractional_Type>::del_triples() {
+    /*
     Triple<Weight, Integer_Type> pair;
     for(uint32_t t: local_tiles_row_order) {
         pair = tile_of_local_tile(t);
         auto& tile = tiles[pair.row][pair.col];
         tile.free_triples();
     }
+    */
 }
 
 template<typename Weight, typename Integer_Type, typename Fractional_Type>
 void Matrix<Weight, Integer_Type, Fractional_Type>::del_triples_t() {
+    /*
     Triple<Weight, Integer_Type> pair;
     for(uint32_t t: local_tiles_row_order) {
         pair = tile_of_local_tile(t);
@@ -2315,6 +2319,7 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::del_triples_t() {
             }
         }
     }
+    */
 }
 
 
