@@ -628,9 +628,9 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_tiles() {
     }
     */
     
-    
+    MPI_Barrier(MPI_COMM_WORLD);
     distribute();
-
+    MPI_Barrier(MPI_COMM_WORLD);
     
     //Triple<Weight, Integer_Type> pair;
     RowSort<Weight, Integer_Type> f_row;
@@ -1506,7 +1506,7 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::filter_rows() {
     end_sparse.resize(Env::nranks);
     for(int32_t i = 0; i < Env::nranks; i++) {
         if(i == 0)
-            start_sparse[i] = nnz_rows_values[0];
+            start_sparse[i] = 0;//nnz_rows_values[0];
         else 
             start_sparse[i] = std::accumulate(nnz_rows_sizes.begin(), nnz_rows_sizes.end() - Env::nranks + i, 0);
         
