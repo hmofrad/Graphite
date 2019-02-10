@@ -95,6 +95,7 @@ class Vertex_Program
         void spmv_stationary(struct Tile2D<Weight, Integer_Type, Fractional_Type> &tile,
                 std::vector<Fractional_Type> &y_data, 
                 std::vector<Fractional_Type> &x_data); // Stationary spmv/spmspv
+        void spmv_stationary();
                 
         void spmv_nonstationary(struct Tile2D<Weight, Integer_Type, Fractional_Type> &tile, // Stationary spmv/spmspv 
                 std::vector<Fractional_Type> &y_data, 
@@ -158,6 +159,14 @@ class Vertex_Program
         std::vector<Fractional_Type> XX;               // Messages 
         std::vector<Fractional_Type> YY;  // Accumulators
         std::vector<std::vector<Fractional_Type>> YYY;  // Accumulators
+        std::vector<std::vector<Fractional_Type>> YYT;  // Accumulators
+        std::vector<std::vector<Fractional_Type>> YYYT;  // Accumulators
+        
+        std::vector<std::vector<char>> IT;
+        std::vector<std::vector<Integer_Type>> IVT;
+        std::vector<Integer_Type> threads_nnz_rows;
+        
+        
         std::vector<Integer_Type> nnz_rows_sizes;
         Integer_Type nnz_rows_size;
         std::vector<Integer_Type> nnz_cols_sizes;
@@ -320,6 +329,10 @@ Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::Vertex_Prog
         end_dense = Graph.A->end_dense;
         start_sparse = Graph.A->start_sparse;
         end_sparse = Graph.A->end_sparse;
+        
+        IT =  Graph.A->IT;
+        IVT = Graph.A->IVT;
+        threads_nnz_rows = Graph.A->threads_nnz_rows;
         
         
         //rowgrp_REG = &(Graph.A->rowgrp_REG);
@@ -652,6 +665,13 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::init_s
           //  i++;
         //}
     }
+    
+    YYT.resize(Env::nthreads);
+    for(int32_t i = 0; i < Env::nthreads; i++) {
+        YYT[i].resize(threads_nnz_rows[i]);
+    }
+    
+    
     //printf("%lu %lu %lu %lu %d\n", XX.size(), YY.size(), YYY.size(), nnz_cols_sizes[Env::rank], nnz_rows_sizes[Env::rank]);
     //if(!Env::rank) {
         
@@ -1527,10 +1547,24 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::combin
 template<typename Weight, typename Integer_Type, typename Fractional_Type, typename Vertex_State>
 void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::combine_2d_stationary() {
     
+    spmv_stationary();
+    Integer_Type offset = 0;
+    for(int32_t i = 0; i < Env::nthreads; i++) {
+        std::copy(YYT[i].begin(), YYT[i].end(), YY.begin() + offset);
+        offset += YYT[i].size();
+    }
+    //printf("%d %d %d\n", offset, YY.size(), nnz_rows_size);
+    
     //Env::barrier();
-    // Env::exit(0);
-    auto &tile = A->tiles[0][Env::rank];
-    spmv_stationary(tile, YY, XX);
+    //Env::exit(0);
+    //
+    //spmv_stationary(tile, YY, XX);
+    //auto &tile = A->tiles[0][Env::rank];
+    //#pragma omp parallel
+    //{
+        //int tid = 
+        //auto& y_data = 
+        
     
     MPI_Request request;
     int32_t leader, follower, tag;//, my_rank, accu, this_segment;
@@ -1655,6 +1689,48 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::combin
 }
 
 template<typename Weight, typename Integer_Type, typename Fractional_Type, typename Vertex_State>
+void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::spmv_stationary() {
+    //#ifdef HAS_WEIGHT
+    //Weight* A;
+    //#endif
+    //Integer_Type* IA;
+    //Integer_Type* JA;
+    //Integer_Type* JC;
+    //Integer_Type ncols;
+    
+    auto& tile = A->tiles[0][Env::rank];
+    auto& x_data = XX;
+    
+    #pragma omp parallel
+    {
+        int tid = omp_get_thread_num();
+        auto& y_data = YYT[tid];
+        uint64_t nnz = static_cast<TCSC_BASE<Weight, Integer_Type>*>(tile.compressor_t[tid])->nnz;
+        if(nnz) {
+            #ifdef HAS_WEIGHT
+            Integer_Type* A = static_cast<TCSC_BASE<Weight, Integer_Type>*>(tile.compressor_t[tid])->A;
+            #endif
+
+            Integer_Type* IA   = static_cast<TCSC_BASE<Weight, Integer_Type>*>(tile.compressor_t[tid])->IA;
+            Integer_Type* JA   = static_cast<TCSC_BASE<Weight, Integer_Type>*>(tile.compressor_t[tid])->JA;    
+            Integer_Type ncols = static_cast<TCSC_BASE<Weight, Integer_Type>*>(tile.compressor_t[tid])->nnzcols;  
+            
+            for(uint32_t j = 0; j < ncols; j++) {
+                for(uint32_t i = JA[j]; i < JA[j + 1]; i++) {
+                    #ifdef HAS_WEIGHT
+                    combiner(y_data[IA[i]], x_data[j], A[i]);
+                    #else
+                    combiner(y_data[IA[i]], x_data[j]);
+                    #endif
+                }
+            }
+        }
+    }
+}
+
+
+
+template<typename Weight, typename Integer_Type, typename Fractional_Type, typename Vertex_State>
 void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::spmv_stationary(
             struct Tile2D<Weight, Integer_Type, Fractional_Type> &tile,
             std::vector<Fractional_Type> &y_data,
@@ -1683,7 +1759,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::spmv_s
             //printf("%d %p\n", tid, IA);
             
                 
-            if(ordering_type == _ROW_) {
+            //if(ordering_type == _ROW_) {
                 for(uint32_t j = 0; j < ncols; j++) {
                     for(uint32_t i = JA[j]; i < JA[j + 1]; i++) {
                         #ifdef HAS_WEIGHT
@@ -1693,6 +1769,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::spmv_s
                         #endif
                     }
                 }
+            /*    
             }
             else {
                 for(uint32_t j = 0; j < ncols; j++) {
@@ -1706,6 +1783,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::spmv_s
                     }
                 } 
             }
+            */
         }
     }
     //std::exit(0);
@@ -2350,6 +2428,11 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::apply_
     for(uint32_t j = 0; j < rowgrp_nranks - 1; j++) {        
         std::fill(YYY[j].begin(), YYY[j].end(), 0);
     }
+    
+    for(int32_t i = 0; i < Env::nthreads; i++) {
+        std::fill(YYT[i].begin(), YYT[i].end(), 0);
+    }
+    
 //Env::barrier();
     
     
