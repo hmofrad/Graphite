@@ -439,10 +439,17 @@ void TCSC_BASE<Weight, Integer_Type>::populate(const std::vector<struct Triple<W
         Integer_Type i = 0; // Row Index
         Integer_Type j = 1; // Col index
         JA[0] = 0;
+        int ii = 0;
         for (auto& triple : *triples) {
+            ii++;
             //pair  = {(triple.row % tile_height), (triple.col % tile_width)};
             //pair  = {triple.row, (triple.col % tile_width)};
             pair  = {triple.row - tile_height, (triple.col % tile_width)};
+            //if(pair.row > nnzrows_indices.size()) {
+              //  printf("[%d %d %d %d %d] %d\n", triple.row, triple.col, pair.row, pair.col, nnzrows_indices.size(), ii);
+                //std::exit(0);
+            //}
+
             while((j - 1) != nnzcols_indices[pair.col]) {
                 j++;
                 JA[j] = JA[j - 1];
