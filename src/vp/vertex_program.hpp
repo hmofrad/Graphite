@@ -1023,7 +1023,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::scatte
     
     auto& JC = (*colgrp_nnz_columns);
     Integer_Type JC_nitems = JC.size();
-    #pragma omp parallel for schedule(static)
+    //#pragma omp parallel for schedule(static)
     for(uint32_t j = 0; j < JC_nitems; j++) {
         Vertex_State& state = V[JC[j]];
         XX[j] = messenger(state);
@@ -1553,7 +1553,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::combin
         std::copy(YYT[i].begin(), YYT[i].end(), YY.begin() + offset);
         offset += YYT[i].size();
     }
-    //printf("%d %d %d\n", offset, YY.size(), nnz_rows_size);
+    //printf("%d %lu %d %f %f\n", offset, YY.size(), nnz_rows_size, YYT[11][YYT[11].size() - 3], YY[YY.size() - 3]);
     
     //Env::barrier();
     //Env::exit(0);
@@ -2244,7 +2244,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::combin
             std::vector<Fractional_Type>& yj_data = YYY[j];
             Integer_Type yj_nitems = yj_data.size();
             
-            #pragma omp parallel for schedule(static) private(k)
+            //#pragma omp parallel for schedule(static) private(k)
             for(uint32_t i = 0; i < yj_nitems; i++) {
                 
                 //s += YY[k];
@@ -2402,7 +2402,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::apply_
     
     Integer_Type v_nitems = V.size();
     //double s = 0;
-    #pragma omp parallel for schedule(static) private(j)
+    //#pragma omp parallel for schedule(static) private(j)
     for(uint32_t i = 0; i < v_nitems; i++)
     {
         Vertex_State& state = V[i];
