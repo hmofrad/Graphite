@@ -2,10 +2,12 @@
 #SBATCH --job-name=graphite
 #SBATCH --output=graphite.out
 #SBATCH --error=graphite.err
-#SBATCH --ntasks=64
+#SBATCH --ntasks=8
 #SBATCH --nodes=4
-#SBATCH --ntasks-per-node=16
-#SBATCH --cpus-per-task=1
+#SBATCH --ntasks-per-node=2
+#SBATCH --cpus-per-task=14
+#SBATCH --cores-per-socket=1
+##SBATCH --ntasks-per-socket=1
 ##SBATCH --ntasks-per-socket=1
 ##SBATCH --mem=50000
 ##SBATCH --sockets-per-node=2
@@ -37,11 +39,11 @@ export SLURM_CPU_BIND="none"
 export I_MPI_FALLBACK=0
 export LD_LIBRARY_PATH=/ihome/rmelhem/moh18/boost/boost_1_67_0/stage/lib:/ihome/rmelhem/moh18/boost:$LD_LIBRARY_PATH
 export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
-
+#export KMP_AFFINITY=scatter
 NP=$SLURM_NTASKS
 MPI="mpirun -np"
 APPS_PERFIX="bin"
-APPS=("./pr" "./sssp" "./bfs" "./cc")
+APPS=("./pr1" "./sssp" "./bfs" "./cc")
 GRAPHS_PERFIX="/zfs1/cs3580_2017F/moh18/graph500/rmat"
 GRAPHS=("rmat26_1.bin" "rmat27_1.bin" "rmat28.bin" "rmat29.bin" "rmat30.bin")
 GRAPHS_W=("rmat26_1_w.bin0" "rmat27_1_w.bin0" "rmat28_w.bin" "rmat29_w.bin" "rmat30_w.bin")
@@ -80,7 +82,7 @@ for A in "${APPS[@]}";
 do
     for N in "${NTIMES[@]}";
     do
-        if [ "${A}" = "./pr" ]
+        if [ "${A}" = "./pr1" ]
         then
             ITER_OR_SRC=${ITERS}
         else
@@ -100,8 +102,8 @@ do
     done
 done
 
-strings graphit.out | grep 'Execute time'
-strings graphit.out | grep 'Iterations'
-strings graphit.out | grep 'Value checksum'
-strings graphit.out | grep 'Reachable vertices'
+strings graphitie.out | grep 'Execute time'
+strings graphite.out | grep 'Iterations'
+strings graphite.out | grep 'Value checksum'
+strings graphite.out | grep 'Reachable vertices'
 #strings graphtap.out | grep 'avg'
