@@ -981,6 +981,7 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::closest(std::vector<struct T
             end[i] = m;
         */
         /*
+        if(!Env::rank) {
         printf("i=%d [start=%lu end=%lu]: length=%lu [ch_st=%lu ch_end=%lu] left=%d right=%d k=%d [%d %d]\n", i, start[i], end[i], end[i] - start[i], i* chunk_size, (i + 1) * chunk_size, jl, jr, k, fl ,fr);
         if(i == 0)
             printf("i=%d [%d|%d, %d|%d|%d]\n", i, triples[start[i]].row, triples[start[i]+1].row, triples[end[i]-1].row, triples[end[i]].row, triples[end[i]+1].row);
@@ -988,6 +989,7 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::closest(std::vector<struct T
             printf("i=%d [%d|%d|%d, %d|%d|%d]\n", i, triples[start[i]-1].row, triples[start[i]].row, triples[start[i]+1].row, triples[end[i]-1].row, triples[end[i]].row, triples[end[i]+1].row);
         else
             printf("i=%d [%d|%d|%d, %d|%d]\n", i, triples[start[i]-1].row, triples[start[i]].row, triples[start[i]+1].row, triples[end[i]-1].row, triples[end[i]].row);
+        }
         */
         /*
         if(i > 0) {
@@ -1000,6 +1002,7 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::closest(std::vector<struct T
         
     }
     
+
     
     for(int32_t i = 1; i < npartitions; i++) {
         if(triples[end[i-1]].row == triples[start[i]].row)
@@ -1009,13 +1012,8 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::closest(std::vector<struct T
           //  printf("i=%d %d %d\n", i, triples[start[i-1]].row, triples[end[i]].row);
         //}
     
-       
     
-    
-    
-    //Env::barrier();
-    //Env::exit(0);
-    
+
     
     //Env::barrier();
     //std::exit(0);
@@ -1102,12 +1100,15 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_threads() {
                         }
                         std::sort(tile.triples_t[tid]->begin(), tile.triples_t[tid]->end(), f_col);
                         nnz_local[tid] = tile.triples_t[tid]->size();
-                        threads_start_row[tid] = triples[start[tid]].row;
-                        threads_end_row[tid] = triples[end[tid]].row;
+
+                        
+
+                        
+                        //threads_start_row[tid] = (tid != 0) ? triples[end[tid + 1]].row : 0;
+                        //threads_end_row[tid] = triples[end[tid]].row;
                         //threads_end_row[tid] = (threads_end_row[tid] < threads_start_row[tid]) ? threads_start_row[tid] : threads_end_row[tid];
-                        threads_end_row[tid] = (tid == Env::nthreads - 1) ? tile_height - 1 : threads_end_row[tid];
-                        if(!Env::rank)
-                        printf("rank %d thread=%d size=%lu start=%d end=%d\n", Env::rank, tid, tile.triples_t[tid]->size(), threads_start_row[tid], threads_end_row[tid]);
+                        //threads_end_row[tid] = (tid == Env::nthreads - 1) ? tile_height : threads_end_row[tid] + 1;
+                        
                     }
                     
                     double sum = std::accumulate(nnz_local.begin(), nnz_local.end(), 0.0);
@@ -1117,15 +1118,30 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_threads() {
                     //if(!Env::rank)
                       //  printf("Edge distribution: Rank %d tile %d - Threads edges (sum: avg +/- std_dev)= %.0f: %.0f +/- %.0f\n", Env::rank, j, sum, mean, std_dev);
                     
+                    for(int i = 0; i < tile.npartitions; i++) {
+                        
+                        if(i == tile.npartitions - 1)
+                            threads_end_row[i] = tile_height;
+                        else 
+                            threads_end_row[i] = triples[end[i]].row + 1;
+                        
+                        if(i == 0)
+                            threads_start_row[i] = 0;
+                        else {
+                            threads_start_row[i] = threads_end_row[i - 1];
+                        }
+                        //if(!Env::rank)
+                       // printf("rank=%d thread=%d size=%lu start=%d end=%d\n", Env::rank, i, tile.triples_t[i]->size(), threads_start_row[i], threads_end_row[i]);
+                    }
                     
                 }
             }
         }
     }
+   
     
-       // Env::barrier();
-    //Env::exit(0);    
-    
+
+   
     /*
     if(!Env::rank) {
         auto& tile = tiles[0][Env::rank];
@@ -1513,20 +1529,22 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::filter_rows() {
     {
         int tid = omp_get_thread_num();
         
-        Integer_Type length;
+        Integer_Type length = threads_end_row[tid] - threads_start_row[tid];
+        /*
         if(tid == 0) {
             length = threads_end_row[tid] + 1;
         }
         else {
             length = threads_end_row[tid] - threads_end_row[tid - 1];
         }
-        //printf("%d %d %d sz=%d len=%d\n", tid, threads_start_row[tid], threads_end_row[tid], threads_end_row[tid] - threads_start_row[tid], length);
+        */
+        //printf("rank=%d tid=%d start=%d end=%d sz=%d len=%d\n", Env::rank, tid, threads_start_row[tid], threads_end_row[tid], threads_end_row[tid] - threads_start_row[tid], length);
         IT[tid].resize(length);
         IVT[tid].resize(length);            
 
         Integer_Type j = 0;
         Integer_Type k = 0;
-        for(Integer_Type i = threads_start_row[tid]; i <= threads_end_row[tid]; i++) {
+        for(Integer_Type i = threads_start_row[tid]; i < threads_end_row[tid]; i++) {
             if(II[i]) {
                 IT[tid][j] = 1;
                 IVT[tid][j] = k;
@@ -1551,15 +1569,13 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::filter_rows() {
         s2 += all_rows[i];
     
     int s = std::accumulate(threads_nnz_rows.begin(), threads_nnz_rows.end(), 0);
-   // printf("%d %d %d %d\n", s, nnz_rows_size, s1, s2);
-    
-    //Env::barrier();
-    //Env::exit(0);
+//    printf("%d %d %d %d\n", s, nnz_rows_size, s1, s2);
+
         
    // }
     
     //
-    
+ 
     
         
     
@@ -2229,7 +2245,7 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_tcsc()
             Integer_Type c_nitems = nnz_cols_sizes[Env::rank];
             //Integer_Type r_nitems = nnz_rows_size;
             Integer_Type r_nitems = threads_nnz_rows[tid];
-            Integer_Type tile_height_t = (tid == 0) ? 0 : threads_end_row[tid - 1] + 1;
+            Integer_Type tile_height_t = (tid == 0) ? 0 : threads_end_row[tid - 1];
             struct Triple<Weight, Integer_Type> f = tile.triples_t[tid]->front();
             //struct Triple<Weight, Integer_Type> b = tile.triples_t[tid]->back();
            // printf("%d %d %d %d %d\n", tid, tile_height_t, tile.triples_t[tid]->size(), f.row, f.col);
