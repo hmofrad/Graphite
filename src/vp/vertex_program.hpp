@@ -587,12 +587,11 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::initia
         auto &i_data = (*II);          
         Integer_Type v_nitems = V.size();
         //printf("v_nitems=%d %d\n", Env::rank, v_nitems);
-        Integer_Type j = 0;
-        //#pragma omp parallel for schedule(static) private(j)
-        //int s = 0;
+        //Integer_Type j = 0;
+        #pragma omp parallel for schedule(static)
         for(uint32_t i = 0; i < v_nitems; i++) {
             Vertex_State &state = V[i];
-            j = i + start_dense[Env::rank];
+            Integer_Type j = i + start_dense[Env::rank];
             if(i_data[j])
                 C[i] = initializer(get_vid(i), state, (const State&) VProgram.V[i]);
             //if(Env::rank)
@@ -626,7 +625,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::init_s
     V.resize(tile_width);
     Integer_Type v_nitems = V.size();
     C.resize(tile_width);
-    //#pragma omp parallel for schedule(static)
+    #pragma omp parallel for schedule(static)
     for(uint32_t i = 0; i < v_nitems; i++)
     {
         Vertex_State &state = V[i]; 
@@ -1023,7 +1022,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::scatte
     
     auto& JC = (*colgrp_nnz_columns);
     Integer_Type JC_nitems = JC.size();
-    //#pragma omp parallel for schedule(static)
+    #pragma omp parallel for schedule(static)
     for(uint32_t j = 0; j < JC_nitems; j++) {
         Vertex_State& state = V[JC[j]];
         XX[j] = messenger(state);
@@ -2240,16 +2239,16 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::combin
     for(uint32_t j = 0; j < rowgrp_nranks - 1; j++) {
         
         //if(j != (uint32_t) Env::rank) {
-            Integer_Type k = 0;
+            //Integer_Type k = 0;
             std::vector<Fractional_Type>& yj_data = YYY[j];
             Integer_Type yj_nitems = yj_data.size();
             
-            //#pragma omp parallel for schedule(static) private(k)
+            #pragma omp parallel for schedule(static)
             for(uint32_t i = 0; i < yj_nitems; i++) {
                 
                 //s += YY[k];
                 
-                k = i + start_sparse[Env::rank];
+                Integer_Type k = i + start_sparse[Env::rank];
                 //if(l > YY.size()) {
                   //  printf("%d %d %d %d [%d %d]\n", Env::rank, l, YY.size(), yj_nitems, start_sparse[j],  end_sparse[j]);
                     //printf("cccccccccccccccccccccccccccccc\n");
@@ -2402,11 +2401,11 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::apply_
     
     Integer_Type v_nitems = V.size();
     //double s = 0;
-    //#pragma omp parallel for schedule(static) private(j)
+    #pragma omp parallel for schedule(static)
     for(uint32_t i = 0; i < v_nitems; i++)
     {
         Vertex_State& state = V[i];
-        j = i + start_dense[Env::rank];
+        Integer_Type j = i + start_dense[Env::rank];
         if(i_data[j]) {
             
             //C[i] = applicator(state, y_data[j]);
