@@ -511,7 +511,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::execut
         scatter_gather();
         combine();
         apply();
-        checksum();
+        //checksum();
         iteration++;
         Env::print_num("Iteration: ", iteration);        
         if(check_for_convergence) {
@@ -1527,7 +1527,8 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::combin
 template<typename Weight, typename Integer_Type, typename Fractional_Type, typename Vertex_State>
 void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::combine_2d_stationary() {
     
-    
+    //Env::barrier();
+    // Env::exit(0);
     auto &tile = A->tiles[0][Env::rank];
     spmv_stationary(tile, YY, XX);
     
@@ -1586,7 +1587,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::combin
     in_requests.clear();    
     
 
-    
+
   
     
     
@@ -1682,7 +1683,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::spmv_s
             //printf("%d %p\n", tid, IA);
             
                 
-            //if(ordering_type == _ROW_) {
+            if(ordering_type == _ROW_) {
                 for(uint32_t j = 0; j < ncols; j++) {
                     for(uint32_t i = JA[j]; i < JA[j + 1]; i++) {
                         #ifdef HAS_WEIGHT
@@ -1692,7 +1693,6 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::spmv_s
                         #endif
                     }
                 }
-            /*
             }
             else {
                 for(uint32_t j = 0; j < ncols; j++) {
@@ -1706,7 +1706,6 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::spmv_s
                     }
                 } 
             }
-            */
         }
     }
     //std::exit(0);
@@ -2320,7 +2319,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::apply_
     
     
     auto& i_data = (*II);
-    auto &iv_data = (*IIV);
+    auto& iv_data = (*IIV);
     Integer_Type j = 0;
     
     Integer_Type v_nitems = V.size();
