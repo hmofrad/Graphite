@@ -6,11 +6,8 @@
 #SBATCH --nodes=4
 #SBATCH --ntasks-per-node=2
 #SBATCH --ntasks-per-socket=1
-#SBATCH --cores-per-socket=14
-##SBATCH --ntasks-per-socket=1
-##SBATCH --ntasks-per-socket=1
+#SBATCH --cpus-per-task=14
 ##SBATCH --mem=50000
-##SBATCH --sockets-per-node=2
 #SBATCH --time=01:00:00
 #SBATCH --cluster=mpi
 #SBATCH --partition=opa-high-mem
@@ -41,7 +38,8 @@ export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
 #export KMP_AFFINITY=scatter
 NP=$SLURM_NTASKS
 MPI="mpirun -np"
-APPS_P")
+APPS_PERFIX="bin"
+APPS=("./pr1")
 #APPS=("./pr1" "./sssp" "./bfs" "./cc")
 GRAPHS_PERFIX="/zfs1/cs3580_2017F/moh18/graph500/rmat"
 GRAPHS=("rmat26_1.bin" "rmat27_1.bin" "rmat28.bin" "rmat29.bin" "rmat30.bin")
