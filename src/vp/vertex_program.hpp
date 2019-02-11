@@ -166,7 +166,7 @@ class Vertex_Program
         std::vector<std::vector<char>> IT;
         std::vector<std::vector<Integer_Type>> IVT;
         std::vector<Integer_Type> threads_nnz_rows;
-        
+        std::vector<Integer_Type> threads_nnz_start_row;
         
         std::vector<Integer_Type> nnz_rows_sizes;
         Integer_Type nnz_rows_size;
@@ -334,7 +334,7 @@ Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::Vertex_Prog
         IT =  Graph.A->IT;
         IVT = Graph.A->IVT;
         threads_nnz_rows = Graph.A->threads_nnz_rows;
-        
+        threads_nnz_start_row = Graph.A->threads_nnz_start_row;
         
         //rowgrp_REG = &(Graph.A->rowgrp_REG);
         //rowgrp_SRC = &(Graph.A->rowgrp_SRC);
@@ -661,7 +661,9 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::init_s
     //printf("nnz_rows_size=%d\n", nnz_rows_size);
     YY.resize(nnz_rows_size);
     YYY.resize(rowgrp_nranks - 1);
+    //YYY.resize(rowgrp_nranks);
     //int32_t i = 0;    
+    //for(uint32_t j = 0; j < rowgrp_nranks; j++) {
     for(uint32_t j = 0; j < rowgrp_nranks - 1; j++) {
         //if(j != (uint32_t) Env::rank) {
             YYY[j].resize(nnz_rows_sizes[Env::rank]);
@@ -1558,10 +1560,18 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::combin
     
     spmv_stationary();
     Integer_Type offset = 0;
-    for(int32_t i = 0; i < Env::nthreads; i++) {
-        std::copy(YYT[i].begin(), YYT[i].end(), YY.begin() + offset);
-        offset += YYT[i].size();
-    }
+    
+    //#pragma omp parallel
+    //{
+        //int tid = omp_get_thread_num();
+    //for(int32_t i = 0; i < Env::nthreads; i++) {
+        //std::copy(YYT[tid].begin(), YYT[tid].end(), YY.begin() + threads_nnz_start_row[tid]);
+        //offset += YYT[i].size();
+    //}
+    
+   // printf("Here\n");
+   // Env::barrier();
+    //Env::exit(0);
     //printf("%d %lu %d %f %f\n", offset, YY.size(), nnz_rows_size, YYT[11][YYT[11].size() - 3], YY[YY.size() - 3]);
     
     //Env::barrier();
@@ -1624,10 +1634,10 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::combin
         //in_requests.push_back(request);
     //}
     
-    MPI_Waitall(out_requests.size(), out_requests.data(), MPI_STATUSES_IGNORE);
-    out_requests.clear();
-    MPI_Waitall(in_requests.size(), in_requests.data(), MPI_STATUSES_IGNORE);
-    in_requests.clear();    
+    //MPI_Waitall(out_requests.size(), out_requests.data(), MPI_STATUSES_IGNORE);
+    //out_requests.clear();
+    //MPI_Waitall(in_requests.size(), in_requests.data(), MPI_STATUSES_IGNORE);
+    //in_requests.clear();    
     
 
 
@@ -1735,6 +1745,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::spmv_s
                     //printf("%f\n", x_data[j]);
                 }
             }
+            std::copy(YYT[tid].begin(), YYT[tid].end(), YY.begin() + threads_nnz_start_row[tid]);
         }
     }
 }
@@ -2246,8 +2257,8 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::combin
 template<typename Weight, typename Integer_Type, typename Fractional_Type, typename Vertex_State>
 void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::combine_postprocess_stationary_for_all()
 {
-      
-    Integer_Type k = 0;
+    wait_for_recvs();  
+    //Integer_Type k = 0;
     for(uint32_t j = 0; j < rowgrp_nranks - 1; j++) {
         
         //if(j != (uint32_t) Env::rank) {
@@ -2274,7 +2285,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::combin
             //k++;
         //}
     }
-    
+    wait_for_sends();
 
     /*
     double s = 0;
