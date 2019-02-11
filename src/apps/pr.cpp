@@ -41,7 +41,6 @@ int main(int argc, char** argv) {
     Deg_Program<wp, ip, fp> V(G, stationary, gather_depends_on_apply, apply_depends_on_iter, OT);
     V.execute(1);
     V.checksum();
-    Env::barrier();
 
     OT = _ROW_;
     PR_Program<wp, ip, fp> VR(G, stationary, gather_depends_on_apply, apply_depends_on_iter, OT);
