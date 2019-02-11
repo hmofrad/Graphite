@@ -174,10 +174,10 @@ void Graph<Weight, Integer_Type, Fractional_Type>::load_text(std::string filepat
     parread_text();
     // Initialize tiles
     A->init_tiles();
-    // Initialize threads
-    A->init_threads();
     // Filter the graph
     A->init_filtering();
+    // Initialize threads
+    A->init_threads();
     // Compress the graph
     A->init_compression();
     // Delete triples
@@ -198,10 +198,10 @@ void Graph<Weight, Integer_Type, Fractional_Type>::load_binary(std::string filep
     parread_binary();
     // Initialize tiles
     A->init_tiles();
-    // Initialize threads
-    A->init_threads();
     // Filter the graph
     A->init_filtering();
+    // Initialize threads
+    A->init_threads();
     // Compress the graph
     A->init_compression();
     // Delete triples
