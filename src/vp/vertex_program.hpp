@@ -157,6 +157,7 @@ class Vertex_Program
         Matrix<Weight, Integer_Type, Fractional_Type> *A;          // Adjacency list
         /* Stationary */
         std::vector<Fractional_Type> XX;               // Messages 
+        std::vector<std::vector<Fractional_Type>> XXT;               // Messages 
         std::vector<Fractional_Type> YY;  // Accumulators
         std::vector<std::vector<Fractional_Type>> YYY;  // Accumulators
         std::vector<std::vector<Fractional_Type>> YYT;  // Accumulators
@@ -633,6 +634,9 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::init_s
     }
     // Initialize messages
     XX.resize(nnz_cols_sizes[Env::rank]);
+    XXT.resize(Env::nthreads);
+    for(int32_t i = 0; i < Env::nthreads; i++)
+        XXT[i].resize(nnz_cols_sizes[Env::rank]);
 
     
     /*
@@ -1028,6 +1032,12 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::scatte
         XX[j] = messenger(state);
         //printf("%d %d %d %lu\n", Env::rank, j, JC[j], V.size());
     }
+    #pragma omp parallel
+    {
+        int tid = omp_get_thread_num();
+        std::copy(XX.begin(), XX.end(), XXT[tid].begin());
+    }
+    
     //assert(JC_nitems == nnz_cols_sizes[Env::rank]);
     
     /*
@@ -1698,12 +1708,13 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::spmv_s
     //Integer_Type ncols;
     
     auto& tile = A->tiles[0][Env::rank];
-    auto& x_data = XX;
+    //auto& x_data = XX;
     
     #pragma omp parallel
     {
         int tid = omp_get_thread_num();
         auto& y_data = YYT[tid];
+        auto& x_data = XXT[tid];
         uint64_t nnz = static_cast<TCSC_BASE<Weight, Integer_Type>*>(tile.compressor_t[tid])->nnz;
         if(nnz) {
             #ifdef HAS_WEIGHT
@@ -1721,6 +1732,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::spmv_s
                     #else
                     combiner(y_data[IA[i]], x_data[j]);
                     #endif
+                    //printf("%f\n", x_data[j]);
                 }
             }
         }
