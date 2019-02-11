@@ -20,9 +20,9 @@
 
 
 //#ifdef __linux__
-#include <numa.h>
+//#include <numa.h>
 //#endif 
-//#include </ihome/rmelhem/moh18/numactl/libnuma/usr/local/include/numa.h>
+#include </ihome/rmelhem/moh18/numactl/libnuma/usr/local/include/numa.h>
 //#ifdef NUMA_AVAILABLE 
 
 class Env {
@@ -180,7 +180,6 @@ void Env::init_t() {
                 printf("NUMA-aware OpenMP is disabled with %d threads, %d sockets, and %d threads per socket\n", nthreads, nsockets, nthreads_per_socket);
         }
         
-        /*
         if(is_master) {
             #pragma omp parallel
             {
@@ -194,7 +193,6 @@ void Env::init_t() {
                 
             }
         }
-        */
         
         
         
