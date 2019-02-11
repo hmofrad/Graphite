@@ -23,8 +23,8 @@ SYSLIBS = -lnuma -I $(NUMACTL) -L$(LIBNUMA)
 
 .PHONY: dir all test misc clean
 
-objs   = deg pr1 #pr cc bfs
-#objs_w = sssp
+objs   = deg pr  pr1  cc bfs
+objs_w = sssp
 
 all: dir $(objs) $(objs_w)
 
