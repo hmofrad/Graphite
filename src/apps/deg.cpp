@@ -12,7 +12,7 @@
 #include "deg.h"
 
 int main(int argc, char** argv) {
-    Env::init(false);
+    Env::init(true);
     double time1 = Env::clock();
     if(argc != 3 and argc != 4) {
         if(Env::is_master)
@@ -27,7 +27,7 @@ int main(int argc, char** argv) {
     bool self_loops = true;
     bool acyclic = false;
     bool parallel_edges = true;
-    Tiling_type TT = _1D_COL_;
+    Tiling_type TT = _2DT_;
     Compression_type CT = _TCSC_;
     Graph<wp, ip, ip> G;    
     G.load(file_path, num_vertices, num_vertices, directed, transpose, self_loops, acyclic, parallel_edges, TT, CT);
