@@ -79,7 +79,7 @@ for A in "${APPS[@]}";
 do
     for N in "${NTIMES[@]}";
     do
-        if [ "${A}" = "./pr1" ]
+        if [ "${A}" = "./pr" ] || [ "${A}" = "./pr1" ]
         then
             ITER_OR_SRC=${ITERS}
         else
