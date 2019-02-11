@@ -109,6 +109,7 @@ class Matrix {
         std::vector<std::vector<Integer_Type>> IVT;  // Nonzero rows indices    (from tile width)
         std::vector<Integer_Type> threads_nnz_rows;  // Row group row indices
         std::vector<Integer_Type> threads_start_row;  
+        std::vector<Integer_Type> threads_nnz_start_row;  
         std::vector<Integer_Type> threads_end_row;  
         std::vector<Integer_Type> rowgrp_nnz_rows;  // Row group row indices         
         std::vector<Integer_Type> rowgrp_regular_rows; // Row group regular indices
@@ -1538,6 +1539,7 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::filter_rows() {
             length = threads_end_row[tid] - threads_end_row[tid - 1];
         }
         */
+        //if(!Env::rank)
         //printf("rank=%d tid=%d start=%d end=%d sz=%d len=%d\n", Env::rank, tid, threads_start_row[tid], threads_end_row[tid], threads_end_row[tid] - threads_start_row[tid], length);
         IT[tid].resize(length);
         IVT[tid].resize(length);            
@@ -1569,8 +1571,23 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::filter_rows() {
         s2 += all_rows[i];
     
     int s = std::accumulate(threads_nnz_rows.begin(), threads_nnz_rows.end(), 0);
-//    printf("%d %d %d %d\n", s, nnz_rows_size, s1, s2);
-
+    //printf("%d %d %d %d\n", s, nnz_rows_size, s1, s2);
+    
+    threads_nnz_start_row.resize(Env::nthreads, 0);
+    //if(!Env::rank) {
+    Integer_Type nzz_sum = 0;
+    for(int32_t i = 0; i < Env::nthreads; i++) {
+        
+        threads_nnz_start_row[i] += nzz_sum;
+        nzz_sum += threads_nnz_rows[i];
+        //printf("%d %d %d\n", i, threads_nnz_start_row[i], threads_nnz_rows[i]);
+    }
+    //}
+    
+    
+    
+    //Env::barrier();
+    //Env::exit(0);
         
    // }
     
