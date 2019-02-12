@@ -11,7 +11,7 @@
 #include <cmath>
  
 enum Tiling_type {
-    _1D_COL_,
+    _2D_COL_,
     _2D_,
     _2DT_
 };
@@ -60,10 +60,10 @@ Tiling::Tiling(uint32_t nranks_, uint32_t ntiles_, uint32_t nrowgrps_, uint32_t 
         rank_ncolgrps = ncolgrps / rowgrp_nranks;        
         assert(rank_nrowgrps * rank_ncolgrps == rank_ntiles);
     }
-    else if (tiling_type == Tiling_type::_1D_COL_) {
-        colgrp_nranks = 1;
+    else if (tiling_type == Tiling_type::_2D_COL_) {
         rowgrp_nranks = nranks;
-        rank_nrowgrps = 1;
+        colgrp_nranks = 1;
+        rank_nrowgrps = nranks;
         rank_ncolgrps = 1;
         //printf("nranks=%d ntiles=%d nrowgrps=%d ncolgrps=%d\n", nranks, ntiles, nrowgrps, ncolgrps);
         //printf("rank_ntiles=%d rank_nrowgrps=%d rank_ncolgrps=%d\n", rank_ntiles, rank_nrowgrps, rank_ncolgrps);
