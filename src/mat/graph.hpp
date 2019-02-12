@@ -95,7 +95,12 @@ void Graph<Weight, Integer_Type, Fractional_Type>::init_graph(std::string filepa
     acyclic = acyclic_;
     parallel_edges = parallel_edges_;
     
-    uint32_t ntiles_;
+    uint32_t ntiles_ = Env::nranks * Env::nranks;
+    while(nrows % Env::nranks)
+        nrows++;
+    ncols = nrows;
+    
+    /*    
     if((tiling_type_ == _2D_) or (tiling_type_ == _2DT_))
         ntiles_ = Env::nranks * Env::nranks;
     else { 
@@ -107,7 +112,7 @@ void Graph<Weight, Integer_Type, Fractional_Type>::init_graph(std::string filepa
         }
         //printf("nrows=%d %d\n", nrows, nrows % Env::nranks);
     }
-    
+    */
     // Initialize matrix
     A = new Matrix<Weight, Integer_Type, Fractional_Type>(nrows, ncols, ntiles_, directed_, 
                                                transpose_, parallel_edges_, tiling_type_, compression_type_);
