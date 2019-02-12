@@ -367,7 +367,7 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_matrix() {
                 tile.leader_rank_rg_rg = i;
                 tile.leader_rank_cg_cg = j;
             }
-            else if(tiling->tiling_type == Tiling_type::_2D_COL_) {
+            else if(tiling->tiling_type == Tiling_type::_1D_COL_) {
                 tile.rank = (i % tiling->colgrp_nranks) * tiling->rowgrp_nranks
                                                         + (j % tiling->rowgrp_nranks);
                 
@@ -558,7 +558,7 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_matrix() {
     /*    
     } 
     
-    else if(tiling->tiling_type == Tiling_type::_2D_COL__) {
+    else if(tiling->tiling_type == Tiling_type::_1D_COL__) {
         accu_segment_row = Env::rank;
         //follower_rowgrp_ranks.resize(Env::nranks - 1);
         for(uint32_t j = 0; j < tiling->rowgrp_nranks; j++) {
