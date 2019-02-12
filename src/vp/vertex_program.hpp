@@ -985,7 +985,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::scatte
     if(stationary) {
         //if(iteration > 0)
         scatter_gather_stationary();
-        if(tiling_type != _1D_COL_) {
+        if((ordering_type == _ROW_ and tiling_type != _1D_COL_) or (ordering_type == _COL_ and tiling_type == _1D_COL_)) {
             if(Env::comm_split) {
                 if(broadcast_communication)
                     bcast_stationary();
@@ -1004,7 +1004,8 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::scatte
         //if(iteration > 0)
         scatter_gather_nonstationary();
         //scatter_gather_nonstationary_activity_filtering();
-        if(tiling_type != _1D_COL_) {
+        //if(tiling_type != _1D_COL_) {
+        if((ordering_type == _ROW_ and tiling_type != _1D_COL_) or (ordering_type == _COL_ and tiling_type == _1D_COL_)) {
             if(Env::comm_split) {
                 if(broadcast_communication)
                     bcast_nonstationary();
