@@ -28,7 +28,7 @@ int main(int argc, char** argv) {
     bool self_loops = true;
     bool acyclic = false;
     bool parallel_edges = true;
-    Tiling_type TT = _1D_COL_;
+    Tiling_type TT = _1D_ROW_;
     Compression_type CT = _TCSC_;
     
     /* Degree execution */
