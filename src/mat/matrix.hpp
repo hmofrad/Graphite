@@ -383,6 +383,23 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_matrix() {
                 tile.leader_rank_rg_rg = i;
                 tile.leader_rank_cg_cg = j;
             }
+            else if(tiling->tiling_type == Tiling_type::_1D_ROW_) {
+                tile.rank = (i % tiling->colgrp_nranks) * tiling->rowgrp_nranks
+                                                        + (j % tiling->rowgrp_nranks);
+                
+                tile.ith = tile.rg / tiling->colgrp_nranks; 
+                tile.jth = tile.cg / tiling->rowgrp_nranks;
+                
+                tile.rank_rg = j % tiling->rowgrp_nranks;
+                tile.rank_cg = i % tiling->colgrp_nranks;
+                
+                tile.leader_rank_rg = i;
+                tile.leader_rank_cg = j;
+                
+                tile.leader_rank_rg_rg = i;
+                tile.leader_rank_cg_cg = j;
+            }
+            
             
             tile.nth   = (tile.ith * tiling->rank_ncolgrps) + tile.jth;
             tile.mth   = (tile.jth * tiling->rank_nrowgrps) + tile.ith;
