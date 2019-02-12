@@ -27,7 +27,7 @@ int main(int argc, char** argv) {
     bool self_loops = true;
     bool acyclic = false;
     bool parallel_edges = true;
-    Tiling_type TT = _2D_COL_;
+    Tiling_type TT = _1D_COL_;
     Compression_type CT = _TCSC_;
     Graph<wp, ip, ip> G;    
     G.load(file_path, num_vertices, num_vertices, directed, transpose, self_loops, acyclic, parallel_edges, TT, CT);
