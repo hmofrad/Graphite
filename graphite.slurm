@@ -10,7 +10,7 @@
 ##SBATCH --mem=50000
 #SBATCH --time=01:00:00
 #SBATCH --cluster=mpi
-#SBATCH --partition=opa-high-mem
+#SBATCH --partition=opa
 
 ## while true; do free -g; sleep 10; done
 ## grep 'Execution' la3.out
@@ -99,7 +99,7 @@ do
     done
 done
 
-strings graphitie.out | grep 'Execute time'
+strings graphite.out | grep 'Execute time'
 strings graphite.out | grep 'Iterations'
 strings graphite.out | grep 'Value checksum'
 strings graphite.out | grep 'Reachable vertices'
