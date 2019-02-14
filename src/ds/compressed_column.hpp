@@ -41,7 +41,8 @@ struct Compressed_column {
                               const std::vector<char>&         nnzrows_bitvector,
                               const std::vector<Integer_Type>& nnzrows_indices, 
                               const std::vector<char>&         nnzcols_bitvector,
-                              const std::vector<Integer_Type>& nnzcols_indices) {};                               
+                              const std::vector<Integer_Type>& nnzcols_indices,
+                              const bool which) {};                               
                               
         virtual void populate(const std::vector<struct Triple<Weight, Integer_Type>>* triples,
                               const Integer_Type tile_height, 
@@ -283,7 +284,8 @@ struct TCSC_BASE : public Compressed_column<Weight, Integer_Type> {
                               const std::vector<char>&         nnzrows_bitvector,
                               const std::vector<Integer_Type>& nnzrows_indices, 
                               const std::vector<char>&         nnzcols_bitvector,
-                              const std::vector<Integer_Type>& nnzcols_indices);
+                              const std::vector<Integer_Type>& nnzcols_indices,
+                              const bool which);
                               
         uint64_t nnz;
         Integer_Type nnzcols;
@@ -411,29 +413,8 @@ void TCSC_BASE<Weight, Integer_Type>::populate(const std::vector<struct Triple<W
                                                const std::vector<char>&         nnzrows_bitvector,
                                                const std::vector<Integer_Type>& nnzrows_indices, 
                                                const std::vector<char>&         nnzcols_bitvector,
-                                               const std::vector<Integer_Type>& nnzcols_indices) {
-//printf("NT=%d/%d\n", omp_get_thread_num(), omp_get_max_threads());
-
-
-    /*
-    #pragma omp parallel 
-    {
-        int nthreads = omp_get_num_threads();
-        int tid = omp_get_thread_num();
-        
-        uint32_t rows_per_thread = tile_height/nthreads;
-        
-        uint32_t start = tid * rows_per_thread;
-        uint32_t end = start + rows_per_thread;
-        start = (start > tile_height) ? (tile_height):(start);
-        end = (end > tile_height) ? (tile_height):(end);
-        end = (tid == nthreads - 1)?(tile_height):(end);
-        printf("thread %d of %d in [%d %d]\n", tid, nthreads, start, end);
-    }
-    */
-    
-
-
+                                               const std::vector<Integer_Type>& nnzcols_indices,
+                                               const bool which) {
     if(nnz and nnzcols and nnzrows) {
         struct Triple<Weight, Integer_Type> pair;
         Integer_Type i = 0; // Row Index
@@ -442,14 +423,13 @@ void TCSC_BASE<Weight, Integer_Type>::populate(const std::vector<struct Triple<W
         int ii = 0;
         for (auto& triple : *triples) {
             ii++;
-            pair  = {(triple.row % tile_height), (triple.col % tile_width)};
-            //pair  = {triple.row, (triple.col % tile_width)};
-            //pair  = {triple.row - tile_height, (triple.col % tile_width)};
-            //if(pair.row > nnzrows_indices.size()) {
-              //  printf("[%d %d %d %d %d] %d\n", triple.row, triple.col, pair.row, pair.col, nnzrows_indices.size(), ii);
-                //std::exit(0);
-            //}
-
+            if(which) {
+                pair  = {triple.row, (triple.col % tile_width)};
+                //pair  = {triple.row - tile_height, (triple.col % tile_width)};
+            }
+            else 
+                pair  = {(triple.row % tile_height), (triple.col % tile_width)};
+            
             while((j - 1) != nnzcols_indices[pair.col]) {
                 j++;
                 JA[j] = JA[j - 1];
