@@ -211,7 +211,7 @@ void Graph<Weight, Integer_Type, Fractional_Type>::load_binary(std::string filep
     
     if((tiling_type_ == _1D_ROW_) or (tiling_type_ == _1D_COL_)) {
         // Initialize threads 
-        A->init_threads();        
+        A->init_threads();              
         // Filter the graph
         A->init_filtering();
     }
@@ -225,7 +225,7 @@ void Graph<Weight, Integer_Type, Fractional_Type>::load_binary(std::string filep
     // Compress the graph
     A->init_compression();
     // Delete triples
-    //A->del_triples();
+    A->del_triples();
 }
 
 template<typename Weight, typename Integer_Type, typename Fractional_Type>
