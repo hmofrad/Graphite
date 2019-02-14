@@ -2391,7 +2391,7 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_tcsc()
                     sid = 1;
                 */
                 //printf("%d nnz=%d\n", tid, tile.triples_t[tid]->size());
-                
+                //Integer_Type r_nitems = 
                 tile.compressor_t[tid] = new TCSC_BASE<Weight, Integer_Type>(tile.triples_t[tid]->size(), c_nitems, r_nitems, sid);
                 tile.compressor_t[tid]->populate(tile.triples_t[tid], tile_height, tile_width, i_data, iv_data, j_data, jv_data);
                 //numa_tonode_memory(array + sizeof(T) * local_partition_offset[s_i], sizeof(T) * (local_partition_offset[s_i+1] - local_partition_offset[s_i]), s_i);
