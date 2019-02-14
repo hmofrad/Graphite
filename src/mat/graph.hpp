@@ -95,7 +95,12 @@ void Graph<Weight, Integer_Type, Fractional_Type>::init_graph(std::string filepa
     acyclic = acyclic_;
     parallel_edges = parallel_edges_;
     
-    uint32_t ntiles_ = Env::nranks * Env::nranks;
+    uint32_t ntiles_ = 0;
+    if((tiling_type_ == _1D_ROW_) or (tiling_type_ == _1D_COL_))
+        ntiles_ = Env::nranks;
+    else
+        ntiles_ = Env::nranks * Env::nranks;
+    
     while(nrows % Env::nranks)
         nrows++;
     ncols = nrows;
@@ -203,10 +208,20 @@ void Graph<Weight, Integer_Type, Fractional_Type>::load_binary(std::string filep
     parread_binary();
     // Initialize tiles
     A->init_tiles();
-    // Filter the graph
-    A->init_filtering();
-    // Initialize threads
-    A->init_threads();
+    
+    if((tiling_type_ == _1D_ROW_) or (tiling_type_ == _1D_COL_)) {
+        // Initialize threads 
+        A->init_threads();        
+        // Filter the graph
+        A->init_filtering();
+    }
+    else {
+        // Filter the graph
+        A->init_filtering();        
+        // Initialize threads
+        A->init_threads();
+    }
+
     // Compress the graph
     A->init_compression();
     // Delete triples
