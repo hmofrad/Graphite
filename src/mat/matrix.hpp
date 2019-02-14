@@ -396,7 +396,6 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_matrix() {
                 tile.leader_rank_rg_rg = i;
                 tile.leader_rank_cg_cg = j;
             }
-            
             else if(tiling->tiling_type == Tiling_type::_1D_COL_) {
                 tile.rank = (i % tiling->colgrp_nranks) * tiling->rowgrp_nranks
                                                         + (j % tiling->rowgrp_nranks);
@@ -413,7 +412,22 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_matrix() {
                 tile.leader_rank_rg_rg = i;
                 tile.leader_rank_cg_cg = j;
             }
-            
+            else if(tiling->tiling_type == Tiling_type::_1D_ROW_) {
+                tile.rank = (i % tiling->colgrp_nranks) * tiling->rowgrp_nranks
+                                                        + (j % tiling->rowgrp_nranks);
+                
+                tile.ith = tile.rg / tiling->colgrp_nranks; 
+                tile.jth = tile.cg / tiling->rowgrp_nranks;
+                
+                tile.rank_rg = j % tiling->rowgrp_nranks;
+                tile.rank_cg = i % tiling->colgrp_nranks;
+                
+                tile.leader_rank_rg = i;
+                tile.leader_rank_cg = j;
+                
+                tile.leader_rank_rg_rg = i;
+                tile.leader_rank_cg_cg = j;
+            }
             
             tile.nth   = (tile.ith * tiling->rank_ncolgrps) + tile.jth;
             tile.mth   = (tile.jth * tiling->rank_nrowgrps) + tile.ith;
@@ -431,6 +445,7 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_matrix() {
             if(j != (uint32_t) Env::rank)
                 follower_rowgrp_ranks.push_back(j);
         }
+        local_tiles_row_order.push_back(Env::rank);
     }
     else {
         leader_ranks.resize(nrowgrps, -1);
@@ -603,8 +618,6 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_matrix() {
         printf("Tiling Info: %d x %d [rank_nrowgrps x rank_ncolgrps]\n", tiling->rank_nrowgrps, tiling->rank_ncolgrps);
     }
     print("rank");
-    Env::barrier();
-    Env::exit(0);
 }
 
 template<typename Weight, typename Integer_Type, typename Fractional_Type>
@@ -887,13 +900,9 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::distribute()
 template<typename Weight, typename Integer_Type, typename Fractional_Type>
 void Matrix<Weight, Integer_Type, Fractional_Type>::closest(std::vector<struct Triple<Weight, Integer_Type>>& triples,
                    int32_t npartitions, uint64_t chunk_size_, std::vector<uint64_t>& start, std::vector<uint64_t>& end) {
-                       
-   // printf("size=%lu chunk_size=%lu, npartitions=%d\n", triples.size(), chunk_size, npartitions);
     uint64_t chunk_size = chunk_size_;
     uint64_t m = triples.size();
     uint32_t k = 0;
-    //start[0] = 0;
-    //end[npartitions - 1] = m;
     for(int i = 0; i < npartitions; i++) {
         if(i == 0)
             start[i] = 0;
@@ -904,16 +913,6 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::closest(std::vector<struct T
         bool fr = false;
         bool f = false;
         k = (i + 1) * chunk_size;
-        
-        
-/*        
-        if(i > 0) {
-            if(jl > (k + chunk_size) or jr > (k + chunk_size)) {
-                break;
-            }
-
-        }
-        */
 
         uint32_t jl = k - 1;
         uint32_t jr = k;
@@ -921,9 +920,7 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::closest(std::vector<struct T
         
         while(jl >= start[i]) {
             if(r != triples[jl].row) {
-                //end[i] = jl;
                 fl = true;
-                //jl++;
                 break;
             }
             jl--;
@@ -931,7 +928,6 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::closest(std::vector<struct T
         
         while(jr < m) {
             if(r != triples[jr].row) {
-                //end[i] = jr;
                 fr = true;
                 jr--;
                 break;
@@ -942,10 +938,7 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::closest(std::vector<struct T
         if(i < npartitions - 1) {
             if(fl and fr){
                 if((k - jl) <= (k - jr)) {
-                    //if(jl > start[i])
-                        end[i] = jl;
-                    //else
-                        //end[i] = jr;
+                    end[i] = jl;
                 }
                 else {
                    
@@ -961,154 +954,12 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::closest(std::vector<struct T
         }
         else 
             end[i] = m - 1;
-        
-         
-       
-        
-        //printf("%d %d %d %d %d [%d %d %d %d]\n", i, start[i], end[i], jr, jl,  triples[jl].row, r, triples[jr].row, triples[jr-1].row);    
-        
-        
-        /*
-        //if(triples[idx].row == triples[idx+1].row) {
-        while((jl >= start[i]) and (jr < m)) {
-            if(r != triples[jl].row) {
-                fl = true;
-            }
-            if(r != triples[jr].row) {
-                fr = true;
-            }
-            if(fl or fr)
-                break;
-            jl--;
-            jr++;
-        }
-        
-        if(fl and fr) {
-            if((k - jl) <= (k - jr))
-                end[i] = jl;
-            else
-                end[i] = jr;
-        }
-        else if(fl) {
-            end[i] = jl;
-        }
-        else if(fr) {
-            end[i] = jr;
-        } else {
-            if(jl >= start[i]) {
-                while(jl >= start[i]) {
-                    if(r != triples[jl].row) {
-                        end[i] = jl;
-                        f = true;
-                        break;
-                    }
-                    jl--;
-                }
-            }
-            else {
-                while(jr < m) {
-                    if(r != triples[jr].row) {
-                        end[i] = jr;
-                        f = true;
-                        break;
-                    }
-                    jr++;
-                }
-            }
-        }
-        
-        if(not(fl or fr)) {
-            if(not f)
-                end[i] = start[i];
-        }
-        if(i == npartitions - 1)
-            end[i] = m;
-        */
-        /*
-        if(!Env::rank) {
-        printf("i=%d [start=%lu end=%lu]: length=%lu [ch_st=%lu ch_end=%lu] left=%d right=%d k=%d [%d %d]\n", i, start[i], end[i], end[i] - start[i], i* chunk_size, (i + 1) * chunk_size, jl, jr, k, fl ,fr);
-        if(i == 0)
-            printf("i=%d [%d|%d, %d|%d|%d]\n", i, triples[start[i]].row, triples[start[i]+1].row, triples[end[i]-1].row, triples[end[i]].row, triples[end[i]+1].row);
-        else if( i > 0 and i < npartitions - 1)
-            printf("i=%d [%d|%d|%d, %d|%d|%d]\n", i, triples[start[i]-1].row, triples[start[i]].row, triples[start[i]+1].row, triples[end[i]-1].row, triples[end[i]].row, triples[end[i]+1].row);
-        else
-            printf("i=%d [%d|%d|%d, %d|%d]\n", i, triples[start[i]-1].row, triples[start[i]].row, triples[start[i]+1].row, triples[end[i]-1].row, triples[end[i]].row);
-        }
-        */
-        /*
-        if(i > 0) {
-            if(jl > (k + chunk_size) or jr > (k + chunk_size)) {
-                break;
-            }
-
-        }
-        */
-        
     }
-    
-
     
     for(int32_t i = 1; i < npartitions; i++) {
         if(triples[end[i-1]].row == triples[start[i]].row)
             assert(triples[start[i-1]].row == triples[end[i]].row);
     }
-        //if(triples[start[i-1]].row > triples[end[i]].row) {
-          //  printf("i=%d %d %d\n", i, triples[start[i-1]].row, triples[end[i]].row);
-        //}
-    
-    
-
-    
-    //Env::barrier();
-    //std::exit(0);
-/*
-    int jl = q - 1;
-    int jr = q + 1;
-    while((jl >= 0) and (jr < n)) {
-        if(c == s[jl]) {
-            fl = true;
-        }
-        if(c == s[jr]) {
-            fr = true;
-        }
-        if(fl or fr)
-            break;
-        jl--;
-        jr++;
-    }
-    
-    if(fl and fr) {
-        if((q - jl) <= (jr - q))
-            output[i] = jl;
-        else
-            output[i] = jr;
-    }
-    else if(fl) {
-        output[i] = jl;
-    }
-    else if(fr) {
-        output[i] = jr;
-    } else {
-        if(jl >= 0) {
-            while(jl >= 0) {
-                if(c == s[jl]) {
-                    output[i] = jl;
-                    break;
-                }
-                jl--;
-            }
-        }
-        else {
-            while(jr < n) {
-                if(c == s[jr]) {
-                    output[i] = jr;
-                    break;
-                }
-                jr++;
-            }
-        }
-    }
-    */
 }
 
 
@@ -1117,208 +968,50 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_threads() {
     if(Env::is_master)
         printf("Edge distribution: Distributing edges among %d threads\n", omp_get_max_threads());     
     ColSort<Weight, Integer_Type> f_col;
-    
-    //for (uint32_t i = 0; i < nrowgrps; i++) {
-      //  for (uint32_t j = 0; j < ncolgrps; j++) {
-        //    auto& tile = tiles[i][j];
+
     for(uint32_t t: local_tiles_row_order) {
         auto pair = tile_of_local_tile(t);
-        auto& tile = tiles[pair.row][pair.col];        
-        
-        
-            //if(tile.rank == Env::rank) {
-                std::vector<struct Triple<Weight, Integer_Type>>& triples = *(tile.triples);
-                if(triples.size()) {
-                    tile.npartitions = omp_get_max_threads();
-                    threads_start_row.resize(tile.npartitions);
-                    threads_end_row.resize(tile.npartitions);
-                    tile.triples_t.resize(tile.npartitions); 
-                    uint64_t chunk_size = tile.triples->size()/omp_get_max_threads();
-                    std::vector<uint64_t> start(tile.npartitions);
-                    std::vector<uint64_t> end(tile.npartitions);
-                    closest(triples, tile.npartitions, chunk_size, start, end);
-                    
-                    
-                    std::vector<uint64_t> nnz_local(tile.npartitions);
-                    #pragma omp parallel
-                    {
-                        int tid = omp_get_thread_num();
-                        tile.triples_t[tid] = new std::vector<struct Triple<Weight, Integer_Type>>;
-                        for(uint64_t i = start[tid]; i <= end[tid]; i++) {
-                            auto& triple = triples[i];
-                            tile.triples_t[tid]->push_back(triple); 
-                        }
-                        std::sort(tile.triples_t[tid]->begin(), tile.triples_t[tid]->end(), f_col);
-                        nnz_local[tid] = tile.triples_t[tid]->size();
-
-                        
-
-                        
-                        //threads_start_row[tid] = (tid != 0) ? triples[end[tid + 1]].row : 0;
-                        //threads_end_row[tid] = triples[end[tid]].row;
-                        //threads_end_row[tid] = (threads_end_row[tid] < threads_start_row[tid]) ? threads_start_row[tid] : threads_end_row[tid];
-                        //threads_end_row[tid] = (tid == Env::nthreads - 1) ? tile_height : threads_end_row[tid] + 1;
-                        
-                    }
-                    
-                    double sum = std::accumulate(nnz_local.begin(), nnz_local.end(), 0.0);
-                    double mean = sum / tile.npartitions;
-                    double sq_sum = std::inner_product(nnz_local.begin(), nnz_local.end(), nnz_local.begin(), 0.0);
-                    double std_dev = std::sqrt(sq_sum / tile.npartitions - mean * mean);
-                    if(!Env::rank)
-                        printf("Edge distribution: Rank %d tile %d - Threads edges (sum: avg +/- std_dev)= %.0f: %.0f +/- %.0f\n", Env::rank, t, sum, mean, std_dev);
-                    
-                    /*
-                    for(int i = 0; i < tile.npartitions; i++) {
-                        
-                        if(i == tile.npartitions - 1)
-                            threads_end_row[i] = tile_height;
-                        else 
-                            threads_end_row[i] = triples[end[i]].row + 1;
-                        
-                        if(i == 0)
-                            threads_start_row[i] = 0;
-                        else {
-                            threads_start_row[i] = threads_end_row[i - 1];
-                        }
-                        //if(!Env::rank)
-                       // printf("rank=%d thread=%d size=%lu start=%d end=%d\n", Env::rank, i, tile.triples_t[i]->size(), threads_start_row[i], threads_end_row[i]);
-                    }
-                    */
-                    
-                }
-            //}
-        //}
-    }
-   del_triples();
-
-
-   
-    /*
-    if(!Env::rank) {
-        auto& tile = tiles[0][Env::rank];
-        for(int i = 0; i < Env::nthreads; i++) {
-            std::vector<struct Triple<Weight, Integer_Type>>& triples_t = *(tile.triples_t[i]);
-            struct Triple<Weight, Integer_Type> first = triples_t.front();
-            struct Triple<Weight, Integer_Type> last = triples_t.back();
-            printf("%d %lu %d %d\n", i, triples_t.size(), first.row, last.row);
-        }
-    }
-    
-    
-    Env::barrier();
-    Env::exit(0);    
-    */
-    
-    /*
-
-    
-    Triple<Weight, Integer_Type> pair;
-    
-    for(uint32_t t: local_tiles_row_order) {
-        pair = tile_of_local_tile(t);
         auto& tile = tiles[pair.row][pair.col];
         std::vector<struct Triple<Weight, Integer_Type>>& triples = *(tile.triples);
-        //int c = 0;
         if(triples.size()) {
             tile.npartitions = omp_get_max_threads();
+            threads_start_row.resize(tile.npartitions);
+            threads_end_row.resize(tile.npartitions);
             tile.triples_t.resize(tile.npartitions); 
             uint64_t chunk_size = tile.triples->size()/omp_get_max_threads();
             std::vector<uint64_t> start(tile.npartitions);
             std::vector<uint64_t> end(tile.npartitions);
             closest(triples, tile.npartitions, chunk_size, start, end);
-            */
-            /*
-            uint64_t start_idx = 0;
-            uint64_t end_idx = 0;
-            uint64_t idx = 0;
-            uint64_t idx1 = 0;
-            bool sentinel = false;
             
-            printf("size=%lu chunk_size=%lu, %d\n", tile.triples->size(), chunk_size, tile.npartitions);
-            for(int i = 0; i < tile.npartitions; i++) {
-                if(i == 0)
-                    start_idx = 0;
-                else
-                    start_idx = end_idx;
-                
-                if(i < (tile.npartitions - 1)) {
-                    
-                    //idx += chunk_size;
-                    if(idx <= ((i + 1) * chunk_size)) {
-                        idx = (i + 1) * chunk_size;
-                    }
-                    else 
-                        idx += chunk_size;
-                    
-                    printf("i=%d idx=%d\n", i, idx);
-                    
-                    while(true) {
-                        if(idx+1 > triples.size()) {
-                            sentinel = true;
-                            break;
-                        }
-                        
-                        //    printf("ERROR: i=%d idx=%d\n", i, idx);
-                        //assert(idx+1 < triples.size());
-                        if(triples[idx].row == triples[idx+1].row) {
-                            idx++;
-                            c++;
-                        }
-                        else
-                            break;
-                        
-                    }
-                    
-                    if(not sentinel)
-                        end_idx = idx + 1;
-                    else
-                        end_idx = triples.size();
-                }
-                else
-                    end_idx = triples.size();
-                
-                start[i] = start_idx;
-                end[i] = end_idx;
-                //avg_nnz += (end[i] - start[i]);
-                printf("%d [%lu %lu]: %lu [%lu %lu] %d\n", i, start[i], end[i], end[i] - start[i], i* chunk_size, (i + 1) * chunk_size, c);
-                c = 0;
-            }
-            */
-            /*
             std::vector<uint64_t> nnz_local(tile.npartitions);
-            //uint64_t nnz_global = 0;
-            #pragma omp parallel //private(nnz_local) reduction(+:nnz_global)
+            #pragma omp parallel
             {
                 int tid = omp_get_thread_num();
                 tile.triples_t[tid] = new std::vector<struct Triple<Weight, Integer_Type>>;
-                for(uint64_t i = start[tid]; i < end[tid]; i++) {
+                for(uint64_t i = start[tid]; i <= end[tid]; i++) {
                     auto& triple = triples[i];
                     tile.triples_t[tid]->push_back(triple); 
                 }
                 std::sort(tile.triples_t[tid]->begin(), tile.triples_t[tid]->end(), f_col);
                 nnz_local[tid] = tile.triples_t[tid]->size();
-                //nnz_global += nnz_local;
-                //printf("%d %lu\n", tid, tile.triples_t[tid]->size());
+                
+                threads_start_row[tid] = (tid == 0) ? 0 : triples[end[tid - 1]].row + 1;
+                threads_end_row[tid] = triples[end[tid]].row;
+                threads_end_row[tid] = (threads_end_row[tid] < threads_start_row[tid]) ? threads_start_row[tid] : threads_end_row[tid];
+                threads_end_row[tid] = (tid == Env::nthreads - 1) ? tile_height : threads_end_row[tid] + 1;
+                //printf("tid=%d [%d %d] [%d %d]\n", tid, start[tid], end[tid], threads_start_row[tid], threads_end_row[tid]);
             }
-            
-            
-            
+            /*
             double sum = std::accumulate(nnz_local.begin(), nnz_local.end(), 0.0);
             double mean = sum / tile.npartitions;
             double sq_sum = std::inner_product(nnz_local.begin(), nnz_local.end(), nnz_local.begin(), 0.0);
             double std_dev = std::sqrt(sq_sum / tile.npartitions - mean * mean);
             if(!Env::rank)
-                printf("Edge distribution: Rank %d tile %d - Threads edges (sum: avg +/- std_dev)= %f: %f +/- %f\n", Env::rank, t, sum, mean, std_dev);
-            
+                printf("Edge distribution: Rank %d tile %d - Threads edges (sum: avg +/- std_dev)= %.0f: %.0f +/- %.0f\n", Env::rank, t, sum, mean, std_dev);
+            */
         }
     }
-    */
-//    
 }
-
-
-
 
 template<typename Weight, typename Integer_Type, typename Fractional_Type>
 void Matrix<Weight, Integer_Type, Fractional_Type>::init_filtering() {
@@ -1326,63 +1019,62 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_filtering() {
     if(Env::is_master)
         printf("Vertex filtering: Filtering zero rows and columns\n");
     
-    
-    /*
-    filter_rows();
-
-    
-    filter_cols();
-
-    */    
-
-    
-    //printf("[x]init_filtering()\n");
-    
-    if(Env::is_master)
-        printf("Vertex filtering: Filtering nonzero rows\n");    
-    I.resize(tiling->rank_nrowgrps);
-    for (uint32_t i = 0; i < tiling->rank_nrowgrps; i++)
-        I[i].resize(tile_height);
-    IV.resize(tiling->rank_nrowgrps);
-    for (uint32_t i = 0; i < tiling->rank_nrowgrps; i++)
-        IV[i].resize(tile_height);
-    filter_vertices(_ROWS_);
-    uint32_t io = accu_segment_row;
-    auto& i_data = I[io];
-    rowgrp_nnz_rows.resize(nnz_row_sizes_loc[io]);
-    Integer_Type k = 0;
-    for(Integer_Type i = 0; i < tile_height; i++) {
-        if(i_data[i]) {
-            rowgrp_nnz_rows[k] = i;
-            k++;
-        }
-    }    
-
-    if(Env::is_master)
-        printf("Vertex filtering: Filtering nonzero columns\n");
-    J.resize(tiling->rank_ncolgrps);
-    for (uint32_t i = 0; i < tiling->rank_ncolgrps; i++)
-        J[i].resize(tile_width);
-    JV.resize(tiling->rank_ncolgrps);
-    for (uint32_t i = 0; i < tiling->rank_ncolgrps; i++)
-        JV[i].resize(tile_width);    
-    filter_vertices(_COLS_);
-    uint32_t jo = accu_segment_col;
-    auto& j_data = J[jo];
-    colgrp_nnz_columns.resize(nnz_col_sizes_loc[jo]);
-    k = 0;
-    for(Integer_Type j = 0; j < tile_width; j++) {
-        if(j_data[j]) {
-            colgrp_nnz_columns[k] = j;
-            k++;
-        }
+    if((tiling->tiling_type == _1D_COL_) or (tiling->tiling_type == _1D_ROW_)) {
+        if(Env::is_master)
+            printf("Vertex filtering: Filtering nonzero rows\n");    
+        filter_rows();
+        if(Env::is_master)
+            printf("Vertex filtering: Filtering nonzero columns\n");
+        filter_cols();
     }
-        
-    classify_vertices();
+    else {    
+        if(Env::is_master)
+            printf("Vertex filtering: Filtering nonzero rows\n");    
+        I.resize(tiling->rank_nrowgrps);
+        for (uint32_t i = 0; i < tiling->rank_nrowgrps; i++)
+            I[i].resize(tile_height);
+        IV.resize(tiling->rank_nrowgrps);
+        for (uint32_t i = 0; i < tiling->rank_nrowgrps; i++)
+            IV[i].resize(tile_height);
+        filter_vertices(_ROWS_);
+        uint32_t io = accu_segment_row;
+        auto& i_data = I[io];
+        rowgrp_nnz_rows.resize(nnz_row_sizes_loc[io]);
+        Integer_Type k = 0;
+        for(Integer_Type i = 0; i < tile_height; i++) {
+            if(i_data[i]) {
+                rowgrp_nnz_rows[k] = i;
+                k++;
+            }
+        }    
 
-    rowgrp_regular_rows = regular_rows[io];
-    rowgrp_source_rows = source_rows[io];
-    colgrp_sink_columns = sink_columns[jo];    
+        if(Env::is_master)
+            printf("Vertex filtering: Filtering nonzero columns\n");
+        J.resize(tiling->rank_ncolgrps);
+        for (uint32_t i = 0; i < tiling->rank_ncolgrps; i++)
+            J[i].resize(tile_width);
+        JV.resize(tiling->rank_ncolgrps);
+        for (uint32_t i = 0; i < tiling->rank_ncolgrps; i++)
+            JV[i].resize(tile_width);    
+        filter_vertices(_COLS_);
+        uint32_t jo = accu_segment_col;
+        auto& j_data = J[jo];
+        colgrp_nnz_columns.resize(nnz_col_sizes_loc[jo]);
+        k = 0;
+        for(Integer_Type j = 0; j < tile_width; j++) {
+            if(j_data[j]) {
+                colgrp_nnz_columns[k] = j;
+                k++;
+            }
+        }
+        classify_vertices();
+        
+        rowgrp_regular_rows = regular_rows[io];
+        rowgrp_source_rows = source_rows[io];
+        colgrp_sink_columns = sink_columns[jo];  
+    }  
+    
+    //del_triples();    
 }   
 
 
@@ -1396,11 +1088,8 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::filter_rows() {
 
     std::vector<char> F(tile_height);
     std::vector<std::vector<char>> F_all;
-    if(!Env::rank) {
+    if(Env::is_master) {
         F_all.resize(tiling->rowgrp_nranks, std::vector<char>(tile_height));
-        //for(uint32_t i = 0; i < tiling->rowgrp_nranks; i++) {
-        //    F_all[i].resize(tile_length, 0);
-        //}
     }
    
     auto &tile = tiles[0][Env::rank];
@@ -1409,14 +1098,7 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::filter_rows() {
             F[triple.row] = 1;
         }
     }
-    /*
-    if(Env::rank == 2) {
-        for(int i = 0; i < tiling->rowgrp_nranks - 1; i++) {
-            printf("%d ", follower_rowgrp_ranks[i]);
-        }
-        printf("\n");
-    }
-    */
+
     int32_t leader, follower;//, my_rank, accu, this_segment;
     leader = 0;
     if(Env::is_master) {
@@ -1440,11 +1122,8 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::filter_rows() {
     in_requests.clear();
     
     
-    
     if(Env::is_master) {
-        
         for(int32_t j = 0; j < Env::nranks - 1; j++) {
-            //accu = follower_rowgrp_ranks[j];
             auto &fj_data = F_all[j];
             Integer_Type fj_nitems = F_all[j].size();                  
             for(uint32_t i = 0; i < fj_nitems; i++) {
@@ -1485,8 +1164,6 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::filter_rows() {
     }
     Env::barrier();
     
-    
-    
     start_dense.resize(Env::nranks);
     end_dense.resize(Env::nranks);
     for(int32_t i = 0; i < Env::nranks; i++) {
@@ -1497,20 +1174,6 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::filter_rows() {
         
         end_dense[i] = std::accumulate(rows_sizes.begin(), rows_sizes.end() - Env::nranks + i + 1, 0);
     }
-    
-    /*
-    Integer_Type start = 0;
-    Integer_Type end = 0;
-    if(!Env::rank) {
-        start = 0;
-    }
-    else {
-        start = std::accumulate(rows_sizes.begin(), rows_sizes.end() - Env::nranks + Env::rank, 0);
-    }
-    end = std::accumulate(rows_sizes.begin(), rows_sizes.end() - Env::nranks + Env::rank + 1, 0);
-    
-    printf("%d start=%d end=%d\n", Env::rank, start, end);
-    */
     
     nnz_rows_sizes.resize(Env::nranks, 0);
     II.resize(tile_height , 0);
@@ -1523,7 +1186,6 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::filter_rows() {
         if(II[i]) {
             IIV[i] = k; 
             k++;
-            //rowgrp_nnz_rows.push_back(i);
         }
         if((i >= start_dense[Env::rank]) and (i < end_dense[Env::rank]) and II[i]) {
             nnz_rows_sizes[Env::rank]++;
@@ -1572,28 +1234,11 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::filter_rows() {
     IT.resize(Env::nthreads);
     IVT.resize(Env::nthreads);
     threads_nnz_rows.resize(Env::nthreads);
-    //threads_nnz_rows
-    //threads_start_row
-    //threads_end_row
-    //if(!Env::rank) {
     std::vector<int> all_rows(Env::nthreads);
-    
-    
     #pragma omp parallel
     {
         int tid = omp_get_thread_num();
-        
         Integer_Type length = threads_end_row[tid] - threads_start_row[tid];
-        /*
-        if(tid == 0) {
-            length = threads_end_row[tid] + 1;
-        }
-        else {
-            length = threads_end_row[tid] - threads_end_row[tid - 1];
-        }
-        */
-        //if(!Env::rank)
-        //printf("rank=%d tid=%d start=%d end=%d sz=%d len=%d\n", Env::rank, tid, threads_start_row[tid], threads_end_row[tid], threads_end_row[tid] - threads_start_row[tid], length);
         IT[tid].resize(length);
         IVT[tid].resize(length);            
 
@@ -1609,166 +1254,22 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::filter_rows() {
         }
         threads_nnz_rows[tid] = k;
         all_rows[tid] = length;
-        //if(tid == 10) {
-        //    for(int j = 0; j < IT[tid].size(); j++)
-        //        printf("%d %d %d\n", j, IT[tid][j], IVT[tid][j]);
-        //}
     }
     
-    int s1 = 0;
-    for(int i =0; i < Env::nthreads; i++)
-        s1 += threads_end_row[i] - threads_start_row[i];
-    
-    int s2 = 0;
-    for(int i =0; i < Env::nthreads; i++)
-        s2 += all_rows[i];
-    
-    int s = std::accumulate(threads_nnz_rows.begin(), threads_nnz_rows.end(), 0);
-    //printf("%d %d %d %d\n", s, nnz_rows_size, s1, s2);
-    
     threads_nnz_start_row.resize(Env::nthreads, 0);
-    //if(!Env::rank) {
     Integer_Type nzz_sum = 0;
     for(int32_t i = 0; i < Env::nthreads; i++) {
         
         threads_nnz_start_row[i] += nzz_sum;
         nzz_sum += threads_nnz_rows[i];
-        //printf("%d %d %d\n", i, threads_nnz_start_row[i], threads_nnz_rows[i]);
     }
-    //}
-    
-    
-    
-    //Env::barrier();
-    //Env::exit(0);
-        
-   // }
-    
-    //
- 
-    
-        
-    
-    
-    
-
-    
-    
-    
-    
-    //printf("rank=%d rows_sizes=%d nnz_rows_sizes=%d\n", Env::rank, rows_sizes[Env::rank], nnz_rows_sizes[Env::rank]);
-    //printf("rank=%d start=%d end=%d start=%d end=%d\n", Env::rank, start_dense[Env::rank], end_dense[Env::rank], start_sparse[Env::rank], end_sparse[Env::rank]);
-    
-    
-    //nnz_rows_sizes[Env::rank] = k;
-
-    
-    
-    //if(Env::is_master) {
-      //  for(int i = 0; i < 
-    //}
-    
-    //for (int32_t j = 0; j < Env::nranks - 1; j++) {
-    
-    
-    
-    /*
-    if(!Env::rank) {
-        for(int32_t j = 0; j < Env::nranks; j++) {
-            printf("%d ", nnz_rows_sizes[j]);
-        }
-        printf("\n");
-    }
-    
-    */
-    
-
-    
-    /*
-    if(!Env::rank) {
-        for(int32_t j = 0; j < Env::nranks; j++) {
-            printf("%d ", rows_sizes[j]);
-        }
-        printf(" %d %d\n", std::accumulate(rows_sizes.begin(), rows_sizes.end(), 0), tile_height);
-    }    
-    */
-    //Integer_Type rows_all_sum = std::accumulate(rows_sizes.begin(), rows_sizes.end(), 0);
-    //assert(rows_all_sum == tile_height);
-    //printf("%d rows_sizes=%d nnz_rows_sizes=%d\n", Env::rank, rows_sizes[Env::rank], nnz_rows_sizes[Env::rank]);
-    
-    
-    /*
-    rowgrp_nnz_rows.resize(nnz_row_sizes_loc[io]);
-    Integer_Type k = 0;
-    for(Integer_Type i = 0; i < tile_height; i++) {
-        if(i_data[i]) {
-            rowgrp_nnz_rows[k] = i;
-            k++;
-        }
-    } 
-    */
-    
-    /*
-    I.resize(tiling->rank_nrowgrps);
-    for (uint32_t i = 0; i < tiling->rank_nrowgrps; i++)
-        I[i].resize(tile_height);
-    IV.resize(tiling->rank_nrowgrps);
-    for (uint32_t i = 0; i < tiling->rank_nrowgrps; i++)
-        IV[i].resize(tile_height);
-    */
-    
-    
-    
-    /*
-    for(uint32_t j = 0; j < rank_nrowgrps_; j++) {
-        this_segment = local_row_segments_[j];
-        nnz_sizes_loc.push_back(nnz_sizes_all[this_segment]);
-    }
-    if(nnz_sizes_all[owned_segment]) {
-        uint32_t ko = accu_segment_row_;
-        auto &kj_data =  (*K)[ko];
-        auto &kvj_data = (*KV)[ko];
-        Integer_Type j = 0;
-        for(uint32_t i = 0; i < f_nitems; i++) {
-            if(f_data[i]) {
-                kj_data[i] = 1;
-                kvj_data[i] = j; 
-                j++;
-            }
-            else {
-                kj_data[i] = 0;
-                kvj_data[i] = 0;
-            }
-        }
-        assert(j == nnz_sizes_all[owned_segment]);
-    }
-    
-    */
-    
-   // Env::barrier();     
-    
-    
-    
-    
-    
-    
-    
-    
-
 }
 
 template<typename Weight, typename Integer_Type, typename Fractional_Type>
 void Matrix<Weight, Integer_Type, Fractional_Type>::filter_cols() {
     MPI_Datatype TYPE_INT = Types<Weight, Integer_Type, Integer_Type>::get_data_type();
     std::vector<char> F(tile_width);
-    //std::vector<std::vector<char>> F_all;
-    //if(!Env::rank) {
-      //  F_all.resize(tiling->rowgrp_nranks, std::vector<char>(tile_height));
-        //for(uint32_t i = 0; i < tiling->rowgrp_nranks; i++) {
-        //    F_all[i].resize(tile_length, 0);
-        //}
-    //}
-   
+    
     auto &tile = tiles[0][Env::rank];
     for (auto& triple : *(tile.triples)) {
         auto pair = rebase(triple);
@@ -1794,12 +1295,10 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::filter_cols() {
     k = 0;
     for(Integer_Type j = 0; j < tile_width; j++) {
         if(JJ[j]) {
-            //colgrp_nnz_columns[k] = start_dense[Env::rank] + j;
             colgrp_nnz_columns[k] = j;
             k++;
         }
     }
-    //nnz_cols_size = k;
     nnz_cols_sizes.resize(Env::nranks);
     nnz_cols_sizes[Env::rank] = nnz_cols_size_loc;
     
@@ -1810,7 +1309,6 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::filter_cols() {
     }
     Env::barrier();
     nnz_cols_size = std::accumulate(nnz_cols_sizes.begin(), nnz_cols_sizes.end(), 0);
-    
 }
 
 template<typename Weight, typename Integer_Type, typename Fractional_Type>
@@ -2303,174 +1801,76 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_dcsc() {
 template<typename Weight, typename Integer_Type, typename Fractional_Type>
 void Matrix<Weight, Integer_Type, Fractional_Type>::init_tcsc()
 {
-    //printf("[+]init_tcsc\n");
-    /*
-    auto& tile = tiles[0][Env::rank];
-    std::vector<struct Triple<Weight, Integer_Type>>& triples = *(tile.triples);
-    if(triples.size()) {
-        tile.compressor_t.resize(tile.npartitions);
-        #pragma omp parallel 
-        {
-            int tid = omp_get_thread_num();
-            int cid = sched_getcpu();
-            int sid =  cid / Env::nthreads_per_socket;
-            
-            Integer_Type c_nitems = nnz_cols_sizes[Env::rank];
-            //Integer_Type r_nitems = nnz_rows_size;
-            Integer_Type r_nitems = threads_nnz_rows[tid];
-            Integer_Type tile_height_t = (tid == 0) ? 0 : threads_end_row[tid - 1];
-            struct Triple<Weight, Integer_Type> f = tile.triples_t[tid]->front();
-            //struct Triple<Weight, Integer_Type> b = tile.triples_t[tid]->back();
-           // printf("%d %d %d %d %d\n", tid, tile_height_t, tile.triples_t[tid]->size(), f.row, f.col);
-            auto& i_data = IT[tid];
-            auto& iv_data = IVT[tid];
-            auto& j_data = JJ;
-            auto& jv_data = JJV;
-            
-            
-            
-            tile.compressor_t[tid] = new TCSC_BASE<Weight, Integer_Type>(tile.triples_t[tid]->size(), c_nitems, r_nitems, sid);
-            tile.compressor_t[tid]->populate(tile.triples_t[tid], tile_height_t, tile_width, i_data, iv_data, j_data, jv_data);
-            
-            Integer_Type* IA   = static_cast<TCSC_BASE<Weight, Integer_Type>*>(tile.compressor_t[tid])->IA;
-            Integer_Type* JA   = static_cast<TCSC_BASE<Weight, Integer_Type>*>(tile.compressor_t[tid])->JA;    
-            Integer_Type nnzcols = static_cast<TCSC_BASE<Weight, Integer_Type>*>(tile.compressor_t[tid])->nnzcols;
-        }
-    }
-    */
-    
-
-    //Env::barrier();
-    //Env::exit(0);
-    /*
-    if(tid == 0) {
-            length = threads_end_row[tid] + 1;
-        }
-        else {
-            length = threads_end_row[tid] - threads_end_row[tid - 1];
-        }
-    */
-    
-    /*
-    if(!Env::rank){
-        int tid = 11;
-        Integer_Type* IA   = static_cast<TCSC_BASE<Weight, Integer_Type>*>(tile.compressor_t[tid])->IA;
-        Integer_Type* JA   = static_cast<TCSC_BASE<Weight, Integer_Type>*>(tile.compressor_t[tid])->JA;    
-        Integer_Type nnzcols = static_cast<TCSC_BASE<Weight, Integer_Type>*>(tile.compressor_t[tid])->nnzcols;
-        
-        for(uint32_t j = 0; j < nnzcols; j++) {
-            printf("j=%d\n", j);
-            for(uint32_t i = JA[j]; i < JA[j + 1]; i++) {
-                printf(" IA[%d]=%d, j=%d\n", i, IA[i], j);
-            }
-        }
-    }
-    */
-    
-    
-    
-        
-    //Env::barrier();
-    //Env::exit(0);    
-    
-   
-    
-    uint32_t yi = 0, xi = 0, next_row = 0;
-    for(uint32_t t: local_tiles_row_order)
-    {
-        auto pair = tile_of_local_tile(t);
-        auto& tile = tiles[pair.row][pair.col];
-        Integer_Type c_nitems = nnz_col_sizes_loc[xi];
-        Integer_Type r_nitems = nnz_row_sizes_loc[yi];
-        auto& i_data = I[yi];
-        auto& iv_data = IV[yi];
-        auto& j_data = J[xi];
-        auto& jv_data = JV[xi];
-        if(tile.nedges) {
+    if((tiling->tiling_type == _1D_COL_) or (tiling->tiling_type == _1D_ROW_)) {
+        auto& tile = tiles[0][Env::rank];
+        std::vector<struct Triple<Weight, Integer_Type>>& triples = *(tile.triples);
+        if(triples.size()) {
             tile.compressor_t.resize(tile.npartitions);
             #pragma omp parallel 
             {
                 int tid = omp_get_thread_num();
                 int cid = sched_getcpu();
                 int sid =  cid / Env::nthreads_per_socket;
-                
-                /*
-                if(sid)
-                    sid = 0;
-                else
-                    sid = 1;
-                */
-                //printf("%d nnz=%d\n", tid, tile.triples_t[tid]->size());
-                //Integer_Type r_nitems = 
+                Integer_Type c_nitems = nnz_cols_sizes[Env::rank];
+                Integer_Type r_nitems = nnz_rows_size;
+                //Integer_Type r_nitems = threads_nnz_rows[tid];
+                //Integer_Type tile_height_t = (tid == 0) ? 0 : threads_end_row[tid - 1];
+                //auto& i_data = IT[tid];
+                //auto& iv_data = IVT[tid];
+                //printf("%d %d %d %d\n", tid, r_nitems, tile_height_t, threads_end_row[tid]);
+                struct Triple<Weight, Integer_Type> f = tile.triples_t[tid]->front();
+                auto& i_data = II;
+                auto& iv_data = IIV;
+                auto& j_data = JJ;
+                auto& jv_data = JJV;
+                bool which = true;
                 tile.compressor_t[tid] = new TCSC_BASE<Weight, Integer_Type>(tile.triples_t[tid]->size(), c_nitems, r_nitems, sid);
-                tile.compressor_t[tid]->populate(tile.triples_t[tid], tile_height, tile_width, i_data, iv_data, j_data, jv_data);
-                //numa_tonode_memory(array + sizeof(T) * local_partition_offset[s_i], sizeof(T) * (local_partition_offset[s_i+1] - local_partition_offset[s_i]), s_i);
-                //numa_tonode_memory
-                
-                
+                tile.compressor_t[tid]->populate(tile.triples_t[tid], tile_height, tile_width, i_data, iv_data, j_data, jv_data, which);
+                //tile.compressor_t[tid]->populate(tile.triples_t[tid], tile_height_t, tile_width, i_data, iv_data, j_data, jv_data, which);
                 Integer_Type* IA   = static_cast<TCSC_BASE<Weight, Integer_Type>*>(tile.compressor_t[tid])->IA;
                 Integer_Type* JA   = static_cast<TCSC_BASE<Weight, Integer_Type>*>(tile.compressor_t[tid])->JA;    
                 Integer_Type nnzcols = static_cast<TCSC_BASE<Weight, Integer_Type>*>(tile.compressor_t[tid])->nnzcols;
-                
-                //if(tid == 3) {
-                    /*
-                    int r = 0;
-                    int c = 0;
-                for(uint32_t j = 0; j < nnzcols; j++) {
-                    //printf("j=%d\n", j);
-                    for(uint32_t i = JA[j]; i < JA[j + 1]; i++) {
-                        //printf(" %d %d\n", JA[j], IA[i]);
-                        if(IA[i]> r);
-                        r = IA[i];
-                    }
-                }
-                */
-                //printf("%d %d %d\n", tid, r, r_nitems);
-                //}
-                
-                
-                
             }
         }
-        
-        /*
-        #pragma omp parallel 
+    }
+    else {    
+        uint32_t yi = 0, xi = 0, next_row = 0;
+        for(uint32_t t: local_tiles_row_order)
         {
-            int nthreads = omp_get_num_threads();
-            int tid = omp_get_thread_num();
+            auto pair = tile_of_local_tile(t);
+            auto& tile = tiles[pair.row][pair.col];
+            Integer_Type c_nitems = nnz_col_sizes_loc[xi];
+            Integer_Type r_nitems = nnz_row_sizes_loc[yi];
+            auto& i_data = I[yi];
+            auto& iv_data = IV[yi];
+            auto& j_data = J[xi];
+            auto& jv_data = JV[xi];
+            if(tile.nedges) {
+                tile.compressor_t.resize(tile.npartitions);
+                #pragma omp parallel 
+                {
+                    int tid = omp_get_thread_num();
+                    int cid = sched_getcpu();
+                    int sid =  cid / Env::nthreads_per_socket;
+                    bool which = false;
+                    tile.compressor_t[tid] = new TCSC_BASE<Weight, Integer_Type>(tile.triples_t[tid]->size(), c_nitems, r_nitems, sid);
+                    tile.compressor_t[tid]->populate(tile.triples_t[tid], tile_height, tile_width, i_data, iv_data, j_data, jv_data, which);
+                    Integer_Type* IA   = static_cast<TCSC_BASE<Weight, Integer_Type>*>(tile.compressor_t[tid])->IA;
+                    Integer_Type* JA   = static_cast<TCSC_BASE<Weight, Integer_Type>*>(tile.compressor_t[tid])->JA;    
+                    Integer_Type nnzcols = static_cast<TCSC_BASE<Weight, Integer_Type>*>(tile.compressor_t[tid])->nnzcols;
+                }
+            }
             
-            uint32_t rows_per_thread = tile_height/nthreads;
-            
-            uint32_t start = tid * rows_per_thread;
-            uint32_t end = start + rows_per_thread;
-            start = (start > tile_height) ? (tile_height):(start);
-            end = (end > tile_height) ? (tile_height):(end);
-            end = (tid == nthreads - 1)?(tile_height):(end);
-            printf("thread %d of %d in [%d %d]\n", tid, nthreads, start, end);
-        }
-        */
-        
-        
-        /*
-        tile.compressor = new TCSC_BASE<Weight, Integer_Type>(tile.nedges, c_nitems, r_nitems);
-        
-        if(tile.nedges)
-            tile.compressor->populate(tile.triples, tile_height, tile_width, i_data, iv_data, j_data, jv_data);
-        */
-        
-        xi++;
-        next_row = (((tile.nth + 1) % tiling->rank_ncolgrps) == 0);
-        if(next_row) {
-            xi = 0;
-            yi++;
-        }
-        //printf("np= %d\n", tile.npartitions);
-    }  
-    //tilet.riples_t[tid]
+            xi++;
+            next_row = (((tile.nth + 1) % tiling->rank_ncolgrps) == 0);
+            if(next_row) {
+                xi = 0;
+                yi++;
+            }
+        }  
+        del_classifier();
+    }
     del_triples_t();
-    del_classifier();
-    
-    
 }
 
 template<typename Weight, typename Integer_Type, typename Fractional_Type>
@@ -2511,87 +1911,90 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_tcsc_cf()
 
 template<typename Weight, typename Integer_Type, typename Fractional_Type>
 void Matrix<Weight, Integer_Type, Fractional_Type>::del_classifier() {
-    for(uint32_t i = 0; i < tiling->rank_nrowgrps; i++) {
-        regular_rows[i].clear();
-        regular_rows[i].shrink_to_fit();
-        regular_rows_bitvector[i].clear();
-        regular_rows_bitvector[i].shrink_to_fit();
+    if(tiling->tiling_type != _1D_COL_) {    
+        for(uint32_t i = 0; i < tiling->rank_nrowgrps; i++) {
+            regular_rows[i].clear();
+            regular_rows[i].shrink_to_fit();
+            regular_rows_bitvector[i].clear();
+            regular_rows_bitvector[i].shrink_to_fit();
+        }
+        regular_rows.clear();
+        regular_rows.shrink_to_fit();    
+        regular_rows_bitvector.clear();
+        regular_rows_bitvector.shrink_to_fit();    
+        for(uint32_t i = 0; i < tiling->rank_nrowgrps; i++) {
+            source_rows[i].clear();
+            source_rows[i].shrink_to_fit();
+            source_rows_bitvector[i].clear();
+            source_rows_bitvector[i].shrink_to_fit();
+        }
+        source_rows.clear();
+        source_rows.shrink_to_fit();
+        source_rows_bitvector.clear();
+        source_rows_bitvector.shrink_to_fit();
+        for(uint32_t i = 0; i < tiling->rank_ncolgrps; i++) {
+            regular_columns[i].clear();
+            regular_columns[i].shrink_to_fit();
+            regular_columns_bitvector[i].clear();
+            regular_columns_bitvector[i].shrink_to_fit();
+        }
+        regular_columns.clear();
+        regular_columns.shrink_to_fit();
+        regular_columns_bitvector.clear();
+        regular_columns_bitvector.shrink_to_fit();
+        for(uint32_t i = 0; i < tiling->rank_ncolgrps; i++) {
+            sink_columns[i].clear();
+            sink_columns[i].shrink_to_fit();
+            sink_columns_bitvector[i].clear();
+            sink_columns_bitvector[i].shrink_to_fit();
+        }
+        sink_columns.clear();
+        sink_columns.shrink_to_fit();
+        sink_columns_bitvector.clear();
+        sink_columns_bitvector.shrink_to_fit();
     }
-    regular_rows.clear();
-    regular_rows.shrink_to_fit();    
-    regular_rows_bitvector.clear();
-    regular_rows_bitvector.shrink_to_fit();    
-    for(uint32_t i = 0; i < tiling->rank_nrowgrps; i++) {
-        source_rows[i].clear();
-        source_rows[i].shrink_to_fit();
-        source_rows_bitvector[i].clear();
-        source_rows_bitvector[i].shrink_to_fit();
-    }
-    source_rows.clear();
-    source_rows.shrink_to_fit();
-    source_rows_bitvector.clear();
-    source_rows_bitvector.shrink_to_fit();
-    for(uint32_t i = 0; i < tiling->rank_ncolgrps; i++) {
-        regular_columns[i].clear();
-        regular_columns[i].shrink_to_fit();
-        regular_columns_bitvector[i].clear();
-        regular_columns_bitvector[i].shrink_to_fit();
-    }
-    regular_columns.clear();
-    regular_columns.shrink_to_fit();
-    regular_columns_bitvector.clear();
-    regular_columns_bitvector.shrink_to_fit();
-    for(uint32_t i = 0; i < tiling->rank_ncolgrps; i++) {
-        sink_columns[i].clear();
-        sink_columns[i].shrink_to_fit();
-        sink_columns_bitvector[i].clear();
-        sink_columns_bitvector[i].shrink_to_fit();
-    }
-    sink_columns.clear();
-    sink_columns.shrink_to_fit();
-    sink_columns_bitvector.clear();
-    sink_columns_bitvector.shrink_to_fit();
 }
 
 template<typename Weight, typename Integer_Type, typename Fractional_Type>
 void Matrix<Weight, Integer_Type, Fractional_Type>::del_filter() {
     
-    
-    for(uint32_t i = 0; i < tiling->rank_nrowgrps; i++) {
-        I[i].clear();
-        I[i].shrink_to_fit();
+    if(tiling->tiling_type != _1D_COL_) {    
+        for(uint32_t i = 0; i < tiling->rank_nrowgrps; i++) {
+            I[i].clear();
+            I[i].shrink_to_fit();
+        }
+        I.clear();
+        I.shrink_to_fit();
+        for(uint32_t i = 0; i < tiling->rank_ncolgrps; i++) {
+            J[i].clear();
+            J[i].shrink_to_fit();
+        }
+        J.clear();
+        J.shrink_to_fit();
+        for(uint32_t i = 0; i < tiling->rank_nrowgrps; i++) {   
+            IV[i].clear();
+            IV[i].shrink_to_fit();
+        }
+        IV.clear();
+        IV.shrink_to_fit();
+        for(uint32_t i = 0; i < tiling->rank_ncolgrps; i++) {   
+            JV[i].clear();
+            JV[i].shrink_to_fit();
+        }
+        JV.clear();
+        JV.shrink_to_fit();
+        
+        rowgrp_nnz_rows.clear();
+        rowgrp_nnz_rows.shrink_to_fit();
+        rowgrp_regular_rows.clear();
+        rowgrp_regular_rows.shrink_to_fit();
+        rowgrp_source_rows.clear();
+        rowgrp_source_rows.shrink_to_fit();
+        colgrp_nnz_columns.clear();
+        colgrp_nnz_columns.shrink_to_fit();
+        colgrp_sink_columns.clear();
+        colgrp_sink_columns.shrink_to_fit();
     }
-    I.clear();
-    I.shrink_to_fit();
-    for(uint32_t i = 0; i < tiling->rank_ncolgrps; i++) {
-        J[i].clear();
-        J[i].shrink_to_fit();
-    }
-    J.clear();
-    J.shrink_to_fit();
-    for(uint32_t i = 0; i < tiling->rank_nrowgrps; i++) {   
-        IV[i].clear();
-        IV[i].shrink_to_fit();
-    }
-    IV.clear();
-    IV.shrink_to_fit();
-    for(uint32_t i = 0; i < tiling->rank_ncolgrps; i++) {   
-        JV[i].clear();
-        JV[i].shrink_to_fit();
-    }
-    JV.clear();
-    JV.shrink_to_fit();
-    
-    rowgrp_nnz_rows.clear();
-    rowgrp_nnz_rows.shrink_to_fit();
-    rowgrp_regular_rows.clear();
-    rowgrp_regular_rows.shrink_to_fit();
-    rowgrp_source_rows.clear();
-    rowgrp_source_rows.shrink_to_fit();
-    colgrp_nnz_columns.clear();
-    colgrp_nnz_columns.shrink_to_fit();
-    colgrp_sink_columns.clear();
-    colgrp_sink_columns.shrink_to_fit();
     
 }
 
@@ -2619,7 +2022,6 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::del_triples() {
 
 template<typename Weight, typename Integer_Type, typename Fractional_Type>
 void Matrix<Weight, Integer_Type, Fractional_Type>::del_triples_t() {
-    
     Triple<Weight, Integer_Type> pair;
     for(uint32_t t: local_tiles_row_order) {
         pair = tile_of_local_tile(t);
