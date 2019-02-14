@@ -189,7 +189,7 @@ void Env::init_t() {
                 int sof =  cid % nthreads_per_socket;
                 //int* test = (int*) numa_alloc_onnode(2, sid);
                 //test[0] = tid;
-                printf("rid=%d, tid=%d, core_id=%d, sid=%d sof=%d\n", Env::rank, tid, cid, sid, sof);
+                printf("Core_name=%s Rank=%d, tid=%d, core_id=%d, sid=%d sof=%d\n", core_name, Env::rank, tid, cid, sid, sof);
                 
             }
         }
