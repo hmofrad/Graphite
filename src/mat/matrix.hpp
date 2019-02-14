@@ -222,25 +222,20 @@ Matrix<Weight, Integer_Type, Fractional_Type>::Matrix(Integer_Type nrows_,
     nrows = nrows_;
     ncols = ncols_;
     ntiles = ntiles_;
-    if((tiling_type_ == _2D_) or (tiling_type_ == _2DT_)){
+    if((tiling_type_ == _2D_) or (tiling_type_ == _2DT_) or (tiling_type_ == _2D_COL_) or (tiling_type_ == _2D_ROW_)){
         nrowgrps = sqrt(ntiles);
         ncolgrps = ntiles / nrowgrps;
-        tile_height = nrows / nrowgrps;
-        tile_width  = ncols / ncolgrps;
-        //tile_height = (nrows / nrowgrps) + 1;
-        //tile_width  = (ncols / ncolgrps) + 1;
     }
-    else {
-        nrowgrps = sqrt(ntiles);
-        ncolgrps = Env::nranks;
-        tile_height = nrows / nrowgrps;
-        tile_width  = ncols / ncolgrps;
-        //printf("rank=%d tile_height=%d tile_width=%d\n", Env::rank, tile_height, tile_width);
-        
-        //if(Env::rank == (Env::nranks - 1))
-        //    tile_width = ncols  - ((Env::nranks - 1) * (ncols / ncolgrps));
+    else if (tiling_type_ == _1D_COL_){
+        nrowgrps = 1;
+        ncolgrps = ntiles;
     }
-    
+    else if (tiling_type_ == _1D_ROW_){
+        nrowgrps = ntiles;
+        ncolgrps = 1;
+    }
+    tile_height = nrows / nrowgrps;
+    tile_width  = ncols / ncolgrps;
     
     directed = directed_;
     transpose = transpose_;
@@ -248,7 +243,9 @@ Matrix<Weight, Integer_Type, Fractional_Type>::Matrix(Integer_Type nrows_,
     // Initialize tiling 
     tiling = new Tiling(Env::nranks, ntiles, nrowgrps, ncolgrps, tiling_type_);
     compression_type = compression_type_;
+    
     init_matrix();
+
 }
 
 template<typename Weight, typename Integer_Type, typename Fractional_Type>
@@ -367,7 +364,7 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_matrix() {
                 tile.leader_rank_rg_rg = i;
                 tile.leader_rank_cg_cg = j;
             }
-            else if(tiling->tiling_type == Tiling_type::_1D_COL_) {
+            else if(tiling->tiling_type == Tiling_type::_2D_COL_) {
                 tile.rank = (i % tiling->colgrp_nranks) * tiling->rowgrp_nranks
                                                         + (j % tiling->rowgrp_nranks);
                 
@@ -383,7 +380,24 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_matrix() {
                 tile.leader_rank_rg_rg = i;
                 tile.leader_rank_cg_cg = j;
             }
-            else if(tiling->tiling_type == Tiling_type::_1D_ROW_) {
+            else if(tiling->tiling_type == Tiling_type::_2D_ROW_) {
+                tile.rank = (i % tiling->colgrp_nranks) * tiling->rowgrp_nranks
+                                                        + (j % tiling->rowgrp_nranks);
+                
+                tile.ith = tile.rg / tiling->colgrp_nranks; 
+                tile.jth = tile.cg / tiling->rowgrp_nranks;
+                
+                tile.rank_rg = j % tiling->rowgrp_nranks;
+                tile.rank_cg = i % tiling->colgrp_nranks;
+                
+                tile.leader_rank_rg = i;
+                tile.leader_rank_cg = j;
+                
+                tile.leader_rank_rg_rg = i;
+                tile.leader_rank_cg_cg = j;
+            }
+            
+            else if(tiling->tiling_type == Tiling_type::_1D_COL_) {
                 tile.rank = (i % tiling->colgrp_nranks) * tiling->rowgrp_nranks
                                                         + (j % tiling->rowgrp_nranks);
                 
@@ -406,13 +420,19 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_matrix() {
             tile.allocate_triples();
         }
     }
-
-    //if((tiling->tiling_type == Tiling_type::_2D_) or (tiling->tiling_type == Tiling_type::_2DT_)) {
-        /*
-        * Reorganize the tiles so that each rank is placed in
-        * at least one diagonal tile then calculate 
-        * the leader ranks per row group.
-        */
+    
+    /*
+    * Reorganize the tiles so that each rank is placed in
+    * at least one diagonal tile then calculate 
+    * the leader ranks per row group.
+    */
+    if((tiling->tiling_type == _1D_COL_) or (tiling->tiling_type == _1D_ROW_)) {
+        for(uint32_t j = 0; j < tiling->rowgrp_nranks; j++) {
+            if(j != (uint32_t) Env::rank)
+                follower_rowgrp_ranks.push_back(j);
+        }
+    }
+    else {
         leader_ranks.resize(nrowgrps, -1);
         leader_ranks_rg.resize(nrowgrps);
         leader_ranks_cg.resize(ncolgrps);
@@ -572,18 +592,7 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_matrix() {
             if(leader_ranks[local_col_segments[j]] == Env::rank)
                 accu_segment_col = j;
         } 
-    /*    
-    } 
-    
-    else if(tiling->tiling_type == Tiling_type::_1D_COL__) {
-        accu_segment_row = Env::rank;
-        //follower_rowgrp_ranks.resize(Env::nranks - 1);
-        for(uint32_t j = 0; j < tiling->rowgrp_nranks; j++) {
-            if(j != (uint32_t) Env::rank)
-                follower_rowgrp_ranks.push_back(j);
-        }
     }
-    */
     
     // Print tiling assignment
     if(Env::is_master) {
@@ -594,7 +603,8 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_matrix() {
         printf("Tiling Info: %d x %d [rank_nrowgrps x rank_ncolgrps]\n", tiling->rank_nrowgrps, tiling->rank_ncolgrps);
     }
     print("rank");
-    
+    Env::barrier();
+    Env::exit(0);
 }
 
 template<typename Weight, typename Integer_Type, typename Fractional_Type>
