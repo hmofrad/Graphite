@@ -141,7 +141,7 @@ void Env::init_t() {
         int cpu_name_len;
         MPI_Get_processor_name(core_name, &cpu_name_len);
         core_id = sched_getcpu();
-        
+        printf("Rank=%d is running on %s with core id %d\n", Env::rank, core_name, core_id);
         if(numa_available() != -1) {
         
         //assert( numa_available() != -1 );
