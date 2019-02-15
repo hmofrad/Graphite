@@ -96,10 +96,10 @@ class Matrix {
         std::vector<Integer_Type> nnz_cols_sizes;
         Integer_Type nnz_cols_size;
         Integer_Type nnz_cols_size_loc;
-        std::vector<Integer_Type> start_dense;
-        std::vector<Integer_Type> end_dense;
-        std::vector<Integer_Type> start_sparse;
-        std::vector<Integer_Type> end_sparse;        
+        std::vector<Integer_Type> ranks_start_dense;
+        std::vector<Integer_Type> ranks_end_dense;
+        std::vector<Integer_Type> ranks_start_sparse;
+        std::vector<Integer_Type> ranks_end_sparse;        
         
         std::vector<std::vector<char>> I;           // Nonzero rows bitvectors (from tile width)
         std::vector<std::vector<Integer_Type>> IV;  // Nonzero rows indices    (from tile width)
@@ -108,9 +108,10 @@ class Matrix {
         std::vector<std::vector<char>> IT;           // Nonzero rows bitvectors (from tile width)
         std::vector<std::vector<Integer_Type>> IVT;  // Nonzero rows indices    (from tile width)
         std::vector<Integer_Type> threads_nnz_rows;  // Row group row indices
-        std::vector<Integer_Type> threads_start_row;  
-        std::vector<Integer_Type> threads_nnz_start_row;  
-        std::vector<Integer_Type> threads_end_row;  
+        std::vector<Integer_Type> threads_ranks_start_dense_row;  
+        std::vector<Integer_Type> threads_ranks_end_dense_row;  
+        std::vector<Integer_Type> threads_ranks_start_sparse_row;  
+        std::vector<Integer_Type> threads_ranks_end_sparse_row;  
         std::vector<Integer_Type> rowgrp_nnz_rows;  // Row group row indices         
         std::vector<Integer_Type> rowgrp_regular_rows; // Row group regular indices
         std::vector<Integer_Type> rowgrp_source_rows;  // Row group source column indices
@@ -975,8 +976,8 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_threads() {
         std::vector<struct Triple<Weight, Integer_Type>>& triples = *(tile.triples);
         if(triples.size()) {
             tile.npartitions = omp_get_max_threads();
-            threads_start_row.resize(tile.npartitions);
-            threads_end_row.resize(tile.npartitions);
+            threads_ranks_start_dense_row.resize(tile.npartitions);
+            threads_ranks_end_dense_row.resize(tile.npartitions);
             tile.triples_t.resize(tile.npartitions); 
             uint64_t chunk_size = tile.triples->size()/omp_get_max_threads();
             std::vector<uint64_t> start(tile.npartitions);
@@ -995,11 +996,11 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_threads() {
                 std::sort(tile.triples_t[tid]->begin(), tile.triples_t[tid]->end(), f_col);
                 nnz_local[tid] = tile.triples_t[tid]->size();
                 
-                threads_start_row[tid] = (tid == 0) ? 0 : triples[end[tid - 1]].row + 1;
-                threads_end_row[tid] = triples[end[tid]].row;
-                threads_end_row[tid] = (threads_end_row[tid] < threads_start_row[tid]) ? threads_start_row[tid] : threads_end_row[tid];
-                threads_end_row[tid] = (tid == Env::nthreads - 1) ? tile_height : threads_end_row[tid] + 1;
-                //printf("tid=%d [%d %d] [%d %d]\n", tid, start[tid], end[tid], threads_start_row[tid], threads_end_row[tid]);
+                threads_ranks_start_dense_row[tid] = (tid == 0) ? 0 : triples[end[tid - 1]].row + 1;
+                threads_ranks_end_dense_row[tid] = triples[end[tid]].row;
+                threads_ranks_end_dense_row[tid] = (threads_ranks_end_dense_row[tid] < threads_ranks_start_dense_row[tid]) ? threads_ranks_start_dense_row[tid] : threads_ranks_end_dense_row[tid];
+                threads_ranks_end_dense_row[tid] = (tid == Env::nthreads - 1) ? tile_height : threads_ranks_end_dense_row[tid] + 1;
+                //printf("tid=%d [%d %d] [%d %d]\n", tid, start[tid], end[tid], threads_ranks_start_dense_row[tid], threads_ranks_end_dense_row[tid]);
             }
             /*
             double sum = std::accumulate(nnz_local.begin(), nnz_local.end(), 0.0);
@@ -1164,15 +1165,15 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::filter_rows() {
     }
     Env::barrier();
     
-    start_dense.resize(Env::nranks);
-    end_dense.resize(Env::nranks);
+    ranks_start_dense.resize(Env::nranks);
+    ranks_end_dense.resize(Env::nranks);
     for(int32_t i = 0; i < Env::nranks; i++) {
         if(i == 0)
-            start_dense[i] = 0;
+            ranks_start_dense[i] = 0;
         else 
-            start_dense[i] = std::accumulate(rows_sizes.begin(), rows_sizes.end() - Env::nranks + i, 0);
+            ranks_start_dense[i] = std::accumulate(rows_sizes.begin(), rows_sizes.end() - Env::nranks + i, 0);
         
-        end_dense[i] = std::accumulate(rows_sizes.begin(), rows_sizes.end() - Env::nranks + i + 1, 0);
+        ranks_end_dense[i] = std::accumulate(rows_sizes.begin(), rows_sizes.end() - Env::nranks + i + 1, 0);
     }
     
     nnz_rows_sizes.resize(Env::nranks, 0);
@@ -1187,7 +1188,7 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::filter_rows() {
             IIV[i] = k; 
             k++;
         }
-        if((i >= start_dense[Env::rank]) and (i < end_dense[Env::rank]) and II[i]) {
+        if((i >= ranks_start_dense[Env::rank]) and (i < ranks_end_dense[Env::rank]) and II[i]) {
             nnz_rows_sizes[Env::rank]++;
         }
         
@@ -1210,7 +1211,7 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::filter_rows() {
             nnz_rows_values[l] = i;
             l++;
         }
-        if((i >= start_dense[Env::rank]) and (i < end_dense[Env::rank]) and II[i]) {
+        if((i >= ranks_start_dense[Env::rank]) and (i < ranks_end_dense[Env::rank]) and II[i]) {
             rowgrp_nnz_rows[k] = i;
             k++;
         }
@@ -1218,15 +1219,15 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::filter_rows() {
     
     k = 0;
     l = 0;
-    start_sparse.resize(Env::nranks);
-    end_sparse.resize(Env::nranks);
+    ranks_start_sparse.resize(Env::nranks);
+    ranks_end_sparse.resize(Env::nranks);
     for(int32_t i = 0; i < Env::nranks; i++) {
         if(i == 0)
-            start_sparse[i] = 0;//nnz_rows_values[0];
+            ranks_start_sparse[i] = 0;//nnz_rows_values[0];
         else 
-            start_sparse[i] = std::accumulate(nnz_rows_sizes.begin(), nnz_rows_sizes.end() - Env::nranks + i, 0);
+            ranks_start_sparse[i] = std::accumulate(nnz_rows_sizes.begin(), nnz_rows_sizes.end() - Env::nranks + i, 0);
         
-        end_sparse[i] = std::accumulate(nnz_rows_sizes.begin(), nnz_rows_sizes.end() - Env::nranks + i + 1, 0);
+        ranks_end_sparse[i] = std::accumulate(nnz_rows_sizes.begin(), nnz_rows_sizes.end() - Env::nranks + i + 1, 0);
     }
     
     
@@ -1238,13 +1239,13 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::filter_rows() {
     #pragma omp parallel
     {
         int tid = omp_get_thread_num();
-        Integer_Type length = threads_end_row[tid] - threads_start_row[tid];
+        Integer_Type length = threads_ranks_end_dense_row[tid] - threads_ranks_start_dense_row[tid];
         IT[tid].resize(length);
         IVT[tid].resize(length);            
 
         Integer_Type j = 0;
         Integer_Type k = 0;
-        for(Integer_Type i = threads_start_row[tid]; i < threads_end_row[tid]; i++) {
+        for(Integer_Type i = threads_ranks_start_dense_row[tid]; i < threads_ranks_end_dense_row[tid]; i++) {
             if(II[i]) {
                 IT[tid][j] = 1;
                 IVT[tid][j] = k;
@@ -1256,13 +1257,29 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::filter_rows() {
         all_rows[tid] = length;
     }
     
-    threads_nnz_start_row.resize(Env::nthreads, 0);
-    Integer_Type nzz_sum = 0;
+    threads_ranks_start_sparse_row.resize(Env::nthreads, 0);
+    threads_ranks_end_sparse_row.resize(Env::nthreads, 0);
+    Integer_Type nnz_sum = 0;
     for(int32_t i = 0; i < Env::nthreads; i++) {
         
-        threads_nnz_start_row[i] += nzz_sum;
-        nzz_sum += threads_nnz_rows[i];
+        threads_ranks_start_sparse_row[i] += nnz_sum;
+        nnz_sum += threads_nnz_rows[i];
+        threads_ranks_end_sparse_row[i] = nnz_sum;
     }
+    
+    
+    if(!Env::rank) {
+        for(int32_t i = 0; i < Env::nthreads; i++) {
+            printf("tid=%d  D[start=%d end=%d] S[start=%d end=%d]\n", i, threads_ranks_start_dense_row[i], threads_ranks_end_dense_row[i], threads_ranks_start_sparse_row[i], threads_ranks_end_sparse_row[i]);
+        }
+        for(int32_t i = 0; i < Env::nranks; i++) {
+            printf("rank=%d D[start=%d end=%d] S[start=%d end=%d]\n", i, ranks_start_dense[i], ranks_end_dense[i], ranks_start_sparse[i], ranks_end_sparse[i]);
+        }
+    }
+    
+    
+   // Env::barrier();
+    //Env::exit(0);
 }
 
 template<typename Weight, typename Integer_Type, typename Fractional_Type>
@@ -1814,10 +1831,10 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_tcsc()
                 Integer_Type c_nitems = nnz_cols_sizes[Env::rank];
                 Integer_Type r_nitems = nnz_rows_size;
                 //Integer_Type r_nitems = threads_nnz_rows[tid];
-                //Integer_Type tile_height_t = (tid == 0) ? 0 : threads_end_row[tid - 1];
+                //Integer_Type tile_height_t = (tid == 0) ? 0 : threads_ranks_end_dense_row[tid - 1];
                 //auto& i_data = IT[tid];
                 //auto& iv_data = IVT[tid];
-                //printf("%d %d %d %d\n", tid, r_nitems, tile_height_t, threads_end_row[tid]);
+                //printf("%d %d %d %d\n", tid, r_nitems, tile_height_t, threads_ranks_end_dense_row[tid]);
                 struct Triple<Weight, Integer_Type> f = tile.triples_t[tid]->front();
                 auto& i_data = II;
                 auto& iv_data = IIV;
