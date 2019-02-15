@@ -166,7 +166,7 @@ class Vertex_Program
         std::vector<std::vector<char>> IT;
         std::vector<std::vector<Integer_Type>> IVT;
         std::vector<Integer_Type> threads_nnz_rows;
-        std::vector<Integer_Type> threads_nnz_start_row;
+        std::vector<Integer_Type> threads_ranks_start_sparse_row;
         
         std::vector<Integer_Type> nnz_rows_sizes;
         Integer_Type nnz_rows_size;
@@ -199,10 +199,10 @@ class Vertex_Program
         std::vector<Integer_Type>* IIV;
         std::vector<char>* JJ;
         std::vector<Integer_Type>* JJV;
-        std::vector<Integer_Type> start_dense;
-        std::vector<Integer_Type> end_dense;   
-        std::vector<Integer_Type> start_sparse;
-        std::vector<Integer_Type> end_sparse;        
+        std::vector<Integer_Type> ranks_start_dense;
+        std::vector<Integer_Type> ranks_end_dense;   
+        std::vector<Integer_Type> ranks_start_sparse;
+        std::vector<Integer_Type> ranks_end_sparse;        
         
         
         std::vector<Integer_Type>* rowgrp_nnz_rows;
@@ -326,15 +326,15 @@ Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::Vertex_Prog
         nnz_cols_sizes = Graph.A->nnz_cols_sizes;
         nnz_rows_size = Graph.A->nnz_rows_size;
         nnz_cols_size = Graph.A->nnz_cols_size;
-        start_dense = Graph.A->start_dense;
-        end_dense = Graph.A->end_dense;
-        start_sparse = Graph.A->start_sparse;
-        end_sparse = Graph.A->end_sparse;
+        ranks_start_dense = Graph.A->ranks_start_dense;
+        ranks_end_dense = Graph.A->ranks_end_dense;
+        ranks_start_sparse = Graph.A->ranks_start_sparse;
+        ranks_end_sparse = Graph.A->ranks_end_sparse;
         
         IT =  Graph.A->IT;
         IVT = Graph.A->IVT;
         threads_nnz_rows = Graph.A->threads_nnz_rows;
-        threads_nnz_start_row = Graph.A->threads_nnz_start_row;
+        threads_ranks_start_sparse_row = Graph.A->threads_ranks_start_sparse_row;
         
         //rowgrp_REG = &(Graph.A->rowgrp_REG);
         //rowgrp_SRC = &(Graph.A->rowgrp_SRC);
@@ -404,10 +404,10 @@ Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::Vertex_Prog
         nnz_cols_sizes = Graph.A->nnz_rows_sizes;
         nnz_rows_size = Graph.A->nnz_cols_size;
         nnz_cols_size = Graph.A->nnz_rows_size;
-        start_dense = Graph.A->start_dense;
-        end_dense = Graph.A->end_dense;
-        start_sparse = Graph.A->start_sparse;
-        end_sparse = Graph.A->end_sparse;
+        ranks_start_dense = Graph.A->ranks_start_dense;
+        ranks_end_dense = Graph.A->ranks_end_dense;
+        ranks_start_sparse = Graph.A->ranks_start_sparse;
+        ranks_end_sparse = Graph.A->ranks_end_sparse;
         
         
         
@@ -528,7 +528,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::execut
         apply();
         iteration++;
         Env::print_num("Iteration: ", iteration);        
-        //checksum();
+        checksum();
         if(check_for_convergence) {
             converged = has_converged();
             //Env::print_num("Converged: ", converged);            
@@ -589,8 +589,8 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::initia
             #pragma omp parallel for schedule(static)
             for(uint32_t i = 0; i < v_nitems; i++) {
                 Vertex_State &state = V[i];
-                Integer_Type j = i + start_dense[Env::rank];
-                if(i_data[i])
+                Integer_Type j = i + ranks_start_dense[Env::rank];
+                if(i_data[j])
                     C[i] = initializer(get_vid(i), state, (const State&) VProgram.V[i]);
             }            
         }
@@ -1249,7 +1249,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::combin
     //{
         //int tid = omp_get_thread_num();
     //for(int32_t i = 0; i < Env::nthreads; i++) {
-        //std::copy(YYT[tid].begin(), YYT[tid].end(), YY.begin() + threads_nnz_start_row[tid]);
+        //std::copy(YYT[tid].begin(), YYT[tid].end(), YY.begin() + threads_ranks_start_sparse_row[tid]);
         //offset += YYT[i].size();
     //}
     
@@ -1276,7 +1276,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::combin
                         Integer_Type yj_nitems = yj_data.size();
                         follower = j;
                         tag = i;
-                        //printf("%d: recv from %d with size %d %d\n", Env::rank, j, end_sparse[i] - start_sparse[i], yj_nitems);
+                        //printf("%d: recv from %d with size %d %d\n", Env::rank, j, ranks_end_sparse[i] - ranks_start_sparse[i], yj_nitems);
                         MPI_Irecv(yj_data.data(), yj_nitems, TYPE_DOUBLE, follower, tag, Env::MPI_WORLD, &request);
                         in_requests.push_back(request);
                         k++;
@@ -1284,10 +1284,10 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::combin
                 }
             }
             else {
-                //printf("%d: send to %d with size %d\n", Env::rank, i, end_sparse[i] - start_sparse[i]);
+                //printf("%d: send to %d with size %d\n", Env::rank, i, ranks_end_sparse[i] - ranks_start_sparse[i]);
                 leader = i;
                 tag = i;
-                MPI_Isend(YY.data() + start_sparse[i], end_sparse[i] - start_sparse[i], TYPE_DOUBLE, leader, tag, Env::MPI_WORLD, &request);
+                MPI_Isend(YY.data() + ranks_start_sparse[i], ranks_end_sparse[i] - ranks_start_sparse[i], TYPE_DOUBLE, leader, tag, Env::MPI_WORLD, &request);
                 out_requests.push_back(request);
             }
         }
@@ -1388,7 +1388,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::spmv_s
                     //printf("%f\n", x_data[j]);
                 }
             }
-            std::copy(YYT[tid].begin(), YYT[tid].end(), YY.begin() + threads_nnz_start_row[tid]);
+            std::copy(YYT[tid].begin(), YYT[tid].end(), YY.begin() + threads_ranks_start_sparse_row[tid]);
         }
     }
 }
@@ -1434,7 +1434,6 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::spmv_s
                         #endif
                     }
                 }
-               
             }
             else {
                 for(uint32_t j = 0; j < ncols; j++) {
@@ -1448,8 +1447,8 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::spmv_s
                     }
                 } 
             }
-            
         }
+        
     }
     //std::exit(0);
     
@@ -1906,7 +1905,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::combin
             
             #pragma omp parallel for schedule(static)
             for(uint32_t i = 0; i < yj_nitems; i++) {
-                Integer_Type k = i + start_sparse[Env::rank];
+                Integer_Type k = i + ranks_start_sparse[Env::rank];
                 combiner(YY[k], yj_data[i]);
             }
         }
@@ -2038,7 +2037,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::apply_
         for(uint32_t i = 0; i < v_nitems; i++)
         {
             Vertex_State& state = V[i];
-            Integer_Type j = i + start_dense[Env::rank];
+            Integer_Type j = i + ranks_start_dense[Env::rank];
             if(i_data[j]) {
                 C[i] = applicator(state, YY[iv_data[j]]);
             }
@@ -2378,7 +2377,7 @@ template<typename Weight, typename Integer_Type, typename Fractional_Type, typen
 Integer_Type Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::get_vid(Integer_Type index)
 {
     if(tiling_type == _1D_COL_)
-        return(index + start_dense[Env::rank]);
+        return(index + ranks_start_dense[Env::rank]);
     else
         return(index + (owned_segment * tile_height));
     
