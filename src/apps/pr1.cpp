@@ -49,12 +49,12 @@ int main(int argc, char** argv) {
     GR.load(file_path, num_vertices, num_vertices, directed, transpose, self_loops, acyclic, parallel_edges, TT, CT);
     PR_Program<wp, ip, fp> VR(GR, stationary, gather_depends_on_apply, apply_depends_on_iter, OT);
     VR.initialize(V);
-    //V.free();
+    V.free();
     VR.execute(num_iterations); // Vertex execution
     VR.checksum();
     VR.display();
-    //VR.free();
-    //GR.free();
+    VR.free();
+    GR.free();
     
     double time2 = Env::clock();
     Env::print_time("PageRank end-to-end", time2 - time1);
