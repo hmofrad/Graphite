@@ -112,6 +112,12 @@ class Matrix {
         std::vector<Integer_Type> threads_end_dense_row;  
         std::vector<Integer_Type> threads_start_sparse_row;  
         std::vector<Integer_Type> threads_end_sparse_row;  
+        
+        std::vector<std::vector<Integer_Type>> threads_start_dense;  
+        std::vector<std::vector<Integer_Type>> threads_end_dense;  
+        std::vector<std::vector<Integer_Type>> threads_start_sparse;  
+        std::vector<std::vector<Integer_Type>> threads_end_sparse;  
+        
         std::vector<int32_t> threads_recv_ranks;
         std::vector<Integer_Type> threads_recv_start;
         std::vector<Integer_Type> threads_recv_end;
@@ -1274,16 +1280,21 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::filter_rows() {
         threads_end_sparse_row[i] = nnz_sum;
     }
 
-
+/*
     threads_recv_ranks.resize(Env::nthreads);
     threads_recv_start.resize(Env::nthreads);
     threads_recv_end.resize(Env::nthreads);
     threads_send_ranks.resize(Env::nthreads);
     threads_send_start.resize(Env::nthreads);
     threads_send_end.resize(Env::nthreads);
+ */   
+ 
+
     
+ 
+ 
     
-    if(!Env::rank) {
+    //if(!Env::rank) {
         for(int32_t i = 0; i < Env::nthreads; i++) {
             //printf("tid=%d  D[start=%d end=%d] S[start=%d end=%d]\n", i, threads_start_dense_row[i], threads_end_dense_row[i], threads_start_sparse_row[i], threads_end_sparse_row[i]);
             printf("tid=%d  [start=%d end=%d]\n", i, threads_start_sparse_row[i], threads_end_sparse_row[i]);
@@ -1319,8 +1330,12 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::filter_rows() {
                     
                     Integer_Type start = (threads_start_sparse_row[i] < ranks_start_sparse[j]) ? ranks_start_sparse[j] : threads_start_sparse_row[i];
                     Integer_Type end = (threads_end_sparse_row[i] > ranks_end_sparse[j]) ? ranks_end_sparse[j] : threads_end_sparse_row[i];
-                    if(j != Env::rank)
+                    if(j != Env::rank) {
                         printf("Send:thread=%d rank=%d [%d %d]\n", i, j, start, end);
+                        threads_send_ranks.push_back(j);
+                        threads_send_start.push_back(start);
+                        threads_send_end.push_back(end);
+                    }
                     else
                         printf("Recv:thread=%d rank=%d [%d %d]\n", i, j, start, end);
                 }
@@ -1345,11 +1360,42 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::filter_rows() {
                   //  printf("2.thread=%d rank=%d ? %d %d\n", i, j, threads_start_sparse_row[i] >= ranks_start_sparse[j],(threads_start_sparse_row[i] >= ranks_start_sparse[j] and ) );
                 //}
             }
-            printf("\n");
+          //  printf("\n");
         }
         
-    }
+        
+        //for(int i = 0; i < threads_send_ranks.size(); i++) {
+        //    printf("i=%d rank=%d start=%d end=%d\n", i, threads_send_ranks[i], threads_send_start[i], threads_send_end[i]);
+        ///}
+        
+    //}
     
+    
+    threads_start_dense.resize(Env::nranks,  std::vector<Integer_Type>(Env::nthreads));
+    threads_end_dense.resize(Env::nranks,    std::vector<Integer_Type>(Env::nthreads));
+    threads_start_sparse.resize(Env::nranks, std::vector<Integer_Type>(Env::nthreads));
+    threads_end_sparse.resize(Env::nranks,   std::vector<Integer_Type>(Env::nthreads));
+    
+    threads_start_dense[Env::rank] = threads_start_dense_row;
+    threads_end_dense[Env::rank] = threads_end_dense_row;
+    threads_start_sparse[Env::rank] = threads_start_sparse_row;
+    threads_end_sparse[Env::rank] = threads_end_sparse_row;
+    for (int32_t i = 0; i < Env::nranks; i++) {
+        if (i != Env::rank) {
+            MPI_Sendrecv(&threads_start_dense[Env::rank], Env::nthreads, TYPE_INT, i, 0, &threads_start_dense[i], Env::nthreads, TYPE_INT, 
+                                                                         i, 0, Env::MPI_WORLD, MPI_STATUS_IGNORE);
+                                                                         
+            MPI_Sendrecv(&threads_end_dense[Env::rank], Env::nthreads, TYPE_INT, i, 0, &threads_end_dense[i], Env::nthreads, TYPE_INT, 
+                                                                         i, 0, Env::MPI_WORLD, MPI_STATUS_IGNORE);                                                                         
+            MPI_Sendrecv(&threads_start_sparse[Env::rank], Env::nthreads, TYPE_INT, i, 0, &threads_start_sparse[i], Env::nthreads, TYPE_INT, 
+                                                                         i, 0, Env::MPI_WORLD, MPI_STATUS_IGNORE);
+                                                                         
+            MPI_Sendrecv(&threads_end_sparse[Env::rank], Env::nthreads, TYPE_INT, i, 0, &threads_end_sparse[i], Env::nthreads, TYPE_INT, 
+                                                                         i, 0, Env::MPI_WORLD, MPI_STATUS_IGNORE);
+        }
+    }
+    Env::barrier(); 
+ 
 
     
     
