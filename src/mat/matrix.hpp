@@ -120,10 +120,12 @@ class Matrix {
         
         std::vector<std::vector<int32_t>> threads_recv_ranks;
         std::vector<std::vector<int32_t>> threads_recv_threads;
+        std::vector<std::vector<int32_t>> threads_recv_indices;
         std::vector<std::vector<Integer_Type>> threads_recv_start;
         std::vector<std::vector<Integer_Type>> threads_recv_end;
         std::vector<std::vector<int32_t>> threads_send_ranks;
         std::vector<std::vector<int32_t>> threads_send_threads;
+        std::vector<std::vector<int32_t>> threads_send_indices;
         std::vector<std::vector<Integer_Type>> threads_send_start;
         std::vector<std::vector<Integer_Type>> threads_send_end;
         
@@ -1337,37 +1339,49 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::filter_rows() {
     }
     Env::barrier(); 
     
- 
-if(Env::rank == 0) {
+/*
+if(!Env::rank) {
     for(int32_t i = 0; i < Env::nranks; i++) {
         for(int32_t j = 0; j < Env::nthreads; j++) {
             printf("rank=%d thread=%d [%d %d]\n", i, j, threads_start_sparse[i][j], threads_end_sparse[i][j]);
         }
         printf("\n");
     }
+    
+    for(int32_t i = 0; i < Env::nranks; i++) {
+        printf("rank=%d [start=%d end=%d]\n", i, ranks_start_sparse[i], ranks_end_sparse[i]);
+    }
+    
 }
+*/
+    MPI_Barrier(MPI_COMM_WORLD);
 
  
     threads_send_ranks.resize(Env::nthreads);
     threads_send_threads.resize(Env::nthreads);
+    threads_send_indices.resize(Env::nthreads);
     threads_send_start.resize(Env::nthreads);
     threads_send_end.resize(Env::nthreads);
     threads_recv_ranks.resize(Env::nthreads);
     threads_recv_threads.resize(Env::nthreads);
+    threads_recv_indices.resize(Env::nthreads);
     threads_recv_start.resize(Env::nthreads);
     threads_recv_end.resize(Env::nthreads);
  
+ 
     
-    if(!Env::rank) {
+    if(Env::rank == 0) {
         
         //for(int32_t i = 0; i < Env::nthreads; i++) {
         //    printf("tid=%d  [start=%d end=%d]\n", i, threads_start_sparse_row[i], threads_end_sparse_row[i]);
         //}
         
-        for(int32_t i = 0; i < Env::nranks; i++) {
-            printf("rank=%d [start=%d end=%d]\n", i, ranks_start_sparse[i], ranks_end_sparse[i]);
-        }
+        //for(int32_t i = 0; i < Env::nranks; i++) {
+        //    printf("rank=%d [start=%d end=%d]\n", i, ranks_start_sparse[i], ranks_end_sparse[i]);
+        //}
         
+        
+        l = 0;
         
         for(int32_t i = 0; i < Env::nranks; i++) {
             if(i != Env::rank) {
@@ -1375,103 +1389,105 @@ if(Env::rank == 0) {
                     if((threads_start_sparse_row[j] <= ranks_end_sparse[i]) and (ranks_start_sparse[i] <= threads_end_sparse_row[j])) {
                         Integer_Type start = (threads_start_sparse_row[j] < ranks_start_sparse[i]) ? ranks_start_sparse[i] : threads_start_sparse_row[j];
                         Integer_Type end = (threads_end_sparse_row[j] > ranks_end_sparse[i]) ? ranks_end_sparse[i] : threads_end_sparse_row[j];
-                        
-                            //printf("Send: thread=%d, %d --> %d [%d %d]\n", j, Env::rank, i, start, end);
-                            //threads_send_ranks.push_back(i);
-                            //threads_send_start.push_back(start);
-                            //threads_send_end.push_back(end);
-                            
-                            for(int32_t k = 0; k < Env::nthreads; k++) {
-                                if((threads_start_sparse[i][k] <= end) and (start <= threads_end_sparse[i][k])) {
-                                    Integer_Type start1 = (threads_start_sparse[i][k] < start) ? start : threads_start_sparse[i][k];
-                                    Integer_Type end1 = (threads_end_sparse[i][k] > end) ? end : threads_end_sparse[i][k];
-                                    //printf("Send::thread=%d, %d --> %d [%d %d]\n", k, Env::rank, i, start1, end1);
-                                    threads_send_ranks[j].push_back(i);
-                                    threads_send_threads[j].push_back(k);
-                                    threads_send_start[j].push_back(start1);
-                                    threads_send_end[j].push_back(end1);
-                                }
+                        Integer_Type start0 = start;
+                        Integer_Type end0 = end;
+                        for(int32_t k = 0; k < Env::nthreads; k++) {
+                            if((threads_start_sparse[i][k] < end) and (start <= threads_end_sparse[i][k])) {
+                                Integer_Type start1 = 0;
+                                Integer_Type end1 = 0;//start_temp;
+                                //if(threads_send_threads[j].size() > 1) {
+                                  //  start1 = threads_send_end[j].back();
+                                    //end1 = (threads_end_sparse[i][k] > end) ? end : threads_end_sparse[i][k];
+                                    //printf("%d\n", start1);
+                                //}
+                                //else {      
+                                    //printf("[%d %d] [%d %d] [%d %d]\n", ranks_start_sparse[i], ranks_end_sparse[i], threads_start_sparse[i][j], threads_end_sparse[i][j], threads_start_sparse[i][k], threads_end_sparse[i][k]);    
+                                    //start1 = (threads_start_sparse[i][k] < start) ? threads_start_sparse[i][k] : start;
+                                    if((k +1) < Env::nthreads) {
+                                        //start1 = (threads_start_sparse[i][k] < start) ? threads_start_sparse[i][k] : start;
+                                        start1 = start;
+                                    }
+                                    else 
+                                        start1 = (threads_start_sparse[i][k] < start) ? threads_start_sparse[i][k] : start;
+                                        
+                                    end1 = (threads_end_sparse[i][k] > end) ? end : threads_end_sparse[i][k];
+                                
+                                    //start1 = (threads_start_sparse[i][k] < ranks_start_sparse[i]) ? start : threads_start_sparse[i][k];
+                                    //end1 = (threads_end_sparse[i][k] > end) ? end : threads_end_sparse[i][k];
+                                //}
+                                //start0 += end1;
+                                //}
+                                
+                                
+                                
+                                //printf("Send::thread=%d, %d --> %d [%d %d] [%d %d] [%d %d]\n", k, Env::rank, i, start, end, threads_start_sparse[i][k], threads_end_sparse[i][k], start1, end1);
+                                
+                                threads_send_ranks[j].push_back(i);
+                                threads_send_threads[j].push_back(k);
+                                threads_send_indices[j].push_back(l);
+                                threads_send_start[j].push_back(start1);
+                                threads_send_end[j].push_back(end1);
+                                //if(threads_send_start[j].size() > 2) {
+                                //    threads_send_start[j][1] = threads_send_end[j][0];
+                                    
+                                //}
+                                printf("Send:: rank %d --> %d, thread=%d --> %d, [%d %d] [%d %d]\n", Env::rank, i, j, k, start, end, start1, end1);
+
                             }
-                            
-                            //Env::barrier();
-                            //Env::exit(0);
+                        }
                     }
                 }
+                l++;
+                Env::barrier();
+                Env::exit(0);
             }
         }
         
+        l = 0;
         for(int32_t i = 0; i < Env::nranks; i++) {
             if(i != Env::rank) {
                 for(int32_t j = 0; j < Env::nthreads; j++) {
                     if((threads_start_sparse_row[j] <= ranks_end_sparse[Env::rank]) and (ranks_start_sparse[Env::rank] <= threads_end_sparse_row[j])) {
-                        Integer_Type start = (threads_start_sparse_row[j] < ranks_start_sparse[Env::rank]) ? ranks_start_sparse[Env::rank] : threads_start_sparse_row[j];
+                        Integer_Type start = (threads_start_sparse_row[j] < ranks_start_sparse[Env::rank]) ? ranks_start_sparse[Env::rank] :  threads_start_sparse_row[j];
                         Integer_Type end = (threads_end_sparse_row[j] > ranks_end_sparse[Env::rank]) ? ranks_end_sparse[Env::rank] : threads_end_sparse_row[j];
-                        
-                            //printf("Send: thread=%d, %d --> %d [%d %d]\n", j, Env::rank, i, start, end);
-                            //threads_send_ranks.push_back(i);
-                            //threads_send_start.push_back(start);
-                            //threads_send_end.push_back(end);
-                            
-                            for(int32_t k = 0; k < Env::nthreads; k++) {
-                                if((threads_start_sparse[i][k] <= end) and (start <= threads_end_sparse[i][k])) {
-                                    Integer_Type start1 = (threads_start_sparse[i][k] < start) ? start : threads_start_sparse[i][k];
-                                    Integer_Type end1 = (threads_end_sparse[i][k] > end) ? end : threads_end_sparse[i][k];
-                                    //printf("Send::thread=%d, %d --> %d [%d %d]\n", k, Env::rank, i, start1, end1);
-                                    threads_recv_ranks[j].push_back(i);
-                                    threads_recv_threads[j].push_back(k);
-                                    threads_recv_start[j].push_back(start1);
-                                    threads_recv_end[j].push_back(end1);
-                                }
+                        for(int32_t k = 0; k < Env::nthreads; k++) {
+                            if((threads_start_sparse[i][k] <= end) and (start <= threads_end_sparse[i][k])) {
+                                Integer_Type start1 = (threads_start_sparse[i][k] < start) ? start : threads_start_sparse[i][k];
+                                Integer_Type end1 = (threads_end_sparse[i][k] > end) ? end : threads_end_sparse[i][k];
+                                //printf("Send::thread=%d, %d --> %d [%d %d]\n", k, Env::rank, i, start1, end1);
+                                threads_recv_ranks[j].push_back(i);
+                                threads_recv_threads[j].push_back(k);
+                                threads_recv_indices[j].push_back(l);
+                                threads_recv_start[j].push_back(start1);
+                                threads_recv_end[j].push_back(end1);
                             }
-                            
-                            //Env::barrier();
-                            //Env::exit(0);
+                        }
                     }
                 }
+                l++;
             }
         }
-        
-        
-        
-        
+
         /*
-        //printf("Recv:thread=%d rank=%d [%d %d]\n", i, j, start, end);
-        for(int32_t i = 0; i < Env::nranks; i++) {
-            if(i != Env::rank) {
-                for(int32_t j = 0; j < Env::nthreads; j++) {
-                    if((threads_start_sparse_row[j] <= ranks_end_sparse[Env::rank]) and (ranks_start_sparse[Env::rank] <= threads_end_sparse_row[j])) {
-                        Integer_Type start = (threads_start_sparse_row[j] < ranks_start_sparse[Env::rank]) ? ranks_start_sparse[Env::rank] : threads_start_sparse_row[j];
-                        Integer_Type end = (threads_end_sparse_row[j] > ranks_end_sparse[Env::rank]) ? ranks_end_sparse[Env::rank] : threads_end_sparse_row[j];
-                        
-                       // if((threads_start_sparse_row[j] <= ranks_end_sparse[Env::rank]) and (ranks_start_sparse[Env::rank] <= threads_end_sparse_row[j])) {
-                            printf("Recv: thread=%d, %d --> %d [%d %d]\n", j, i, Env::rank, start, end);
-                            //threads_recv_ranks.push_back(i);
-                            //threads_recv_start.push_back(start);
-                            //threads_recv_end.push_back(end);
-                        
-                    }
-                }
-            }
-        }
-        */
-        
-        
+        //if(Env::rank == 2) {
         for(int32_t i = 0; i < Env::nthreads; i++) {
             for(int32_t j = 0; j < (int32_t) threads_send_ranks[i].size(); j++) {
-                printf("rank=%d thread=%d --> rank=%d thread=%d [%d %d]\n", Env::rank, i, threads_send_ranks[i][j], threads_send_threads[i][j], threads_send_start[i][j], threads_send_end[i][j]);
+                printf("Send: rank=%d thread=%d --> rank=%d thread=%d index=%d [%d %d]\n", Env::rank, i, threads_send_ranks[i][j], threads_send_threads[i][j], threads_send_indices[i][j], threads_send_start[i][j], threads_send_end[i][j]);
             }
         }
         printf("\n\n");
+        
         for(int32_t i = 0; i < Env::nthreads; i++) {
             for(int32_t j = 0; j < (int32_t) threads_recv_ranks[i].size(); j++) {
-                printf("rank=%d thread=%d --> rank=%d thread=%d [%d %d]\n", Env::rank, i, threads_recv_ranks[i][j], threads_recv_threads[i][j], threads_recv_start[i][j], threads_recv_end[i][j]);
+                printf("Recv: rank=%d thread=%d --> rank=%d thread=%d index=%d [%d %d]\n", Env::rank, i, threads_recv_ranks[i][j], threads_recv_threads[i][j], threads_recv_indices[i][j], threads_recv_start[i][j], threads_recv_end[i][j]);
             }
         }
-        
+        */
+        //}  
  
         
     } 
-   
+    // Add an assertion 
  
     
     
