@@ -1403,12 +1403,12 @@ if(!Env::rank) {
                                 //else {      
                                     //printf("[%d %d] [%d %d] [%d %d]\n", ranks_start_sparse[i], ranks_end_sparse[i], threads_start_sparse[i][j], threads_end_sparse[i][j], threads_start_sparse[i][k], threads_end_sparse[i][k]);    
                                     //start1 = (threads_start_sparse[i][k] < start) ? threads_start_sparse[i][k] : start;
-                                    if((k +1) < Env::nthreads) {
+                                    //if((k +1) < Env::nthreads) {
                                         //start1 = (threads_start_sparse[i][k] < start) ? threads_start_sparse[i][k] : start;
-                                        start1 = start;
-                                    }
-                                    else 
-                                        start1 = (threads_start_sparse[i][k] < start) ? threads_start_sparse[i][k] : start;
+                                    //    start1 = start;
+                                    //}
+                                    //else 
+                                    start1 = (threads_start_sparse[i][k] < start) ? threads_start_sparse[i][k] : start;
                                         
                                     end1 = (threads_end_sparse[i][k] > end) ? end : threads_end_sparse[i][k];
                                 
