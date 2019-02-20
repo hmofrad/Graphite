@@ -10,7 +10,8 @@
 ##SBATCH --mem=50000
 #SBATCH --time=01:00:00
 #SBATCH --cluster=mpi
-#SBATCH --partition=opa
+#SBATCH --partition=opa-high-mem
+#SBATCH --nodelist=opa-n[120-123]
 
 ## while true; do free -g; sleep 10; done
 ## grep 'Execution' la3.out
