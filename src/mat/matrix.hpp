@@ -154,6 +154,8 @@ class Matrix {
         std::vector<uint32_t> local_tiles_col_order;
         std::vector<int32_t> local_row_segments;
         std::vector<int32_t> local_col_segments;
+        std::vector<std::vector<uint32_t>> local_tiles_row_order_t;
+        std::vector<std::vector<uint32_t>> local_tiles_col_order_t;
         
         std::vector<int32_t> leader_ranks;
         
@@ -220,6 +222,7 @@ class Matrix {
         void classify_vertices();
         void filter_rows();
         void filter_cols();
+        void thread_level_messaging();
         
         
         struct Triple<Weight, Integer_Type> tile_of_local_tile(const uint32_t local_tile);
@@ -468,6 +471,8 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_matrix() {
         local_tiles_row_order.push_back(Env::rank);
     }
     else {
+        local_tiles_row_order_t.resize(tiling->rank_nrowgrps);
+        local_tiles_col_order_t.resize(tiling->rank_ncolgrps);
         leader_ranks.resize(nrowgrps, -1);
         leader_ranks_rg.resize(nrowgrps);
         leader_ranks_cg.resize(ncolgrps);
@@ -497,6 +502,7 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_matrix() {
                     pair.col = j;    
                     local_tiles.push_back(tile.kth);
                     local_tiles_row_order.push_back(tile.kth);
+                    local_tiles_row_order_t[tile.ith].push_back(tile.kth);
                     if (std::find(local_col_segments.begin(), local_col_segments.end(), pair.col) == local_col_segments.end())
                         local_col_segments.push_back(pair.col);
                     
@@ -518,8 +524,10 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_matrix() {
         for (uint32_t j = 0; j < ncolgrps; j++) {
             for (uint32_t i = 0; i < nrowgrps; i++) {
                 auto& tile = tiles[i][j];
-                if(tile.rank == Env::rank)
+                if(tile.rank == Env::rank) {
                     local_tiles_col_order.push_back(tile.kth);
+                    local_tiles_col_order_t[tile.jth].push_back(tile.kth);
+                }
             }
         }
         
@@ -705,9 +713,9 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_tiles() {
     }
     */
     
-    MPI_Barrier(MPI_COMM_WORLD);
+    //MPI_Barrier(MPI_COMM_WORLD);
     distribute();
-    MPI_Barrier(MPI_COMM_WORLD);
+    //MPI_Barrier(MPI_COMM_WORLD);
     
     //Triple<Weight, Integer_Type> pair;
     RowSort<Weight, Integer_Type> f_row;
@@ -999,7 +1007,7 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_threads() {
             threads_end_dense_row.resize(tile.npartitions);
             tile.triples_t.resize(tile.npartitions); 
 
-            /*
+            // tile height/nthreads
             uint64_t chunk_size = tile_height / tile.npartitions;
             std::vector<uint64_t> nnz_local(tile.npartitions);
             //printf("%d %d %d\n", tile.npartitions, tile_height, chunk_size);
@@ -1014,12 +1022,15 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_threads() {
                     if(triple.row >= threads_start_dense_row[tid] and triple.row < threads_end_dense_row[tid])
                         tile.triples_t[tid]->push_back(triple); 
                 }
-                //printf("tid=%d [%d %d]\n", tid, threads_start_dense_row[tid], threads_end_dense_row[tid]);
+                std::sort(tile.triples_t[tid]->begin(), tile.triples_t[tid]->end(), f_col);
+                //if(Env::rank == 3)
+                //    printf("rank=%d tid=%d tile=%d [%d %d]\n", Env::rank, tid, t, threads_start_dense_row[tid], threads_end_dense_row[tid]);
                 nnz_local[tid] = tile.triples_t[tid]->size();
             }
-            */
-
             
+
+            /*
+            // nnz
             std::vector<uint64_t> start(tile.npartitions);
             std::vector<uint64_t> end(tile.npartitions);
             uint64_t chunk_size = tile.triples->size()/tile.npartitions;
@@ -1042,7 +1053,7 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_threads() {
                 threads_end_dense_row[tid] = (tid == Env::nthreads - 1) ? tile_height : threads_end_dense_row[tid] + 1;
                 //printf("tid=%d [%d %d] [%d %d]\n", tid, start[tid], end[tid], threads_start_dense_row[tid], threads_end_dense_row[tid]);
             }
-            
+            */
             
             
             
@@ -1056,6 +1067,7 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_threads() {
             */
         }
     }
+    thread_level_messaging();
 }
 
 template<typename Weight, typename Integer_Type, typename Fractional_Type>
@@ -1117,10 +1129,280 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_filtering() {
         rowgrp_regular_rows = regular_rows[io];
         rowgrp_source_rows = source_rows[io];
         colgrp_sink_columns = sink_columns[jo];  
+        
+
+        
+        
     }  
     
     //del_triples();    
 }   
+
+template<typename Weight, typename Integer_Type, typename Fractional_Type>
+void Matrix<Weight, Integer_Type, Fractional_Type>::thread_level_messaging() {
+    
+    
+        
+    threads_send_start.resize(tiling->rank_nrowgrps, std::vector<Integer_Type> (Env::nthreads));
+    threads_send_end.resize(tiling->rank_nrowgrps, std::vector<Integer_Type> (Env::nthreads));
+    
+    
+    
+    
+    /*
+    threads_send_threads.resize(Env::nthreads);
+    threads_send_indices.resize(Env::nthreads);
+    threads_send_tags.resize(Env::nthreads);
+    threads_send_start.resize(Env::nthreads);
+    threads_send_end.resize(Env::nthreads);
+    threads_recv_ranks.resize(Env::nthreads);
+    threads_recv_threads.resize(Env::nthreads);
+    threads_recv_indices.resize(Env::nthreads);
+    threads_recv_tags.resize(Env::nthreads);
+    threads_recv_start.resize(Env::nthreads);
+    threads_recv_end.resize(Env::nthreads);
+    */
+    
+    
+    
+    if(!Env::rank) {
+        for(int i = 0; i < Env::nranks; i++) {
+            
+            printf("%d ", nnz_row_sizes_all[i]);
+        }
+        printf("\n");
+    }
+    
+    
+    //for(uint32_t t: local_tiles_row_order) {
+        for(uint32_t i = 0; i < tiling->rank_nrowgrps; i++) {
+        //auto pair = tile_of_local_tile(t);
+        auto& i_data = I[i];
+        //auto& iv_data = IV[yi];
+        std::vector<Integer_Type> threads_nnz_rows(Env::nthreads);
+        //std::vectorIT.resize(Env::nthreads);
+        //IVT.resize(Env::nthreads);
+        
+        #pragma omp parallel
+        {
+            
+            int tid = omp_get_thread_num();
+            
+            
+            Integer_Type length = threads_end_dense_row[tid] - threads_start_dense_row[tid];
+            
+            //IT[tid].resize(length);
+            //IVT[tid].resize(length);            
+            //Integer_Type j = 0;
+            Integer_Type k = 0;
+            
+            for(Integer_Type l = threads_start_dense_row[tid]; l < threads_end_dense_row[tid]; l++) {
+                if(i_data[l]) {
+                    //IT[tid][j] = 1;
+                    //IVT[tid][j] = k;
+                    k++;
+                }
+                //j++;
+            }
+            threads_nnz_rows[tid] = k;
+            //if(!Env::rank)
+            //printf("%d %d %d %d %d\n", Env::rank, tid, threads_start_dense_row[tid], threads_end_dense_row[tid], threads_nnz_rows[tid]);
+            
+        }
+
+        Integer_Type nnz_sum = 0;
+        for(int32_t j = 0; j < Env::nthreads; j++) {
+            
+            threads_send_start[i][j] += nnz_sum;
+            nnz_sum += threads_nnz_rows[j];
+            threads_send_end[i][j] = nnz_sum;
+        }
+    }
+    /*
+    if(!Env::rank) {
+        for(uint32_t i = 0; i < tiling->rank_nrowgrps; i++) {
+            for(uint32_t j = 0; j < Env::nthreads; j++) {
+                printf("[%d %d] ", threads_send_start[i][j], threads_send_end[i][j]);
+            }
+            printf("\n");
+        }
+    }
+    */
+    
+    
+    /*
+    uint32_t yi = 0, xi = 0, next_row = 0;
+        for(uint32_t t: local_tiles_row_order)
+        {
+            auto pair = tile_of_local_tile(t);
+            auto& tile = tiles[pair.row][pair.col];
+            Integer_Type c_nitems = nnz_col_sizes_loc[xi];
+            Integer_Type r_nitems = nnz_row_sizes_loc[yi];
+            auto& i_data = I[yi];
+            auto& iv_data = IV[yi];
+            auto& j_data = J[xi];
+            auto& jv_data = JV[xi];
+            if(tile.nedges) {
+                tile.compressor_t.resize(tile.npartitions);
+                #pragma omp parallel 
+                {
+                    int tid = omp_get_thread_num();
+                    int cid = sched_getcpu();
+                    int sid =  cid / Env::nthreads_per_socket;
+                    bool which = false;
+                    tile.compressor_t[tid] = new TCSC_BASE<Weight, Integer_Type>(tile.triples_t[tid]->size(), c_nitems, r_nitems, sid);
+                    tile.compressor_t[tid]->populate(tile.triples_t[tid], tile_height, tile_width, i_data, iv_data, j_data, jv_data, which);
+                    Integer_Type* IA   = static_cast<TCSC_BASE<Weight, Integer_Type>*>(tile.compressor_t[tid])->IA;
+                    Integer_Type* JA   = static_cast<TCSC_BASE<Weight, Integer_Type>*>(tile.compressor_t[tid])->JA;    
+                    Integer_Type nnzcols = static_cast<TCSC_BASE<Weight, Integer_Type>*>(tile.compressor_t[tid])->nnzcols;
+                }
+            }
+            
+            xi++;
+            next_row = (((tile.nth + 1) % tiling->rank_ncolgrps) == 0);
+            if(next_row) {
+                xi = 0;
+                yi++;
+            }
+        }  
+        */
+    
+    
+    
+    
+    
+    
+    //Env::barrier();
+    //Env::exit(0);
+    
+    
+    /*
+    
+    for (int32_t j = 0; j < Env::nranks; j++) {
+        if (j != Env::rank)
+            MPI_Sendrecv(&nnz_rows_sizes[Env::rank], 1, TYPE_INT, j, 0, &nnz_rows_sizes[j], 1, TYPE_INT, 
+                                                                         j, 0, Env::MPI_WORLD, MPI_STATUS_IGNORE);
+    }
+    Env::barrier();
+    
+    nnz_rows_values.resize(nnz_rows_size);
+    rowgrp_nnz_rows.resize(nnz_rows_sizes[Env::rank]);
+    k = 0;
+    Integer_Type l = 0;
+    for(Integer_Type i = 0; i < tile_height; i++) {
+        if(II[i]) {
+            nnz_rows_values[l] = i;
+            l++;
+        }
+        if((i >= ranks_start_dense[Env::rank]) and (i < ranks_end_dense[Env::rank]) and II[i]) {
+            rowgrp_nnz_rows[k] = i;
+            k++;
+        }
+    }
+    
+    k = 0;
+    l = 0;
+    ranks_start_sparse.resize(Env::nranks);
+    ranks_end_sparse.resize(Env::nranks);
+    for(int32_t i = 0; i < Env::nranks; i++) {
+        if(i == 0)
+            ranks_start_sparse[i] = 0;//nnz_rows_values[0];
+        else 
+            ranks_start_sparse[i] = std::accumulate(nnz_rows_sizes.begin(), nnz_rows_sizes.end() - Env::nranks + i, 0);
+        
+        ranks_end_sparse[i] = std::accumulate(nnz_rows_sizes.begin(), nnz_rows_sizes.end() - Env::nranks + i + 1, 0);
+    }
+    
+    
+    
+    IT.resize(Env::nthreads);
+    IVT.resize(Env::nthreads);
+    threads_nnz_rows.resize(Env::nthreads);
+    std::vector<int> all_rows(Env::nthreads);
+    #pragma omp parallel
+    {
+        int tid = omp_get_thread_num();
+        Integer_Type length = threads_end_dense_row[tid] - threads_start_dense_row[tid];
+        IT[tid].resize(length);
+        IVT[tid].resize(length);            
+
+        Integer_Type j = 0;
+        Integer_Type k = 0;
+        for(Integer_Type i = threads_start_dense_row[tid]; i < threads_end_dense_row[tid]; i++) {
+            if(II[i]) {
+                IT[tid][j] = 1;
+                IVT[tid][j] = k;
+                k++;
+            }
+            j++;
+        }
+        threads_nnz_rows[tid] = k;
+        all_rows[tid] = length;
+    }
+    
+    threads_start_sparse_row.resize(Env::nthreads, 0);
+    threads_end_sparse_row.resize(Env::nthreads, 0);
+    Integer_Type nnz_sum = 0;
+    for(int32_t i = 0; i < Env::nthreads; i++) {
+        
+        threads_start_sparse_row[i] += nnz_sum;
+        nnz_sum += threads_nnz_rows[i];
+        threads_end_sparse_row[i] = nnz_sum;
+    }
+
+    
+
+    //threads_start_dense.resize(Env::nranks,  std::vector<Integer_Type>(Env::nthreads));
+    //threads_end_dense.resize(Env::nranks,    std::vector<Integer_Type>(Env::nthreads));
+    threads_start_sparse.resize(Env::nranks, std::vector<Integer_Type>(Env::nthreads));
+    threads_end_sparse.resize(Env::nranks,   std::vector<Integer_Type>(Env::nthreads));
+    
+    //threads_start_dense[Env::rank] = threads_start_dense_row;
+    //threads_end_dense[Env::rank] = threads_end_dense_row;
+    threads_start_sparse[Env::rank] = threads_start_sparse_row;
+    threads_end_sparse[Env::rank] = threads_end_sparse_row;
+    
+    
+    for (int32_t i = 0; i < Env::nranks; i++) {
+        if (i != Env::rank) {
+            //MPI_Sendrecv(&threads_start_dense[Env::rank], Env::nthreads, TYPE_INT, i, 0, &threads_start_dense[i], Env::nthreads, TYPE_INT, 
+            //                                                             i, 0, Env::MPI_WORLD, MPI_STATUS_IGNORE);
+                                                                         
+            //MPI_Sendrecv(&threads_end_dense[Env::rank], Env::nthreads, TYPE_INT, i, 0, &threads_end_dense[i], Env::nthreads, TYPE_INT, 
+            //                                                             i, 0, Env::MPI_WORLD, MPI_STATUS_IGNORE);                                                                         
+            MPI_Sendrecv(threads_start_sparse[Env::rank].data(), Env::nthreads, TYPE_INT, i, 0, threads_start_sparse[i].data(), Env::nthreads, 
+                                                                          TYPE_INT, i, 0, Env::MPI_WORLD, MPI_STATUS_IGNORE);
+                                                                         
+            MPI_Sendrecv(threads_end_sparse[Env::rank].data(), Env::nthreads, TYPE_INT, i, 1, threads_end_sparse[i].data(), Env::nthreads, 
+                                                                        TYPE_INT, i, 1, Env::MPI_WORLD, MPI_STATUS_IGNORE);
+                                                                        
+        }
+    }
+    Env::barrier(); 
+   
+
+if(Env::rank == -1) {
+    for(int32_t i = 0; i < Env::nranks; i++) {
+        for(int32_t j = 0; j < Env::nthreads; j++) {
+            printf("rank=%d thread=%d [%d %d]\n", i, j, threads_start_sparse[i][j], threads_end_sparse[i][j]);
+        }
+        printf("\n");
+    }
+    
+    for(int32_t i = 0; i < Env::nranks; i++) {
+        printf("rank=%d [start=%d end=%d]\n", i, ranks_start_sparse[i], ranks_end_sparse[i]);
+    }
+    
+}
+*/
+    
+    
+    
+    
+
+    
+    
+}
 
 
 template<typename Weight, typename Integer_Type, typename Fractional_Type>
@@ -1341,7 +1623,7 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::filter_rows() {
     }
     Env::barrier(); 
    
-
+/*
 if(Env::rank == -1) {
     for(int32_t i = 0; i < Env::nranks; i++) {
         for(int32_t j = 0; j < Env::nthreads; j++) {
@@ -1359,7 +1641,6 @@ if(Env::rank == -1) {
 
 
     MPI_Barrier(MPI_COMM_WORLD);
-
 
     
     threads_send_ranks.resize(Env::nthreads);
@@ -1575,7 +1856,7 @@ if(Env::rank == -1) {
         r += threads_recv_ranks[i].size();
     
     printf("rank=%d send=%d recv=%d\n", Env::rank, s, r);
-    
+    */
 
     
     
