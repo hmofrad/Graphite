@@ -1057,19 +1057,19 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_threads() {
                     printf("tid=%d [%d %d] [%d %d] %d\n", tid, start[tid], end[tid], threads_start_dense_row[tid], threads_end_dense_row[tid], tile.triples_t[tid]->size());
             }
             */
-            if(!Env::rank)
-            printf(" %d\n", triples.size());
+            //if(!Env::rank)
+            //printf(" %d\n", triples.size());
             
             
             
-            
+            /*
             double sum = std::accumulate(nnz_local.begin(), nnz_local.end(), 0.0);
             double mean = sum / tile.npartitions;
             double sq_sum = std::inner_product(nnz_local.begin(), nnz_local.end(), nnz_local.begin(), 0.0);
             double std_dev = std::sqrt(sq_sum / tile.npartitions - mean * mean);
             if(!Env::rank)
                 printf("Edge distribution: Rank %d tile %d - Threads edges (sum: avg +/- std_dev)= %.0f: %.0f +/- %.0f\n", Env::rank, t, sum, mean, std_dev);
-            
+            */
         }
 
     }
