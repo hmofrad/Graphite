@@ -20,9 +20,9 @@
 
 
 //#ifdef __linux__
-#include <numa.h>
+//#include <numa.h>
 //#endif 
-//#include </ihome/rmelhem/moh18/numactl/libnuma/usr/local/include/numa.h>
+#include </ihome/rmelhem/moh18/numactl/libnuma/usr/local/include/numa.h>
 //#ifdef NUMA_AVAILABLE 
 
 class Env {
