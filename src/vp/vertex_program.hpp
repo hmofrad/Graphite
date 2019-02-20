@@ -1347,20 +1347,18 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::combin
             #pragma omp parallel
             {
                 for(uint32_t j = 0; j < rank_ncolgrps; j++) {  
-                                          
                     auto pair = A->tile_of_local_tile(local_tiles_row_order_t[i][j]);
                     auto &tile = A->tiles[pair.row][pair.col];
                     auto pair1 = tile_info(tile, pair); 
                     uint32_t tile_th = pair1.row;
                     uint32_t pair_idx = pair1.col;    
                     bool vec_owner = leader_ranks[pair_idx] == Env::rank;
+                    uint32_t yo = 0;
                     if(vec_owner)
                         yo = accu_segment_rg;
-                    else
-                        yo = 0;
                     
                     std::vector<Fractional_Type> &y_data = Y[i][yo];
-                    Integer_Type y_nitems = y_data.size();
+                    //Integer_Type y_nitems = y_data.size();
                     
                     std::vector<Fractional_Type> &x_data = X[j];
                     
