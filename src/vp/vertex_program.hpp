@@ -455,6 +455,21 @@ Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::Vertex_Prog
         threads_nnz_rows = Graph.A->threads_nnz_rows;
         threads_start_sparse_row = Graph.A->threads_start_sparse_row;
         
+        threads_send_ranks = Graph.A->threads_send_ranks;
+        threads_send_threads = Graph.A->threads_send_threads;
+        threads_send_indices = Graph.A->threads_send_indices;
+        threads_send_tags = Graph.A->threads_send_tags;
+        threads_send_start = Graph.A->threads_send_start;
+        threads_send_end = Graph.A->threads_send_end;        
+        threads_recv_ranks = Graph.A->threads_recv_ranks;
+        threads_recv_threads = Graph.A->threads_recv_threads;
+        threads_recv_indices = Graph.A->threads_recv_indices;
+        threads_recv_tags = Graph.A->threads_recv_tags;
+        threads_recv_start = Graph.A->threads_recv_start;
+        threads_recv_end = Graph.A->threads_recv_end;
+        out_requests_t.resize(Env::nthreads);
+        in_requests_t.resize(Env::nthreads);
+        
         
         
         //rowgrp_REG = &(Graph.A->rowgrp_REG);
@@ -1307,7 +1322,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::combin
     
     
 
-    
+    /*
     if(tiling_type == _1D_COL_) {
         auto &tile = A->tiles[0][Env::rank];
         spmv_stationary(tile, YY, XX);
@@ -1339,6 +1354,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::combin
         }
     }
     else if(1){
+        */
         //printf("Rank=%d\n", Env::rank);
     #pragma omp parallel
     {   
@@ -1435,7 +1451,8 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::combin
             }
         }
         
-        
+        //printf("??? %lu\n", in_requests_t.size());
+        //Env::barrier();
         MPI_Waitall(in_requests_t[tid].size(), in_requests_t[tid].data(), MPI_STATUSES_IGNORE);
         in_requests_t[tid].clear();
         
@@ -1450,18 +1467,19 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::combin
                 accu = follower_rowgrp_ranks_accu_seg[j];
             std::vector<Fractional_Type> &yj_data = Y[yi][accu];
             //Integer_Type yj_nitems = yj_data.size();
-            Integer_Type yj_nitems = threads_send_end[yi][tid] - threads_send_start[yi][tid];
+            //Integer_Type yj_nitems = threads_send_end[yi][tid] - threads_send_start[yi][tid];
             //#pragma omp parallel for schedule(static)
-            for(uint32_t i = threads_send_start[yi][tid]; i < yj_nitems; i++)
+            for(uint32_t i = threads_send_start[yi][tid]; i < threads_send_end[yi][tid]; i++)
                 combiner(y_data[i], yj_data[i]);
         }
 
         MPI_Waitall(out_requests_t[tid].size(), out_requests_t[tid].data(), MPI_STATUSES_IGNORE);
         out_requests_t[tid].clear();
 
+        
     }
     
-        
+    printf("RANK=%d\n", Env::rank);
         
         
         
@@ -1578,6 +1596,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::combin
         
        //Env::barrier();
        //Env::exit(0);        
+       /*
     }
     else {
         MPI_Request request;
@@ -1635,6 +1654,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::combin
             }
         }
     }
+    */
 }
 
 template<typename Weight, typename Integer_Type, typename Fractional_Type, typename Vertex_State>
@@ -2396,7 +2416,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::apply(
     Env::print_time("Apply", elapsed_time);
     apply_time.push_back(elapsed_time);
     #endif
-    MPI_Barrier(MPI_COMM_WORLD);
+    //MPI_Barrier(MPI_COMM_WORLD);
 }
 
 template<typename Weight, typename Integer_Type, typename Fractional_Type, typename Vertex_State>
