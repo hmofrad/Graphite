@@ -1418,17 +1418,17 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::combin
                         std::vector<Fractional_Type> &yj_data = Y[yi][accu];
                         Integer_Type yj_nitems = threads_send_end[yi][tid] - threads_send_start[yi][tid];
                         int32_t tag = (pair_idx * Env::nthreads) + tid;
-                        //MPI_Irecv(yj_data.data() + threads_send_start[yi][tid], yj_nitems, TYPE_DOUBLE, follower, tag, communicator, &request);
-                        //in_requests_t[tid].push_back(request);
-                        printf("%d:%d <-- %d:%d [%d %d=%d][%d=%d*%d+%d]\n", Env::rank, tid, follower, tid, threads_send_start[yi][tid], threads_send_end[yi][tid], yj_nitems, tag, pair_idx, Env::nthreads, tid);
+                        MPI_Irecv(yj_data.data() + threads_send_start[yi][tid], yj_nitems, TYPE_DOUBLE, follower, tag, communicator, &request);
+                        in_requests_t[tid].push_back(request);
+                        //printf("%d:%d <-- %d:%d [%d %d=%d][%d=%d*%d+%d]\n", Env::rank, tid, follower, tid, threads_send_start[yi][tid], threads_send_end[yi][tid], yj_nitems, tag, pair_idx, Env::nthreads, tid);
                     }
                 }
                 else {
                     Integer_Type y_nitems = threads_send_end[yi][tid] - threads_send_start[yi][tid];
                     int32_t tag = (pair_idx * Env::nthreads) + tid;
-                    //MPI_Isend(y_data.data() + threads_send_start[yi][tid], y_nitems, TYPE_DOUBLE, leader, tag, communicator, &request);
-                    //out_requests_t[tid].push_back(request);
-                    printf("%d:%d --> %d:%d [%d %d=%d][%d=%d*%d+%d]\n", Env::rank, tid, leader, tid, threads_send_start[yi][tid], threads_send_end[yi][tid], y_nitems, tag, pair_idx, Env::nthreads, tid);
+                    MPI_Isend(y_data.data() + threads_send_start[yi][tid], y_nitems, TYPE_DOUBLE, leader, tag, communicator, &request);
+                    out_requests_t[tid].push_back(request);
+                    //printf("%d:%d --> %d:%d [%d %d=%d][%d=%d*%d+%d]\n", Env::rank, tid, leader, tid, threads_send_start[yi][tid], threads_send_end[yi][tid], y_nitems, tag, pair_idx, Env::nthreads, tid);
                 }
                 xi = 0;
                 yi++;
@@ -1574,7 +1574,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::combin
         }
         */
        
-    printf("rank=%d\n", Env::rank);
+    //printf("rank=%d\n", Env::rank);
         
        //Env::barrier();
        //Env::exit(0);        
@@ -2397,7 +2397,6 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::apply(
     apply_time.push_back(elapsed_time);
     #endif
     MPI_Barrier(MPI_COMM_WORLD);
-    printf("apply %d\n", Env::rank);
 }
 
 template<typename Weight, typename Integer_Type, typename Fractional_Type, typename Vertex_State>
