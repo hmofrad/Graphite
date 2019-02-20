@@ -28,7 +28,7 @@ int main(int argc, char** argv) {
     bool self_loops = true;
     bool acyclic = false;
     bool parallel_edges = true;
-    Tiling_type TT = _2DT_;
+    Tiling_type TT = _2D_COL_;
     Compression_type CT = _TCSC_;
     
     /* Degree execution */
@@ -44,7 +44,7 @@ int main(int argc, char** argv) {
     
     OT = _ROW_;
     PR_Program<wp, ip, fp> VR(G, stationary, gather_depends_on_apply, apply_depends_on_iter, OT);
-    VR.initialize(V);
+    VR.initialize(V);       
     V.free();
     VR.execute(num_iterations); // Vertex execution
     VR.checksum();
