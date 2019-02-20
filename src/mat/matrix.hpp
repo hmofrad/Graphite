@@ -1007,8 +1007,10 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_threads() {
             threads_end_dense_row.resize(tile.npartitions);
             tile.triples_t.resize(tile.npartitions); 
 
+            
             // tile height/nthreads
-            uint64_t chunk_size = tile_height / tile.npartitions;
+            Integer_Type chunk_size = tile_height / tile.npartitions;
+            Integer_Type offset = tile.rg * tile_height;
             std::vector<uint64_t> nnz_local(tile.npartitions);
             //printf("%d %d %d\n", tile.npartitions, tile_height, chunk_size);
             #pragma omp parallel
@@ -1019,12 +1021,12 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_threads() {
                 //printf("%d %d %d\n", tid, threads_start_dense_row[tid], threads_end_dense_row[tid]);
                 tile.triples_t[tid] = new std::vector<struct Triple<Weight, Integer_Type>>;
                 for(auto& triple: triples) {
-                    if(triple.row >= threads_start_dense_row[tid] and triple.row < threads_end_dense_row[tid])
+                    if(triple.row >= (offset + threads_start_dense_row[tid]) and triple.row < (offset + threads_end_dense_row[tid]))
                         tile.triples_t[tid]->push_back(triple); 
                 }
                 std::sort(tile.triples_t[tid]->begin(), tile.triples_t[tid]->end(), f_col);
-                //if(Env::rank == 3)
-                //    printf("rank=%d tid=%d tile=%d [%d %d]\n", Env::rank, tid, t, threads_start_dense_row[tid], threads_end_dense_row[tid]);
+                //if(Env::rank == 0)
+                  //  printf("rank=%d tid=%d tile=%d [%d %d] %d\n", Env::rank, tid, t, threads_start_dense_row[tid], threads_end_dense_row[tid],  tile.triples_t[tid]->size());
                 nnz_local[tid] = tile.triples_t[tid]->size();
             }
             
@@ -1051,23 +1053,29 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_threads() {
                 threads_end_dense_row[tid] = triples[end[tid]].row;
                 threads_end_dense_row[tid] = (threads_end_dense_row[tid] < threads_start_dense_row[tid]) ? threads_start_dense_row[tid] : threads_end_dense_row[tid];
                 threads_end_dense_row[tid] = (tid == Env::nthreads - 1) ? tile_height : threads_end_dense_row[tid] + 1;
-                //printf("tid=%d [%d %d] [%d %d]\n", tid, start[tid], end[tid], threads_start_dense_row[tid], threads_end_dense_row[tid]);
+                if(!Env::rank)
+                    printf("tid=%d [%d %d] [%d %d] %d\n", tid, start[tid], end[tid], threads_start_dense_row[tid], threads_end_dense_row[tid], tile.triples_t[tid]->size());
             }
             */
+            if(!Env::rank)
+            printf(" %d\n", triples.size());
             
             
             
-            /*
+            
             double sum = std::accumulate(nnz_local.begin(), nnz_local.end(), 0.0);
             double mean = sum / tile.npartitions;
             double sq_sum = std::inner_product(nnz_local.begin(), nnz_local.end(), nnz_local.begin(), 0.0);
             double std_dev = std::sqrt(sq_sum / tile.npartitions - mean * mean);
             if(!Env::rank)
                 printf("Edge distribution: Rank %d tile %d - Threads edges (sum: avg +/- std_dev)= %.0f: %.0f +/- %.0f\n", Env::rank, t, sum, mean, std_dev);
-            */
+            
         }
+
     }
     thread_level_messaging();
+    //    Env::barrier();
+    //Env::exit(0);    
 }
 
 template<typename Weight, typename Integer_Type, typename Fractional_Type>
