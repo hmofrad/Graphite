@@ -1373,6 +1373,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::combin
     else if(1){
         */
         //printf("Rank=%d\n", Env::rank);
+    /*    
     #pragma omp parallel
     {   
         int tid = omp_get_thread_num();
@@ -1432,7 +1433,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::combin
             
             xi++;
             bool communication = (((tile_th + 1) % rank_ncolgrps) == 0);
-            if(communication and not (tiling_type == _2D_ROW_)) {
+            if(communication and not (tiling_type == _2D_ROW_)) {    
                 MPI_Comm communicator = communicator_info();
                 auto pair2 = leader_info(tile);
                 int32_t leader = pair2.row;
@@ -1466,9 +1467,9 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::combin
                 xi = 0;
                 yi++;
             }
-            //printf("%d %d %d\n", Env::rank, tid, t);
+            //printf(">>>%d %d %d\n", Env::rank, tid, t);
         }
-        //printf("|||||||||| %d\n", Env::rank);
+        printf("Rank=%d tid=%d [%d %d]\n", Env::rank, tid, threads_row_start[0][tid], threads_row_end[0][tid]);
         //printf("in_requests_t =  %lu\n", in_requests_t.size());
         Env::barrier();
         MPI_Waitall(in_requests_t[tid].size(), in_requests_t[tid].data(), MPI_STATUSES_IGNORE);
@@ -1496,8 +1497,8 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::combin
 
         
     }
-    
-    printf("RANK=%d\n", Env::rank);
+    */
+    //printf("RANK=%d\n", Env::rank);
         
         
         
@@ -1614,9 +1615,9 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::combin
         
        //Env::barrier();
        //Env::exit(0);        
-       /*
-    }
-    else {
+      
+    //}
+    //else {
         MPI_Request request;
         uint32_t xi= 0, yi = 0, yo = 0;
         for(uint32_t t: local_tiles_row_order) {
@@ -1671,8 +1672,8 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::combin
                 yi++;
             }
         }
-    }
-    */
+//    }
+
 }
 
 template<typename Weight, typename Integer_Type, typename Fractional_Type, typename Vertex_State>
@@ -2298,15 +2299,9 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::combin
             in_requests_t[tid].clear();
         }
         */
-        /*
-        for(int i = 0; i < Env::nthreads; i++) {
-            MPI_Waitall(in_requests_t[i].size(), in_requests_t[i].data(), MPI_STATUSES_IGNORE);
-            in_requests_t[i].clear();
-        }
-        */
         
-        //wait_for_recvs();
-        /*
+        wait_for_recvs();
+        
         uint32_t accu = 0;
         uint32_t yi = accu_segment_row;
         uint32_t yo = accu_segment_rg;
@@ -2322,20 +2317,14 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::combin
             for(uint32_t i = 0; i < yj_nitems; i++)
                 combiner(y_data[i], yj_data[i]);
         }
-        */
-        //wait_for_sends();
+        
+        wait_for_sends();
         /*
         #pragma omp parallel
         {
             int tid = omp_get_thread_num();
             MPI_Waitall(out_requests_t[tid].size(), out_requests_t[tid].data(), MPI_STATUSES_IGNORE);
             out_requests_t[tid].clear();
-        }
-        */
-        /*
-        for(int i = 0; i < Env::nthreads; i++) {
-            MPI_Waitall(out_requests_t[i].size(), out_requests_t[i].data(), MPI_STATUSES_IGNORE);
-            out_requests_t[i].clear();
         }
         */
     }
