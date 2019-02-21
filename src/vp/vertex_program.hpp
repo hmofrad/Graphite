@@ -11,6 +11,9 @@
 #include <numeric>
 
 #include "mpi/types.hpp" 
+//#include <pthread.h>
+#include <thread>
+
 
 struct State { State() {}; };
 
@@ -82,6 +85,7 @@ class Vertex_Program
         void bcast_nonstationary();
         void combine();
         void combine_2d_stationary();
+        void combine_2d_stationary_p();
         void combine_2d_nonstationary();
         void combine_postprocess();
         void combine_postprocess_stationary_for_all();
@@ -92,10 +96,13 @@ class Vertex_Program
         struct Triple<Weight, double> stats(std::vector<double> &vec);
         void stats(std::vector<double> &vec, double &sum, double &mean, double &std_dev);
         
-        void spmv_stationary(struct Tile2D<Weight, Integer_Type, Fractional_Type> &tile,
+        void spmv_stationary(struct Tile2D<Weight, Integer_Type, Fractional_Type>& tile,
                 std::vector<Fractional_Type> &y_data, 
                 std::vector<Fractional_Type> &x_data); // Stationary spmv/spmspv
         void spmv_stationary();
+        
+        static void *spmv_stationary_p(void *tid_void_ptr);
+        void thread_function(int tid, int tile_kth, uint32_t yi, uint32_t yo, uint32_t xi);
                 
         void spmv_nonstationary(struct Tile2D<Weight, Integer_Type, Fractional_Type> &tile, // Stationary spmv/spmspv 
                 std::vector<Fractional_Type> &y_data, 
@@ -1266,13 +1273,15 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::combin
                 }
             }
             
-            combine_2d_stationary();
-            combine_postprocess();
+            combine_2d_stationary_p();
+            //combine_2d_stationary();
+            //combine_postprocess();
         }
         else {
             if(compression_type == _TCSC_) {
-                combine_2d_stationary();
-                combine_postprocess();
+                combine_2d_stationary_p();
+                //combine_2d_stationary();
+               // combine_postprocess();
             }
         }
     }
@@ -1315,6 +1324,219 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::combin
     Env::print_time("Combine all", elapsed_time);
     combine_time.push_back(elapsed_time);
     #endif
+}
+
+//template<typename Weight, typename Integer_Type, typename Fractional_Type, typename Vertex_State>
+//void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::spmv_stationary_p1() {
+  //  printf("XXX\n");
+    //return 0;
+//}
+
+template<typename Weight, typename Integer_Type, typename Fractional_Type, typename Vertex_State>
+void *Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::spmv_stationary_p(void *tid_void_ptr)
+{
+    /* increment x to 100 */
+    //int* tid = (int *)tid_void_ptr;
+    //Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::spmv_stationary_p1();
+    //while(++(*x_ptr) < 100);
+
+//    printf("Rank=%d TID = %d\n", Env::rank,  *tid);
+    //SDL_Surface* Wrapper::screen;
+    //auto &tile = A->tiles[0][0];
+    //uint64_t nnz = static_cast<TCSC_BASE<Weight, Integer_Type>*>(tile.compressor_t[*tid])->nnz;
+
+    /* the function must return something - NULL will do */
+    return NULL;
+
+}
+
+template<typename Weight, typename Integer_Type, typename Fractional_Type, typename Vertex_State>
+void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::thread_function(int tid, int tile_kth, uint32_t yi, uint32_t yo, uint32_t xi)
+{
+    
+    
+    auto pair = A->tile_of_local_tile(tile_kth);
+    auto& tile = A->tiles[pair.row][pair.col];
+    std::vector<Fractional_Type> &y_data = Y[yi][yo];  
+    std::vector<Fractional_Type> &x_data = X[xi];
+    uint64_t nnz = static_cast<TCSC_BASE<Weight, Integer_Type>*>(tile.compressor_t[tid])->nnz;
+    if(nnz) {
+        #ifdef HAS_WEIGHT
+        Integer_Type* A = static_cast<TCSC_BASE<Weight, Integer_Type>*>(tile.compressor_t[tid])->A;
+        #endif
+
+        Integer_Type* IA   = static_cast<TCSC_BASE<Weight, Integer_Type>*>(tile.compressor_t[tid])->IA;
+        Integer_Type* JA   = static_cast<TCSC_BASE<Weight, Integer_Type>*>(tile.compressor_t[tid])->JA;    
+        Integer_Type ncols = static_cast<TCSC_BASE<Weight, Integer_Type>*>(tile.compressor_t[tid])->nnzcols;  
+        
+        if(ordering_type == _ROW_) {
+            for(uint32_t j = 0; j < ncols; j++) {
+                for(uint32_t i = JA[j]; i < JA[j + 1]; i++) {
+                    #ifdef HAS_WEIGHT
+                    combiner(y_data[IA[i]], x_data[j], A[i]);
+                    #else
+                    combiner(y_data[IA[i]], x_data[j]);
+                    #endif
+                }
+            }
+        }
+        else {
+            for(uint32_t j = 0; j < ncols; j++) {
+                for(uint32_t i = JA[j]; i < JA[j + 1]; i++) {
+                    //#pragma omp critical
+                    #ifdef HAS_WEIGHT
+                    combiner(y_data[j], x_data[IA[i]], A[i]);   
+                    #else
+                    combiner(y_data[j], x_data[IA[i]]);
+                    #endif
+                }
+            } 
+        }
+    }
+    //printf("%d %d %d\n", Env::rank, tid, tile_kth);
+    
+    
+    //std::cout<<"Inside Thread :: ID  = " << std::this_thread::get_id() << " " <<  Env::rank << " " <<  i << std::endl;    
+}
+
+
+template<typename Weight, typename Integer_Type, typename Fractional_Type, typename Vertex_State>
+void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::combine_2d_stationary_p() {
+    
+    
+    
+    
+    //std::thread tobj(thread_function);
+    //tobj.join();
+
+
+    
+    
+    //printf("combine_2d_stationary_p\n");
+    /*
+    const int nthreads = 2;
+    pthread_t tid_p[nthreads];
+    memset(tid_p, 0, sizeof(tid_p));
+    int args_p[nthreads];
+    memset(args_p, 0, sizeof(args_p));
+    
+    int x = 0, y = 0;
+
+    //printf("x: %d, y: %d\n", x, y);
+    
+    for(int i = 0; i < nthreads; i++)
+    {
+        printf("id=%d\n", i);        
+        args_p[i] = i;
+        int status = pthread_create(&tid_p[i], NULL, spmv_stationary_p, &args_p[i]);
+    }
+    //printf("x: %d, y: %d\n", x, y);
+
+
+    
+    for(int i = 0; i < nthreads; i++)
+    {
+        pthread_join(tid_p[i], NULL);
+    }
+    */
+    
+    
+    
+    
+    //printf("%d %d\n", sizeof(tid_p), sizeof(tid_p[0]));
+	//struct pthread_args_struct *args = NULL;
+    
+
+    
+
+    
+    MPI_Request request;
+    uint32_t xi= 0, yi = 0, yo = 0;
+    for(uint32_t t: local_tiles_row_order) {
+        auto pair = A->tile_of_local_tile(t);
+        auto& tile = A->tiles[pair.row][pair.col];
+        auto pair1 = tile_info(tile, pair); 
+        uint32_t tile_th = pair1.row;
+        uint32_t pair_idx = pair1.col;
+        
+        bool vec_owner = leader_ranks[pair_idx] == Env::rank;
+        if(vec_owner)
+            yo = accu_segment_rg;
+        else
+            yo = 0;
+        
+        std::vector<Fractional_Type> &y_data = Y[yi][yo];
+        Integer_Type y_nitems = y_data.size();
+        
+        std::vector<Fractional_Type> &x_data = X[xi];
+        if(tile.nedges) {
+            
+            int nthreads = Env::nthreads;
+            std::vector<std::thread> threads;
+            
+            for(int i = 0; i < nthreads; i++) {
+                threads.push_back(std::thread(&Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::thread_function, this, i, t, yi, yo, xi));
+            }
+            
+            for(std::thread& th: threads) {
+                th.join();
+            }
+            
+        }
+        
+        xi++;
+        bool communication = (((tile_th + 1) % rank_ncolgrps) == 0);
+        if(communication) {
+            MPI_Comm communicator = communicator_info();
+            auto pair2 = leader_info(tile);
+            int32_t leader = pair2.row;
+            int32_t my_rank = pair2.col;
+            int32_t follower, accu;
+            if(leader == my_rank) {
+                for(uint32_t j = 0; j < rowgrp_nranks - 1; j++) {                        
+                    if(Env::comm_split) {   
+                        follower = follower_rowgrp_ranks_rg[j];
+                        accu = follower_rowgrp_ranks_accu_seg_rg[j];
+                    }
+                    else {
+                        follower = follower_rowgrp_ranks[j];
+                        accu = follower_rowgrp_ranks_accu_seg[j];
+                    }
+                    std::vector<Fractional_Type> &yj_data = Y[yi][accu];
+                    Integer_Type yj_nitems = yj_data.size();
+                    MPI_Irecv(yj_data.data(), yj_nitems, TYPE_DOUBLE, follower, pair_idx, communicator, &request);
+                    in_requests.push_back(request);
+                }
+            }
+            else {
+                MPI_Isend(y_data.data(), y_nitems, TYPE_DOUBLE, leader, pair_idx, communicator, &request);
+                out_requests.push_back(request);
+            }
+            xi = 0;
+            yi++;
+        }
+    }
+    
+    wait_for_recvs();
+    
+    uint32_t accu = 0;
+    yi = accu_segment_row;
+    yo = accu_segment_rg;
+    std::vector<Fractional_Type> &y_data = Y[yi][yo];
+    for(uint32_t j = 0; j < rowgrp_nranks - 1; j++) {
+        if(Env::comm_split)
+            accu = follower_rowgrp_ranks_accu_seg_rg[j];
+        else
+            accu = follower_rowgrp_ranks_accu_seg[j];
+        std::vector<Fractional_Type> &yj_data = Y[yi][accu];
+        Integer_Type yj_nitems = yj_data.size();
+        #pragma omp parallel for schedule(static)
+        for(uint32_t i = 0; i < yj_nitems; i++)
+            combiner(y_data[i], yj_data[i]);
+    }
+    
+    wait_for_sends();
+    
 }
 
 template<typename Weight, typename Integer_Type, typename Fractional_Type, typename Vertex_State>
