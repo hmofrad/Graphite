@@ -112,6 +112,8 @@ class Matrix {
         std::vector<Integer_Type> threads_end_dense_row;  
         std::vector<Integer_Type> threads_start_sparse_row;  
         std::vector<Integer_Type> threads_end_sparse_row;  
+        std::vector<Integer_Type> threads_start_dense_col;  
+        std::vector<Integer_Type> threads_end_dense_col;  
         
         std::vector<std::vector<Integer_Type>> threads_start_dense;  
         std::vector<std::vector<Integer_Type>> threads_end_dense;  
@@ -130,6 +132,11 @@ class Matrix {
         std::vector<std::vector<int32_t>> threads_recv_tags;
         std::vector<std::vector<Integer_Type>> threads_recv_start;
         std::vector<std::vector<Integer_Type>> threads_recv_end;
+        
+        std::vector<std::vector<Integer_Type>> threads_row_start;
+        std::vector<std::vector<Integer_Type>> threads_row_end;
+        std::vector<std::vector<Integer_Type>> threads_col_start;
+        std::vector<std::vector<Integer_Type>> threads_col_end;
         
         std::vector<Integer_Type> rowgrp_nnz_rows;  // Row group row indices         
         std::vector<Integer_Type> rowgrp_regular_rows; // Row group regular indices
@@ -1003,8 +1010,10 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_threads() {
         std::vector<struct Triple<Weight, Integer_Type>>& triples = *(tile.triples);
         if(triples.size()) {
             tile.npartitions = omp_get_max_threads();
-            threads_start_dense_row.resize(tile.npartitions);
-            threads_end_dense_row.resize(tile.npartitions);
+            std::vector<uint64_t> start(tile.npartitions);
+            std::vector<uint64_t> end(tile.npartitions);
+            //threads_start_dense_row.resize(tile.npartitions);
+            //threads_end_dense_row.resize(tile.npartitions);
             tile.triples_t.resize(tile.npartitions); 
 
             
@@ -1016,12 +1025,14 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_threads() {
             #pragma omp parallel
             {
                 int tid = omp_get_thread_num();
-                threads_start_dense_row[tid] = chunk_size * tid;
-                threads_end_dense_row[tid]   = (tid == (tile.npartitions - 1)) ? tile_height : chunk_size * (tid+1);
+                //threads_start_dense_row[tid] = chunk_size * tid;
+                //threads_end_dense_row[tid]   = (tid == (tile.npartitions - 1)) ? tile_height : chunk_size * (tid+1);
+                start[tid] = chunk_size * tid;
+                end[tid]   = (tid == (tile.npartitions - 1)) ? tile_height : chunk_size * (tid+1);
                 //printf("%d %d %d\n", tid, threads_start_dense_row[tid], threads_end_dense_row[tid]);
                 tile.triples_t[tid] = new std::vector<struct Triple<Weight, Integer_Type>>;
                 for(auto& triple: triples) {
-                    if(triple.row >= (offset + threads_start_dense_row[tid]) and triple.row < (offset + threads_end_dense_row[tid]))
+                    if(triple.row >= (offset + start[tid]) and triple.row < (offset + end[tid]))
                         tile.triples_t[tid]->push_back(triple); 
                 }
                 std::sort(tile.triples_t[tid]->begin(), tile.triples_t[tid]->end(), f_col);
@@ -1151,8 +1162,11 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::thread_level_messaging() {
     
     
         
-    threads_send_start.resize(tiling->rank_nrowgrps, std::vector<Integer_Type> (Env::nthreads));
-    threads_send_end.resize(tiling->rank_nrowgrps, std::vector<Integer_Type> (Env::nthreads));
+    threads_row_start.resize(tiling->rank_nrowgrps, std::vector<Integer_Type> (Env::nthreads));
+    threads_row_end.resize(tiling->rank_nrowgrps, std::vector<Integer_Type> (Env::nthreads));
+    
+    threads_col_start.resize(tiling->rank_ncolgrps, std::vector<Integer_Type> (Env::nthreads));
+    threads_col_end.resize(tiling->rank_ncolgrps, std::vector<Integer_Type> (Env::nthreads));
     
     
     
@@ -1182,50 +1196,77 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::thread_level_messaging() {
     }
     
     
+
+    
+    
     //for(uint32_t t: local_tiles_row_order) {
-        for(uint32_t i = 0; i < tiling->rank_nrowgrps; i++) {
-        //auto pair = tile_of_local_tile(t);
+    std::vector<Integer_Type> start(Env::nthreads);
+    std::vector<Integer_Type> end(Env::nthreads);
+    Integer_Type chunk_size = tile_height / Env::nthreads;
+    for(uint32_t i = 0; i < tiling->rank_nrowgrps; i++) {
         auto& i_data = I[i];
-        //auto& iv_data = IV[yi];
         std::vector<Integer_Type> threads_nnz_rows(Env::nthreads);
-        //std::vectorIT.resize(Env::nthreads);
-        //IVT.resize(Env::nthreads);
-        
         #pragma omp parallel
         {
-            
             int tid = omp_get_thread_num();
-            
-            
-            Integer_Type length = threads_end_dense_row[tid] - threads_start_dense_row[tid];
-            
-            //IT[tid].resize(length);
-            //IVT[tid].resize(length);            
-            //Integer_Type j = 0;
+            start[tid] = chunk_size * tid;
+            end[tid]   = (tid == (Env::nthreads - 1)) ? tile_height : chunk_size * (tid+1);
+            Integer_Type length = end[tid] - start[tid];
             Integer_Type k = 0;
-            
-            for(Integer_Type l = threads_start_dense_row[tid]; l < threads_end_dense_row[tid]; l++) {
+            for(Integer_Type l = start[tid]; l < end[tid]; l++) {
                 if(i_data[l]) {
-                    //IT[tid][j] = 1;
-                    //IVT[tid][j] = k;
                     k++;
                 }
-                //j++;
             }
             threads_nnz_rows[tid] = k;
-            //if(!Env::rank)
-            //printf("%d %d %d %d %d\n", Env::rank, tid, threads_start_dense_row[tid], threads_end_dense_row[tid], threads_nnz_rows[tid]);
-            
         }
-
         Integer_Type nnz_sum = 0;
         for(int32_t j = 0; j < Env::nthreads; j++) {
             
-            threads_send_start[i][j] += nnz_sum;
+            threads_row_start[i][j] += nnz_sum;
             nnz_sum += threads_nnz_rows[j];
-            threads_send_end[i][j] = nnz_sum;
+            threads_row_end[i][j] = nnz_sum;
         }
     }
+    
+    
+    if(!Env::rank) {
+        for(int i = 0; i < Env::nranks; i++) {
+            
+            printf("%d ", nnz_col_sizes_all[i]);
+        }
+        printf("\n");
+    }
+    
+    
+    for(uint32_t i = 0; i < tiling->rank_ncolgrps; i++) {
+        auto& j_data = J[i];
+        std::vector<Integer_Type> threads_nnz_cols(Env::nthreads);
+        #pragma omp parallel
+        {
+            int tid = omp_get_thread_num();
+            Integer_Type length = end[tid] - start[tid];
+            Integer_Type k = 0;
+            for(Integer_Type l = start[tid]; l < end[tid]; l++) {
+                if(j_data[l]) {
+                    k++;
+                }
+            }
+            threads_nnz_cols[tid] = k;
+        }
+        Integer_Type nnz_sum = 0;
+        for(int32_t j = 0; j < Env::nthreads; j++) {
+            
+            threads_col_start[i][j] += nnz_sum;
+            nnz_sum += threads_nnz_cols[j];
+            threads_col_end[i][j] = nnz_sum;
+        }
+    }
+    
+    
+   // Env::barrier();
+   // Env::exit(0);
+    
     /*
     if(!Env::rank) {
         for(uint32_t i = 0; i < tiling->rank_nrowgrps; i++) {
