@@ -187,6 +187,11 @@ class Vertex_Program
         std::vector<std::vector<Integer_Type>> threads_recv_start;
         std::vector<std::vector<Integer_Type>> threads_recv_end;
         
+        std::vector<std::vector<Integer_Type>> threads_row_start;
+        std::vector<std::vector<Integer_Type>> threads_row_end;
+        std::vector<std::vector<Integer_Type>> threads_col_start;
+        std::vector<std::vector<Integer_Type>> threads_col_end;
+        
         
         
         std::vector<Integer_Type> nnz_rows_sizes;
@@ -371,8 +376,14 @@ Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::Vertex_Prog
         threads_recv_tags = Graph.A->threads_recv_tags;
         threads_recv_start = Graph.A->threads_recv_start;
         threads_recv_end = Graph.A->threads_recv_end;
+        
         out_requests_t.resize(Env::nthreads);
         in_requests_t.resize(Env::nthreads);
+        
+        threads_row_start = Graph.A->threads_row_start;
+        threads_row_end = Graph.A->threads_row_end;
+        threads_col_start = Graph.A->threads_col_start;
+        threads_col_end = Graph.A->threads_col_end;
         
         
         //rowgrp_REG = &(Graph.A->rowgrp_REG);
@@ -467,8 +478,14 @@ Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::Vertex_Prog
         threads_recv_tags = Graph.A->threads_recv_tags;
         threads_recv_start = Graph.A->threads_recv_start;
         threads_recv_end = Graph.A->threads_recv_end;
+        
         out_requests_t.resize(Env::nthreads);
         in_requests_t.resize(Env::nthreads);
+        
+        threads_row_start = Graph.A->threads_col_start;
+        threads_row_end = Graph.A->threads_col_end;
+        threads_col_start = Graph.A->threads_row_start;
+        threads_col_end = Graph.A->threads_row_end;
         
         
         
@@ -1415,7 +1432,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::combin
             
             xi++;
             bool communication = (((tile_th + 1) % rank_ncolgrps) == 0);
-            if(communication) {
+            if(communication and not (tiling_type == _2D_ROW_)) {
                 MPI_Comm communicator = communicator_info();
                 auto pair2 = leader_info(tile);
                 int32_t leader = pair2.row;
@@ -1432,27 +1449,28 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::combin
                             accu = follower_rowgrp_ranks_accu_seg[j];
                         }
                         std::vector<Fractional_Type> &yj_data = Y[yi][accu];
-                        Integer_Type yj_nitems = threads_send_end[yi][tid] - threads_send_start[yi][tid];
+                        Integer_Type yj_nitems = threads_row_end[yi][tid] - threads_row_start[yi][tid];
                         int32_t tag = (pair_idx * Env::nthreads) + tid;
-                        MPI_Irecv(yj_data.data() + threads_send_start[yi][tid], yj_nitems, TYPE_DOUBLE, follower, tag, communicator, &request);
+                        MPI_Irecv(yj_data.data() + threads_row_start[yi][tid], yj_nitems, TYPE_DOUBLE, follower, tag, communicator, &request);
                         in_requests_t[tid].push_back(request);
                         //printf("%d:%d <-- %d:%d [%d %d=%d][%d=%d*%d+%d]\n", Env::rank, tid, follower, tid, threads_send_start[yi][tid], threads_send_end[yi][tid], yj_nitems, tag, pair_idx, Env::nthreads, tid);
                     }
                 }
                 else {
-                    Integer_Type y_nitems = threads_send_end[yi][tid] - threads_send_start[yi][tid];
+                    Integer_Type y_nitems = threads_row_end[yi][tid] - threads_row_start[yi][tid];
                     int32_t tag = (pair_idx * Env::nthreads) + tid;
-                    MPI_Isend(y_data.data() + threads_send_start[yi][tid], y_nitems, TYPE_DOUBLE, leader, tag, communicator, &request);
+                    MPI_Isend(y_data.data() + threads_row_start[yi][tid], y_nitems, TYPE_DOUBLE, leader, tag, communicator, &request);
                     out_requests_t[tid].push_back(request);
                     //printf("%d:%d --> %d:%d [%d %d=%d][%d=%d*%d+%d]\n", Env::rank, tid, leader, tid, threads_send_start[yi][tid], threads_send_end[yi][tid], y_nitems, tag, pair_idx, Env::nthreads, tid);
                 }
                 xi = 0;
                 yi++;
             }
+            //printf("%d %d %d\n", Env::rank, tid, t);
         }
-        
-        //printf("??? %lu\n", in_requests_t.size());
-        //Env::barrier();
+        //printf("|||||||||| %d\n", Env::rank);
+        //printf("in_requests_t =  %lu\n", in_requests_t.size());
+        Env::barrier();
         MPI_Waitall(in_requests_t[tid].size(), in_requests_t[tid].data(), MPI_STATUSES_IGNORE);
         in_requests_t[tid].clear();
         
@@ -1469,7 +1487,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::combin
             //Integer_Type yj_nitems = yj_data.size();
             //Integer_Type yj_nitems = threads_send_end[yi][tid] - threads_send_start[yi][tid];
             //#pragma omp parallel for schedule(static)
-            for(uint32_t i = threads_send_start[yi][tid]; i < threads_send_end[yi][tid]; i++)
+            for(uint32_t i = threads_row_start[yi][tid]; i < threads_row_end[yi][tid]; i++)
                 combiner(y_data[i], yj_data[i]);
         }
 
