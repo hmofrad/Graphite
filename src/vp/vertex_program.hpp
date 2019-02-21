@@ -1457,16 +1457,16 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::thread
 template<typename Weight, typename Integer_Type, typename Fractional_Type, typename Vertex_State>
 void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::combine_2d_stationary_p() {
     int nthreads = Env::nthreads;
-            std::vector<std::thread> threads;
-            
-            for(int i = 0; i < nthreads; i++) {
-                threads.push_back(std::thread(&Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::thread_function, this, i));
-            }
-            
-            for(std::thread& th: threads) {
-                th.join();
-            }
+    std::vector<std::thread> threads;
     
+    for(int i = 0; i < nthreads; i++) {
+        threads.push_back(std::thread(&Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::thread_function, this, i));
+    }
+    
+    for(std::thread& th: threads) {
+        th.join();
+    }
+
     
     /*
     MPI_Request request;
