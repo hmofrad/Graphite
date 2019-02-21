@@ -1275,13 +1275,13 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::combin
             
             combine_2d_stationary_p();
             //combine_2d_stationary();
-            //combine_postprocess();
+            combine_postprocess();
         }
         else {
             if(compression_type == _TCSC_) {
                 combine_2d_stationary_p();
                 //combine_2d_stationary();
-               // combine_postprocess();
+               combine_postprocess();
             }
         }
     }
@@ -1516,7 +1516,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::combin
             yi++;
         }
     }
-    
+    /*
     wait_for_recvs();
     
     uint32_t accu = 0;
@@ -1536,7 +1536,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::combin
     }
     
     wait_for_sends();
-    
+    */
 }
 
 template<typename Weight, typename Integer_Type, typename Fractional_Type, typename Vertex_State>
