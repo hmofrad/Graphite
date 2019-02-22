@@ -102,7 +102,7 @@ class Vertex_Program
         void spmv_stationary();
         
         static void *spmv_stationary_p(void *tid_void_ptr);
-        void thread_function(int tid);
+        void thread_function(int tid, uint32_t yi, std::vector<uint32_t> tiles);
                 
         void spmv_nonstationary(struct Tile2D<Weight, Integer_Type, Fractional_Type> &tile, // Stationary spmv/spmspv 
                 std::vector<Fractional_Type> &y_data, 
@@ -1351,11 +1351,12 @@ void *Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::spmv_
 }
 
 template<typename Weight, typename Integer_Type, typename Fractional_Type, typename Vertex_State>
-void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::thread_function(int tid)
+void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::thread_function(int tid, uint32_t yi, std::vector<uint32_t> tiles)
 {
+  //  printf("rank=%d tid=%d\n", Env::rank, tid);
     MPI_Request request;
-    uint32_t xi= 0, yi = 0, yo = 0;
-    for(uint32_t t: local_tiles_row_order) {
+    uint32_t xi= 0, yo = 0;
+    for(uint32_t t: tiles) {
         auto pair = A->tile_of_local_tile(t);
         auto& tile = A->tiles[pair.row][pair.col];
         auto pair1 = tile_info(tile, pair); 
@@ -1402,53 +1403,22 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::thread
                 else {
                     for(uint32_t j = 0; j < ncols; j++) {
                         for(uint32_t i = JA[j]; i < JA[j + 1]; i++) {
-                            //#pragma omp critical
+                            #pragma omp critical
                             #ifdef HAS_WEIGHT
                             combiner(y_data[j], x_data[IA[i]], A[i]);   
                             #else
-                            combiner(y_data[j], x_data[IA[i]]);
+                            
+                        combiner(y_data[j], x_data[IA[i]]);
                             #endif
                         }
                     } 
                 }
             }
         }
-       
         xi++;
-        bool communication = (((tile_th + 1) % rank_ncolgrps) == 0);
-        if(communication and tid == 0) {
-            //printf("%d %d\n", Env::rank, tid);
-            MPI_Comm communicator = communicator_info();
-            auto pair2 = leader_info(tile);
-            int32_t leader = pair2.row;
-            int32_t my_rank = pair2.col;
-            int32_t follower, accu;
-            if(leader == my_rank) {
-                for(uint32_t j = 0; j < rowgrp_nranks - 1; j++) {                        
-                    if(Env::comm_split) {   
-                        follower = follower_rowgrp_ranks_rg[j];
-                        accu = follower_rowgrp_ranks_accu_seg_rg[j];
-                    }
-                    else {
-                        follower = follower_rowgrp_ranks[j];
-                        accu = follower_rowgrp_ranks_accu_seg[j];
-                    }
-                    std::vector<Fractional_Type> &yj_data = Y[yi][accu];
-                    Integer_Type yj_nitems = yj_data.size();
-                    MPI_Irecv(yj_data.data(), yj_nitems, TYPE_DOUBLE, follower, pair_idx, communicator, &request);
-                    in_requests.push_back(request);
-                }
-            }
-            else {
-                MPI_Isend(y_data.data(), y_nitems, TYPE_DOUBLE, leader, pair_idx, communicator, &request);
-                out_requests.push_back(request);
-            }
-            xi = 0;
-            yi++;
-        }
     }
     //printf("%d %d %d\n", Env::rank, tid, tile_kth);
-    
+   // printf("RANK=%d\n", Env::rank);
     
     //std::cout<<"Inside Thread :: ID  = " << std::this_thread::get_id() << " " <<  Env::rank << " " <<  i << std::endl;    
 }
@@ -1456,6 +1426,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::thread
 
 template<typename Weight, typename Integer_Type, typename Fractional_Type, typename Vertex_State>
 void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::combine_2d_stationary_p() {
+    /*
     int nthreads = Env::nthreads;
     std::vector<std::thread> threads;
     
@@ -1466,12 +1437,14 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::combin
     for(std::thread& th: threads) {
         th.join();
     }
+    */
 
     
-    /*
+    std::vector<uint32_t> tiles;
     MPI_Request request;
     uint32_t xi= 0, yi = 0, yo = 0;
     for(uint32_t t: local_tiles_row_order) {
+        tiles.push_back(t);
         auto pair = A->tile_of_local_tile(t);
         auto& tile = A->tiles[pair.row][pair.col];
         auto pair1 = tile_info(tile, pair); 
@@ -1483,18 +1456,20 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::combin
             yo = accu_segment_rg;
         else
             yo = 0;
-        
+
         std::vector<Fractional_Type> &y_data = Y[yi][yo];
-        Integer_Type y_nitems = y_data.size();
+        Integer_Type y_nitems = y_data.size();        
+        std::vector<Fractional_Type> &x_data = X[xi];        
+        /*
+
         
-        std::vector<Fractional_Type> &x_data = X[xi];
         if(tile.nedges) {
             
             int nthreads = Env::nthreads;
             std::vector<std::thread> threads;
             
             for(int i = 0; i < nthreads; i++) {
-                threads.push_back(std::thread(&Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::thread_function, this, i, t, yi, yo, xi));
+                threads.push_back(std::thread(&Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::thread_function, this, yi ));
             }
             
             for(std::thread& th: threads) {
@@ -1502,10 +1477,25 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::combin
             }
             
         }
-        
+        */
         xi++;
         bool communication = (((tile_th + 1) % rank_ncolgrps) == 0);
         if(communication) {
+            
+            
+            int nthreads = Env::nthreads;
+            std::vector<std::thread> threads;
+            
+            for(int i = 0; i < nthreads; i++) {
+                threads.push_back(std::thread(&Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::thread_function, this, i, yi, tiles));
+            }
+            
+            for(std::thread& th: threads) {
+                th.join();
+            }
+            tiles.clear();
+            tiles.shrink_to_fit();
+            
             MPI_Comm communicator = communicator_info();
             auto pair2 = leader_info(tile);
             int32_t leader = pair2.row;
@@ -1535,7 +1525,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::combin
             yi++;
         }
     }
-    */
+    
 }
 
 template<typename Weight, typename Integer_Type, typename Fractional_Type, typename Vertex_State>
