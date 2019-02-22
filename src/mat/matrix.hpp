@@ -35,6 +35,7 @@ struct Tile2D {
     uint32_t ith, jth, nth; // ith row, jth column, nth local row order tile,
     uint32_t mth, kth; // mth local column order tile, and kth global tile
     int32_t rank;
+    int32_t thread;
     int32_t leader_rank_rg, leader_rank_cg;
     int32_t rank_rg, rank_cg;
     int32_t leader_rank_rg_rg, leader_rank_cg_cg;
@@ -252,6 +253,13 @@ Matrix<Weight, Integer_Type, Fractional_Type>::Matrix(Integer_Type nrows_,
     nrows = nrows_;
     ncols = ncols_;
     ntiles = ntiles_;
+    
+    
+    if(tiling_type_ == _2DN_) {
+        //nrowgrps = Env::nranks;
+        nrowgrps = sqrt(ntiles);
+        ncolgrps = ntiles / nrowgrps;
+    }
     if((tiling_type_ == _2D_) or (tiling_type_ == _2DT_) or (tiling_type_ == _2D_COL_) or (tiling_type_ == _2D_ROW_)){
         nrowgrps = sqrt(ntiles);
         ncolgrps = ntiles / nrowgrps;
@@ -267,6 +275,9 @@ Matrix<Weight, Integer_Type, Fractional_Type>::Matrix(Integer_Type nrows_,
     tile_height = nrows / nrowgrps;
     tile_width  = ncols / ncolgrps;
     
+    
+    
+    
     directed = directed_;
     transpose = transpose_;
     parallel_edges = parallel_edges_;
@@ -274,6 +285,11 @@ Matrix<Weight, Integer_Type, Fractional_Type>::Matrix(Integer_Type nrows_,
     tiling = new Tiling(Env::nranks, ntiles, nrowgrps, ncolgrps, tiling_type_);
     compression_type = compression_type_;
     
+    if(!Env::rank) {
+        printf("ntiles=%d nrowgrps=%d ncolgrps=%d tile_height=%d tile_width=%d\n", ntiles, nrowgrps, ncolgrps, tile_height, tile_width);
+        
+    }
+
     init_matrix();
 
 }
@@ -329,7 +345,7 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::test(const struct Triple<Wei
     //if(not (std::find(local_tiles.begin(), local_tiles.end(), t) != local_tiles.end())) {
     if(tiles[pair.row][pair.col].rank != Env::rank) {
         printf("Rank=%d: Invalid entry for tile[%d][%d]=[%d %d]\n", Env::rank, pair.row, pair.col, triple.row, triple.col);
-        Env::exit(1);
+        Env::exit(0);
     }
 }
 
@@ -343,6 +359,10 @@ uint32_t Matrix<Weight, Integer_Type, Fractional_Type>::local_tile_of_triple(con
 template<typename Weight, typename Integer_Type, typename Fractional_Type>
 void Matrix<Weight, Integer_Type, Fractional_Type>::insert(const struct Triple<Weight, Integer_Type>& triple) {
     struct Triple<Weight, Integer_Type> pair = tile_of_triple(triple);
+    if(pair.row > tiling->nrowgrps or pair.col > tiling->ncolgrps) {
+        printf("Rank=%d: Invalid entry for tile[%d][%d]=[%d %d]\n", Env::rank, pair.row, pair.col, triple.row, triple.col);
+        Env::exit(0);
+    }
     tiles[pair.row][pair.col].triples->push_back(triple);
 }
 
@@ -382,6 +402,23 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_matrix() {
                 tile.rank = (i % tiling->colgrp_nranks) * tiling->rowgrp_nranks
                                                         + (j % tiling->rowgrp_nranks);
                 
+                tile.ith = tile.rg / tiling->colgrp_nranks; 
+                tile.jth = tile.cg / tiling->rowgrp_nranks;
+                
+                tile.rank_rg = j % tiling->rowgrp_nranks;
+                tile.rank_cg = i % tiling->colgrp_nranks;
+                
+                tile.leader_rank_rg = i;
+                tile.leader_rank_cg = j;
+                
+                tile.leader_rank_rg_rg = i;
+                tile.leader_rank_cg_cg = j;
+            }
+            else if(tiling->tiling_type == Tiling_type::_2DN_) {
+                tile.rank = (i % tiling->colgrp_nranks) * tiling->rowgrp_nranks
+                                                        + (j % tiling->rowgrp_nranks);
+                tile.thread = i % Env::nthreads;
+                                                        
                 tile.ith = tile.rg / tiling->colgrp_nranks; 
                 tile.jth = tile.cg / tiling->rowgrp_nranks;
                 
@@ -464,6 +501,7 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_matrix() {
             tile.allocate_triples();
         }
     }
+    
     
     /*
     * Reorganize the tiles so that each rank is placed in
@@ -653,6 +691,7 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_matrix() {
         printf("Tiling Info: %d x %d [rank_nrowgrps x rank_ncolgrps]\n", tiling->rank_nrowgrps, tiling->rank_ncolgrps);
     }
     print("rank");
+    //print("thread");
 }
 
 template<typename Weight, typename Integer_Type, typename Fractional_Type>
@@ -665,6 +704,8 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::print(std::string element)
                 auto& tile = tiles[i][j];
                 if(element.compare("rank") == 0) 
                     printf("%02d ", tile.rank);
+                if(element.compare("thread") == 0) 
+                    printf("%02d ", tile.thread);
                 else if(element.compare("kth") == 0) 
                     printf("%3d ", tile.kth);
                 else if(element.compare("ith") == 0) 
@@ -719,15 +760,17 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_tiles() {
         }
     }
     */
-    
+
     //MPI_Barrier(MPI_COMM_WORLD);
     distribute();
     //MPI_Barrier(MPI_COMM_WORLD);
     
-    //Triple<Weight, Integer_Type> pair;
-    RowSort<Weight, Integer_Type> f_row;
-    auto f_comp = [] (const Triple<Weight, Integer_Type> &a, const Triple<Weight, Integer_Type> &b) {return (a.row == b.row and a.col == b.col);};    
     
+    //Triple<Weight, Integer_Type> pair;
+    //RowSort<Weight, Integer_Type> f_row;
+    ColSort<Weight, Integer_Type> f_col;
+    auto f_comp = [] (const Triple<Weight, Integer_Type> &a, const Triple<Weight, Integer_Type> &b) {return (a.row == b.row and a.col == b.col);};    
+
     for(uint32_t t: local_tiles_row_order) {
         auto pair = tile_of_local_tile(t);
         auto& tile = tiles[pair.row][pair.col];
@@ -737,7 +780,7 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_tiles() {
             //if(tile.rank == Env::rank) {
                 std::vector<struct Triple<Weight, Integer_Type>>& triples = *(tile.triples);
                 if(triples.size()) {
-                    std::sort(triples.begin(), triples.end(), f_row);
+                    std::sort(triples.begin(), triples.end(), f_col);
                     /* remove parallel edges (duplicates), necessary for triangle couting */
                     if(not parallel_edges) {
                         auto last = std::unique(triples.begin(), triples.end(), f_comp);
@@ -750,7 +793,8 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_tiles() {
         }
     //}
     
-    
+    Env::barrier();
+    Env::exit(0);
     
     /*
     std::vector<uint64_t> nnz_global(Env::nranks);
@@ -772,7 +816,7 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_tiles() {
 
     */
     
-    
+
 }
 
 
