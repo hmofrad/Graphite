@@ -2177,15 +2177,15 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::filter_vertices(Filtering_ty
                     accu = follower_rowgrp_ranks_accu_seg_[j];
                     auto &fj_data = F[fi][accu];
                     Integer_Type fj_nitems = tile_length;
-                   // MPI_Irecv(fj_data.data(), fj_nitems, TYPE_CHAR, follower, pair_idx, Env::MPI_WORLD, &request);
-                    //in_requests.push_back(request);
+                    MPI_Irecv(fj_data.data(), fj_nitems, TYPE_CHAR, follower, pair_idx, Env::MPI_WORLD, &request);
+                    in_requests.push_back(request);
                     if(!Env::rank)
                         printf("Rank=%d tile=%d fj_nitems=%d follower=%d tag=%d\n", Env::rank, t, fj_nitems, follower, pair_idx);
                 }
             }   
             else {
-               // MPI_Isend(f_data.data(), f_nitems, TYPE_CHAR, leader, pair_idx, Env::MPI_WORLD, &request);
-                //out_requests.push_back(request);
+                MPI_Isend(f_data.data(), f_nitems, TYPE_CHAR, leader, pair_idx, Env::MPI_WORLD, &request);
+                out_requests.push_back(request);
                 if(!Env::rank)
                     printf("Rank=%d tile=%d fj_nitems=%d follower=%d tag=%d\n", Env::rank, t, f_nitems, leader, pair_idx);
             }
