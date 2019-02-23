@@ -191,6 +191,7 @@ class Matrix {
         std::vector<int32_t> follower_colgrp_ranks_cg;
         std::vector<int32_t> follower_colgrp_ranks_accu_seg_cg;
         int32_t owned_segment, accu_segment_rg, accu_segment_cg, accu_segment_row, accu_segment_col;
+        std::vector<int32_t> owned_segments;
         std::vector<Integer_Type> nnz_row_sizes_all;
         std::vector<Integer_Type> nnz_col_sizes_all;
         std::vector<Integer_Type> nnz_row_sizes_loc;
@@ -239,6 +240,7 @@ class Matrix {
         uint32_t segment_of_tile(const struct Triple<Weight, Integer_Type>& pair);
 		uint32_t owner_of_tile(const struct Triple<Weight, Integer_Type>& pair);
         uint32_t row_leader_of_tile(const struct Triple<Weight, Integer_Type>& pair);
+        uint32_t owner_of_local_segment(const uint32_t local_segment);
 		
         struct Triple<Weight, Integer_Type> base(const struct Triple<Weight, Integer_Type>& pair, Integer_Type rowgrp, Integer_Type colgrp);
         struct Triple<Weight, Integer_Type> rebase(const struct Triple<Weight, Integer_Type>& pair);
@@ -323,6 +325,11 @@ uint32_t Matrix<Weight, Integer_Type, Fractional_Type>::owner_of_tile(const stru
 }
 
 template<typename Weight, typename Integer_Type, typename Fractional_Type>
+uint32_t Matrix<Weight, Integer_Type, Fractional_Type>::owner_of_local_segment(const uint32_t local_segment) {
+    return(tiles[local_segment][local_segment].rank);
+}
+
+template<typename Weight, typename Integer_Type, typename Fractional_Type>
 uint32_t Matrix<Weight, Integer_Type, Fractional_Type>::row_leader_of_tile(const struct Triple<Weight, Integer_Type>& pair) {
     return(tiles[pair.row][pair.row].rank);
 }
@@ -396,6 +403,9 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_matrix() {
                 
                 tile.leader_rank_rg_rg = i;
                 tile.leader_rank_cg_cg = j;
+                
+                tile.nth   = (tile.ith * tiling->rank_ncolgrps) + tile.jth;
+                tile.mth   = (tile.jth * tiling->rank_nrowgrps) + tile.ith;
             }
             else if(tiling->tiling_type == Tiling_type::_2DT_) {
                 
@@ -413,6 +423,9 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_matrix() {
                 
                 tile.leader_rank_rg_rg = i;
                 tile.leader_rank_cg_cg = j;
+                
+                tile.nth   = (tile.ith * tiling->rank_ncolgrps) + tile.jth;
+                tile.mth   = (tile.jth * tiling->rank_nrowgrps) + tile.ith;
             }
             else if(tiling->tiling_type == Tiling_type::_2DN_) {
                 tile.rank = (i % tiling->colgrp_nranks) * tiling->rowgrp_nranks
@@ -430,6 +443,10 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_matrix() {
                 
                 tile.leader_rank_rg_rg = i;
                 tile.leader_rank_cg_cg = j;
+                
+                tile.nth   = (tile.ith * tiling->rank_ncolgrps) + tile.jth;
+                tile.mth   = (tile.jth * tiling->rank_nrowgrps) + tile.ith;
+                
             }
             else if(tiling->tiling_type == Tiling_type::_2D_COL_) {
                 tile.rank = (i % tiling->colgrp_nranks) * tiling->rowgrp_nranks
@@ -446,6 +463,9 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_matrix() {
                 
                 tile.leader_rank_rg_rg = i;
                 tile.leader_rank_cg_cg = j;
+                
+                tile.nth   = (tile.ith * tiling->rank_ncolgrps) + tile.jth;
+                tile.mth   = (tile.jth * tiling->rank_nrowgrps) + tile.ith;
             }
             else if(tiling->tiling_type == Tiling_type::_2D_ROW_) {
                 tile.rank = (i % tiling->colgrp_nranks) * tiling->rowgrp_nranks
@@ -462,6 +482,9 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_matrix() {
                 
                 tile.leader_rank_rg_rg = i;
                 tile.leader_rank_cg_cg = j;
+                
+                tile.nth   = (tile.ith * tiling->rank_ncolgrps) + tile.jth;
+                tile.mth   = (tile.jth * tiling->rank_nrowgrps) + tile.ith;
             }
             else if(tiling->tiling_type == Tiling_type::_1D_COL_) {
                 tile.rank = (i % tiling->colgrp_nranks) * tiling->rowgrp_nranks
@@ -478,6 +501,9 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_matrix() {
                 
                 tile.leader_rank_rg_rg = i;
                 tile.leader_rank_cg_cg = j;
+                
+                tile.nth   = (tile.ith * tiling->rank_ncolgrps) + tile.jth;
+                tile.mth   = (tile.jth * tiling->rank_nrowgrps) + tile.ith;
             }
             else if(tiling->tiling_type == Tiling_type::_1D_ROW_) {
                 tile.rank = (i % tiling->colgrp_nranks) * tiling->rowgrp_nranks
@@ -494,10 +520,12 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_matrix() {
                 
                 tile.leader_rank_rg_rg = i;
                 tile.leader_rank_cg_cg = j;
+                
+                tile.nth   = (tile.ith * tiling->rank_ncolgrps) + tile.jth;
+                tile.mth   = (tile.jth * tiling->rank_nrowgrps) + tile.ith;
             }
             
-            tile.nth   = (tile.ith * tiling->rank_ncolgrps) + tile.jth;
-            tile.mth   = (tile.jth * tiling->rank_nrowgrps) + tile.ith;
+
             tile.allocate_triples();
         }
     }
@@ -561,7 +589,7 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_matrix() {
                 tile.leader_rank_cg_cg = tiles[j][j].rank_cg;
                 if((tile.rank == Env::rank) and (i == j)) {
                     owned_segment = i;
-                    //owned_segment_vec.push_back(owned_segment);
+                    owned_segments.push_back(owned_segment);
                 }
             }
         }
@@ -691,7 +719,15 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_matrix() {
         printf("Tiling Info: %d x %d [rank_nrowgrps x rank_ncolgrps]\n", tiling->rank_nrowgrps, tiling->rank_ncolgrps);
     }
     print("rank");
-    //print("thread");
+    if(!Env::rank)
+        printf("\n");
+    print("nth");
+    if(!Env::rank)
+        printf("mth\n");
+    print("mth");
+    
+    Env::barrier();
+    //Env::exit(0);
 }
 
 template<typename Weight, typename Integer_Type, typename Fractional_Type>
@@ -713,9 +749,9 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::print(std::string element)
                 else if(element.compare("jth") == 0) 
                     printf("%2d ", tile.jth);
                 else if(element.compare("nth") == 0) 
-                    printf("%2d ", tile.jth);
+                    printf("%2d ", tile.nth);
                 else if(element.compare("mth") == 0) 
-                    printf("%2d ", tile.jth);
+                    printf("%2d ", tile.mth);
                 else if(element.compare("rank_rg") == 0) 
                     printf("%2d ", tile.rank_rg);
                 else if(element.compare("rank_cg") == 0) 
@@ -793,8 +829,6 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_tiles() {
         }
     //}
     
-    Env::barrier();
-    Env::exit(0);
     
     /*
     std::vector<uint64_t> nnz_global(Env::nranks);
@@ -2064,7 +2098,9 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::filter_vertices(Filtering_ty
     std::vector<std::vector<std::vector<char>>> F;
     F.resize(rank_nrowgrps_);
     for(uint32_t j = 0; j < rank_nrowgrps_; j++) {
-        if(local_row_segments_[j] == owned_segment) {
+        //if(local_row_segments_[j] == owned_segment) {
+        if(owner_of_local_segment(local_row_segments_[j]) == Env::rank) {
+            
             F[j].resize(rowgrp_nranks_);
             for(uint32_t i = 0; i < rowgrp_nranks_; i++)
                 F[j][i].resize(tile_length, 0);
@@ -2076,11 +2112,19 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::filter_vertices(Filtering_ty
     }
     
     
+    if(!Env::rank) {
+        for(int i : owned_segments) {
+            printf("%d %d ", i, owner_of_local_segment(i));
+        }
+        printf("%d\n", owned_segment);
+    }
+    
     
 
     for(uint32_t t: local_tiles_row_order_) {
         auto pair = tile_of_local_tile(t);
         auto &tile = tiles[pair.row][pair.col];
+        
         if(filtering_type_ == _ROWS_) {
             tile_th = tile.nth;
             pair_idx = pair.row;
@@ -2094,12 +2138,18 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::filter_vertices(Filtering_ty
             fo = accu_segment_rg_;
         else
             fo = 0;
-        auto &f_data = F[fi][fo];
+        
+        auto& f_data = F[fi][fo];
         Integer_Type f_nitems = tile_length;
+        printf("%d %d %d fi=%d %d %lu\n", Env::rank, t, tile.nedges, fi, fo, f_data.size());
         if(filtering_type_ == _ROWS_) {
             for (auto& triple : *(tile.triples)) {
                 test(triple);
                 auto pair1 = rebase(triple);
+                //if(pair1.row > tile_height or pair1.col > tile_width) {
+                //    printf("<row=%d col=%d>\n", pair1.row, pair1.col);
+                //    Env::exit(0);
+                //}
                 if(!f_data[pair1.row])
                     f_data[pair1.row] = 1;
             }
@@ -2112,9 +2162,10 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::filter_vertices(Filtering_ty
                     f_data[pair1.col] = 1;
                 }
             }
-        }        
+        }   
         communication = (((tile_th + 1) % rank_ncolgrps_) == 0);
         if(communication) {
+            
             if(filtering_type_ == _ROWS_)
                 leader = tile.leader_rank_rg;
             if(filtering_type_ == _COLS_)
@@ -2126,14 +2177,20 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::filter_vertices(Filtering_ty
                     accu = follower_rowgrp_ranks_accu_seg_[j];
                     auto &fj_data = F[fi][accu];
                     Integer_Type fj_nitems = tile_length;
-                    MPI_Irecv(fj_data.data(), fj_nitems, TYPE_CHAR, follower, pair_idx, Env::MPI_WORLD, &request);
-                    in_requests.push_back(request);
+                   // MPI_Irecv(fj_data.data(), fj_nitems, TYPE_CHAR, follower, pair_idx, Env::MPI_WORLD, &request);
+                    //in_requests.push_back(request);
+                    if(!Env::rank)
+                        printf("Rank=%d tile=%d fj_nitems=%d follower=%d tag=%d\n", Env::rank, t, fj_nitems, follower, pair_idx);
                 }
             }   
             else {
-                MPI_Isend(f_data.data(), f_nitems, TYPE_CHAR, leader, pair_idx, Env::MPI_WORLD, &request);
-                out_requests.push_back(request);
+               // MPI_Isend(f_data.data(), f_nitems, TYPE_CHAR, leader, pair_idx, Env::MPI_WORLD, &request);
+                //out_requests.push_back(request);
+                if(!Env::rank)
+                    printf("Rank=%d tile=%d fj_nitems=%d follower=%d tag=%d\n", Env::rank, t, f_nitems, leader, pair_idx);
             }
+            
+            
             fi++;
         }
     }
@@ -2141,6 +2198,12 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::filter_vertices(Filtering_ty
     MPI_Waitall(in_requests.size(), in_requests.data(), MPI_STATUSES_IGNORE);
     in_requests.clear();
     out_requests.clear();
+    
+    Env::barrier();
+    Env::exit(0);
+    
+    
+    
     fi = accu_segment_row_;
     fo = accu_segment_rg_;
     auto &f_data = F[fi][fo];
@@ -2493,6 +2556,7 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_dcsc() {
 template<typename Weight, typename Integer_Type, typename Fractional_Type>
 void Matrix<Weight, Integer_Type, Fractional_Type>::init_tcsc()
 {
+    
     if((tiling->tiling_type == _1D_COL_) or (tiling->tiling_type == _1D_ROW_)) {
         auto& tile = tiles[0][Env::rank];
         std::vector<struct Triple<Weight, Integer_Type>>& triples = *(tile.triples);
