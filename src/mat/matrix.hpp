@@ -570,58 +570,17 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_matrix() {
         int32_t num_owned_segments = nrowgrps / Env::nranks;
         assert(num_owned_segments == Env::nthreads);
         
-        if(!Env::rank) {
-            for (uint32_t i = 0; i < nrowgrps; i++) {
-                int32_t j = i/tiling->colgrp_nranks;
-                leader_ranks[i] = tiles[i][j].rank;
-                //printf("%d %d %d %d\n", i, tiling->rowgrp_nranks, i/tiling->colgrp_nranks, tiles[i][j].rank);
-            }
+        for (uint32_t i = 0; i < nrowgrps; i++) {
+            int32_t j = i/tiling->colgrp_nranks;
+            leader_ranks[i] = tiles[i][j].rank;
+            leader_ranks_rg[i] = tiles[i][j].rank_rg;
+            leader_ranks_cg[i] = tiles[i][j].rank_cg;
         }
-        
-        //if(!Env::rank) {
-        /*
-        for (int32_t k = 0; k < Env::nranks; k++) {
-            for (int32_t i = 0; i < Env::nthreads; i++) {
-                if(!Env::rank)
-                    printf("Rank=%d Thread=%d Owner=%d\n", k, i, k + ((i * Env::nranks) % nrowgrps));
-                int32_t leader = k + ((i * Env::nranks) % nrowgrps);
-                leader_ranks[leader] = k;
-            }
-        }
-        */
-        /*
-        //for (int32_t k = 0; k < Env::nranks; k++) {
-        for (uint32_t k = 0; k < nrowgrps; k++) {
-            
-            int32_t r = 0;
-            int32_t l = leader_ranks[k];
-   
-                for (uint32_t i = k; i < nrowgrps; i++) {
-                    bool found = false;
-                    for (uint32_t j = 0; j < ncolgrps; j++) {
-                        if(tiles[i][j].rank == l) {
-                            found = true;
-                            //r = 
-                            break;
-                        }
-                    }
-                    if(found) {
-                        std::swap(tiles[i], tiles[k]);
-                    }
-                    //if(!Env::rank) printf("%d %d %d %d\n", i, j, k, l);
-                }
-            //}
-
-
-        }
-*/        
-        //}
-        
     }
 
-            print("rank");
-            Env::barrier();
-            Env::exit(0);
+    print("rank");
+    Env::barrier();
+    Env::exit(0);
 
 
 
