@@ -2098,6 +2098,7 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::filter_vertices(Filtering_ty
     std::vector<int32_t> all_rowgrp_ranks_accu_seg_;
     std::vector<uint32_t> local_tiles_row_order_;
     int32_t accu_segment_rg_, accu_segment_row_;
+    std::vector<int32_t> accu_segment_rows_;
     std::vector<int32_t> follower_rowgrp_ranks_; 
     std::vector<int32_t> follower_rowgrp_ranks_accu_seg_;
     std::vector<Integer_Type> nnz_sizes_all, nnz_sizes_loc;
@@ -2115,6 +2116,7 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::filter_vertices(Filtering_ty
         local_tiles_row_order_ = local_tiles_row_order;  
         accu_segment_rg_ = accu_segment_rg;
         accu_segment_row_ = accu_segment_row;
+        accu_segment_rows_ = accu_segment_rows;
     }
     else if(filtering_type_ == _COLS_) {
         K = &J;
@@ -2130,6 +2132,7 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::filter_vertices(Filtering_ty
         local_tiles_row_order_ = local_tiles_col_order;  
         accu_segment_rg_ = accu_segment_cg;
         accu_segment_row_ = accu_segment_col;
+        accu_segment_rows_ = accu_segment_cols;
     }
     
     MPI_Datatype TYPE_INT = Types<Weight, Integer_Type, Integer_Type>::get_data_type();
