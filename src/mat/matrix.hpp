@@ -2289,28 +2289,6 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::filter_vertices(Filtering_ty
         }
     }
 
-    /*
-        for(int32_t i = 0; i <  Env::nsegments; i++) 
-            printf("%d ", nnz_sizes_all_val_temp[i]);
-        printf(" [%d]\n", Env::rank);
-        
-        for(int32_t i = 0; i <  Env::nsegments; i++) 
-            printf("%d ", nnz_sizes_all_pos_temp[i]);
-        printf(" [%d]\n", Env::rank);
-        
-        
-        if(!Env::rank) {
-            for(int32_t i = 0; i <  Env::nsegments; i++)  {
-                int32_t j = leader_ranks[i];
-                int32_t k = i / num_owned_segments;
-                int32_t l = i % num_owned_segments;
-                //nnz_sizes_all_temp[i];
-                printf("%d rank=%d %d %d\n", i, j, k, l);
-            }
-        }
-    */
-    
-    
     for(int32_t i = 0; i <  Env::nsegments; i++)  {
         nnz_sizes_all[nnz_sizes_all_pos_temp[i]] = nnz_sizes_all_val_temp[i];
     }
@@ -2318,6 +2296,29 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::filter_vertices(Filtering_ty
     for(uint32_t j = 0; j < rank_nrowgrps_; j++) {
         this_segment = local_row_segments_[j];
         nnz_sizes_loc.push_back(nnz_sizes_all[this_segment]);
+    }
+ 
+    for(int32_t k = 0; k < num_owned_segments; k++) { 
+        if(nnz_sizes_all[accu_segment_rows_[k]]) {
+            uint32_t ko = accu_segment_rows_[k];    
+            auto &kj_data =  (*K)[ko];
+            auto &kvj_data = (*KV)[ko];
+            Integer_Type j = 0;
+            for(uint32_t i = 0; i < f_nitems; i++) {
+                if(f_data[i]) {
+                    kj_data[i] = 1;
+                    kvj_data[i] = j; 
+                    j++;
+                }
+                else {
+                    kj_data[i] = 0;
+                    kvj_data[i] = 0;
+                }
+            }
+            assert(j == nnz_sizes_all[accu_segment_rows_[k]]);
+        }
+        
+        
     }
  
     
