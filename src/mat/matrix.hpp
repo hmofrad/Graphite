@@ -192,7 +192,8 @@ class Matrix {
         std::vector<int32_t> follower_colgrp_ranks_cg;
         std::vector<int32_t> follower_colgrp_ranks_accu_seg_cg;
         int32_t owned_segment, accu_segment_rg, accu_segment_cg, accu_segment_row, accu_segment_col;
-        std::vector<int32_t> owned_segments, accu_segment_rgs, accu_segment_cgs, accu_segment_rows, accu_segment_cols;
+        std::vector<int32_t> owned_segments, num_owned_segmentsaccu_segment_rgs, accu_segment_cgs, accu_segment_rows, accu_segment_cols;
+        int32_t num_owned_segments;
         std::vector<Integer_Type> nnz_row_sizes_all;
         std::vector<Integer_Type> nnz_col_sizes_all;
         std::vector<Integer_Type> nnz_row_sizes_loc;
@@ -567,7 +568,7 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_matrix() {
     leader_ranks_cg.resize(ncolgrps);
     struct Triple<Weight, Integer_Type> pair;
     if(tiling->tiling_type == Tiling_type::_2DN_) {
-        int32_t num_owned_segments = nrowgrps / Env::nranks;
+        num_owned_segments = nrowgrps / Env::nranks;
         assert(num_owned_segments == Env::nthreads);
         
         for (uint32_t i = 0; i < nrowgrps; i++) {
@@ -624,9 +625,11 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_matrix() {
                 tile.leader_rank_rg_rg = tiles[i][i].rank_rg;
                 tile.leader_rank_cg_cg = tiles[j][j].rank_cg;
             }
-            if((tile.rank == Env::rank) and (i == j)) {
-                owned_segment = i;
-                owned_segments.push_back(owned_segment);
+            if(i == j) {
+                if(leader_ranks[i] == Env::rank) {
+                    owned_segment = i;
+                    owned_segments.push_back(owned_segment);
+                }
             }
             if(tile.rank == Env::rank) {
                 local_tiles_col_order.push_back(tile.kth);
@@ -634,7 +637,6 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_matrix() {
             }
         }
     }
-    
     
     for(uint32_t t: local_tiles_row_order) {
         pair = tile_of_local_tile(t);
@@ -2238,42 +2240,93 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::filter_vertices(Filtering_ty
     in_requests.clear();
     out_requests.clear();
     
-    Env::barrier();
-    Env::exit(0);
     
-    
-    fi = accu_segment_row_;
-    fo = accu_segment_rg_;
-    auto &f_data = F[fi][fo];
-    Integer_Type f_nitems = tile_length;
-    for(uint32_t j = 0; j < rowgrp_nranks_ - 1; j++) {
-        accu = follower_rowgrp_ranks_accu_seg_[j];
-        auto &fj_data = F[fi][accu];
-        Integer_Type fj_nitems = tile_length;                  
-        for(uint32_t i = 0; i < fj_nitems; i++) {
-            if(fj_data[i] and !f_data[i])
-                f_data[i] = 1;
+    nnz_sizes_all.resize(Env::nsegments);
+    std::vector<Integer_Type> nnz_sizes_loc_val_temp;
+    std::vector<Integer_Type> nnz_sizes_loc_pos_temp;
+    for(int32_t k = 0; k < num_owned_segments; k++) {
+        fi = accu_segment_rows_[k];
+        fo = accu_segment_rg_;
+        auto &f_data = F[fi][fo];
+        Integer_Type f_nitems = tile_length;
+        for(uint32_t j = 0; j < rowgrp_nranks_ - 1; j++) {
+            accu = follower_rowgrp_ranks_accu_seg_[j];
+            auto &fj_data = F[fi][accu];
+            Integer_Type fj_nitems = tile_length;                  
+            for(uint32_t i = 0; i < fj_nitems; i++) {
+                if(fj_data[i] and !f_data[i])
+                    f_data[i] = 1;
+            }
+        }  
+        Integer_Type nnz_local = 0;
+        for(uint32_t i = 0; i < f_nitems; i++) {
+            if(f_data[i])
+                nnz_local++;
         }
-    }    
-    Integer_Type nnz_local = 0;
-    for(uint32_t i = 0; i < f_nitems; i++) {
-        if(f_data[i])
-            nnz_local++;
+        nnz_sizes_all[owned_segments[k]] = nnz_local;
+        nnz_sizes_loc_val_temp.push_back(nnz_local);
+        nnz_sizes_loc_pos_temp.push_back(owned_segments[k]);
     }
-    nnz_sizes_all.resize(Env::nranks);
-    nnz_sizes_all[owned_segment] = nnz_local;
-    Env::barrier();     
-    for (int32_t j = 0; j < Env::nranks; j++) {
-        int32_t r = leader_ranks[j];
-        if (j != owned_segment)
-            MPI_Sendrecv(&nnz_sizes_all[owned_segment], 1, TYPE_INT, r, Env::rank, &nnz_sizes_all[j], 1, TYPE_INT, 
-                                                                         r, r, Env::MPI_WORLD, MPI_STATUS_IGNORE);
+    
+    std::vector<Integer_Type> nnz_sizes_all_val_temp(Env::nsegments);
+    std::vector<Integer_Type> nnz_sizes_all_pos_temp(Env::nsegments);
+    for(int32_t i = 0; i < num_owned_segments; i++) {
+        int32_t j = i + (Env::rank * num_owned_segments);
+        nnz_sizes_all_val_temp[j] = nnz_sizes_loc_val_temp[i];
+        nnz_sizes_all_pos_temp[j] = nnz_sizes_loc_pos_temp[i];
     }
-    Env::barrier();     
+    
+        
+    for (int32_t i = 0; i < Env::nranks; i++) {
+        //int32_t r = leader_ranks[j];
+        int32_t j = Env::rank * num_owned_segments;
+        int32_t k = i * num_owned_segments;
+        if (i != Env::rank) {
+            MPI_Sendrecv(&nnz_sizes_all_val_temp[j], num_owned_segments, TYPE_INT, i, 0, &nnz_sizes_all_val_temp[k], num_owned_segments, TYPE_INT, 
+                                                                         i, 0, Env::MPI_WORLD, MPI_STATUS_IGNORE);
+            MPI_Sendrecv(&nnz_sizes_all_pos_temp[j], num_owned_segments, TYPE_INT, i, 0, &nnz_sizes_all_pos_temp[k], num_owned_segments, TYPE_INT, 
+                                                                         i, 0, Env::MPI_WORLD, MPI_STATUS_IGNORE);
+        }
+    }
+
+    /*
+        for(int32_t i = 0; i <  Env::nsegments; i++) 
+            printf("%d ", nnz_sizes_all_val_temp[i]);
+        printf(" [%d]\n", Env::rank);
+        
+        for(int32_t i = 0; i <  Env::nsegments; i++) 
+            printf("%d ", nnz_sizes_all_pos_temp[i]);
+        printf(" [%d]\n", Env::rank);
+        
+        
+        if(!Env::rank) {
+            for(int32_t i = 0; i <  Env::nsegments; i++)  {
+                int32_t j = leader_ranks[i];
+                int32_t k = i / num_owned_segments;
+                int32_t l = i % num_owned_segments;
+                //nnz_sizes_all_temp[i];
+                printf("%d rank=%d %d %d\n", i, j, k, l);
+            }
+        }
+    */
+    
+    
+    for(int32_t i = 0; i <  Env::nsegments; i++)  {
+        nnz_sizes_all[nnz_sizes_all_pos_temp[i]] = nnz_sizes_all_val_temp[i];
+    }
+   
     for(uint32_t j = 0; j < rank_nrowgrps_; j++) {
         this_segment = local_row_segments_[j];
         nnz_sizes_loc.push_back(nnz_sizes_all[this_segment]);
     }
+ 
+    
+    Env::barrier();
+    Env::exit(0);
+    
+    /*
+    
+
     if(nnz_sizes_all[owned_segment]) {
         uint32_t ko = accu_segment_row_;
         auto &kj_data =  (*K)[ko];
@@ -2370,6 +2423,7 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::filter_vertices(Filtering_ty
     F.clear();
     F.shrink_to_fit();
     Env::barrier();
+    */
 }
 
 template<typename Weight, typename Integer_Type, typename Fractional_Type>
