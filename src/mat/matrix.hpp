@@ -301,7 +301,6 @@ Matrix<Weight, Integer_Type, Fractional_Type>::Matrix(Integer_Type nrows_,
     }
 
     init_matrix();
-
 }
 
 template<typename Weight, typename Integer_Type, typename Fractional_Type>
@@ -387,11 +386,8 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_matrix() {
     tiles.resize(nrowgrps);
     for (uint32_t i = 0; i < nrowgrps; i++)
         tiles[i].resize(ncolgrps);
+    
     // Initialize tiles 
-    
-    
-    
-    
     for (uint32_t i = 0; i < nrowgrps; i++) {
         for (uint32_t j = 0; j < ncolgrps; j++) {
             auto& tile = tiles[i][j];
@@ -419,6 +415,8 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_matrix() {
                 
                 tile.rank = (i % tiling->colgrp_nranks) * tiling->rowgrp_nranks
                                                         + (j % tiling->rowgrp_nranks);
+                
+                tile.thread = (i / tiling->colgrp_nranks) % Env::nthreads;
                 
                 tile.ith = tile.rg / tiling->colgrp_nranks; 
                 tile.jth = tile.cg / tiling->rowgrp_nranks;
@@ -553,8 +551,9 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_matrix() {
             tile.allocate_triples();
         }
     }
+//    print("rank");
     
-    //print("rank");
+    //
     //Env::barrier();
     //Env::exit(0);
     
@@ -613,19 +612,21 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_matrix() {
     }
     else {
         */
-        for (uint32_t i = 0; i < nrowgrps; i++) {
-            for (uint32_t j = i; j < ncolgrps; j++) {    
-                if((not (std::find(leader_ranks.begin(), leader_ranks.end(), tiles[j][i].rank)
-                     != leader_ranks.end())) or (counts[tiles[j][i].rank] < Env::nthreads)) {
-                    std::swap(tiles[j], tiles[i]);
-                    counts[tiles[j][i].rank]++;
-                    break;
-                }
+    num_owned_segments = nrowgrps / Env::nranks;
+    assert(num_owned_segments == Env::nthreads);
+    for (uint32_t i = 0; i < nrowgrps; i++) {
+        for (uint32_t j = i; j < ncolgrps; j++) {    
+            if((not (std::find(leader_ranks.begin(), leader_ranks.end(), tiles[j][i].rank)
+                 != leader_ranks.end())) or (counts[tiles[j][i].rank] < num_owned_segments)) {
+                std::swap(tiles[j], tiles[i]);
+                counts[tiles[j][i].rank]++;
+                break;
             }
-            leader_ranks[i] = tiles[i][i].rank;
-            leader_ranks_rg[i] = tiles[i][i].rank_rg;
-            leader_ranks_cg[i] = tiles[i][i].rank_cg;
         }
+        leader_ranks[i] = tiles[i][i].rank;
+        leader_ranks_rg[i] = tiles[i][i].rank_rg;
+        leader_ranks_cg[i] = tiles[i][i].rank_cg;
+    }
         
     //}
     
@@ -701,8 +702,7 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_matrix() {
         }
     }
     
-    num_owned_segments = nrowgrps / Env::nranks;
-    assert(num_owned_segments == Env::nthreads);
+
     assert(num_owned_segments == (int32_t) owned_segments.size());
     
     for (uint32_t j = 0; j < ncolgrps; j++) {
@@ -717,12 +717,13 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_matrix() {
     
     for(uint32_t t: local_tiles_row_order) {
         pair = tile_of_local_tile(t);
-        bool what = false;
-        if(tiling->tiling_type == Tiling_type::_2DN_)
-            what = leader_ranks[pair.row] == Env::rank;
-        else 
-            what = pair.row == pair.col;
-        if(what) {
+        //bool what = false;
+        //if(tiling->tiling_type == Tiling_type::_2DN_)
+        //    what = leader_ranks[pair.row] == Env::rank;
+        //else 
+        //    what = pair.row == pair.col;
+        //if(what) {
+        if(pair.row == pair.col) {    
             for(uint32_t j = 0; j < ncolgrps; j++) {
                 if(tiles[pair.row][j].rank == Env::rank) {
                     if(std::find(all_rowgrp_ranks.begin(), all_rowgrp_ranks.end(), tiles[pair.row][j].rank) 
@@ -865,16 +866,12 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_matrix() {
         printf("Tiling Info: %d x %d [rank_nrowgrps x rank_ncolgrps]\n", tiling->rank_nrowgrps, tiling->rank_ncolgrps);
     }
     print("rank");
+   
     
-    /*
+   /*
     if(Env::rank == 1) {
         
         for(int32_t t: local_tiles_row_order) {
-            printf("%3d ", t);
-        }
-        printf(" \n");
-        
-        for(int32_t t: local_tiles_col_order) {
             printf("%3d ", t);
         }
         printf(" \n");
@@ -883,12 +880,12 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_matrix() {
             printf("%3d ", t);
         }
         printf(" \n");
+
         
-    }        
+    }      
+*/    
     
-    Env::barrier();
-    Env::exit(0);
-    */
+    
         
     /*    
     if(Env::rank == 0) {
@@ -1076,7 +1073,6 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_tiles() {
     }
 
     */
-    
 
 }
 
@@ -1302,7 +1298,7 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::closest(std::vector<struct T
     }
 }
 
-
+/*
 template<typename Weight, typename Integer_Type, typename Fractional_Type>
 void Matrix<Weight, Integer_Type, Fractional_Type>::init_threads() {
     if(Env::is_master)
@@ -1345,7 +1341,7 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_threads() {
                   //  printf("rank=%d tid=%d tile=%d [%d %d] %d\n", Env::rank, tid, t, threads_start_dense_row[tid], threads_end_dense_row[tid],  tile.triples_t[tid]->size());
                 nnz_local[tid] = tile.triples_t[tid]->size();
             }
-            
+            */
 
             /*
             // nnz
@@ -1386,6 +1382,7 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_threads() {
             if(!Env::rank)
                 printf("Edge distribution: Rank %d tile %d - Threads edges (sum: avg +/- std_dev)= %.0f: %.0f +/- %.0f\n", Env::rank, t, sum, mean, std_dev);
             */
+/*
         }
 
     }
@@ -1393,6 +1390,7 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_threads() {
     //    Env::barrier();
     //Env::exit(0);    
 }
+*/
 
 template<typename Weight, typename Integer_Type, typename Fractional_Type>
 void Matrix<Weight, Integer_Type, Fractional_Type>::init_filtering() {
@@ -1433,6 +1431,9 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_filtering() {
             }    
         }
         
+
+
+        
         
         //Env::barrier();
         //Env::exit(0);
@@ -1467,14 +1468,11 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_filtering() {
         //rowgrp_source_rows = source_rows[io];
         //colgrp_sink_columns = sink_columns[jo];  
         
-
-        
-        
     }  
     
     //del_triples();    
 }   
-
+/*
 template<typename Weight, typename Integer_Type, typename Fractional_Type>
 void Matrix<Weight, Integer_Type, Fractional_Type>::thread_level_messaging() {
     
@@ -1487,23 +1485,7 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::thread_level_messaging() {
     threads_col_end.resize(tiling->rank_ncolgrps, std::vector<Integer_Type> (Env::nthreads));
     
     
-    
-    
-    /*
-    threads_send_threads.resize(Env::nthreads);
-    threads_send_indices.resize(Env::nthreads);
-    threads_send_tags.resize(Env::nthreads);
-    threads_send_start.resize(Env::nthreads);
-    threads_send_end.resize(Env::nthreads);
-    threads_recv_ranks.resize(Env::nthreads);
-    threads_recv_threads.resize(Env::nthreads);
-    threads_recv_indices.resize(Env::nthreads);
-    threads_recv_tags.resize(Env::nthreads);
-    threads_recv_start.resize(Env::nthreads);
-    threads_recv_end.resize(Env::nthreads);
-    */
-    
-    
+ 
     
     if(!Env::rank) {
         for(int i = 0; i < Env::nranks; i++) {
@@ -1580,7 +1562,7 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::thread_level_messaging() {
             threads_col_end[i][j] = nnz_sum;
         }
     }
-    
+    */
     
    // Env::barrier();
    // Env::exit(0);
@@ -1769,7 +1751,7 @@ if(Env::rank == -1) {
 
     
     
-}
+//}
 
 
 template<typename Weight, typename Integer_Type, typename Fractional_Type>
@@ -1929,6 +1911,7 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::filter_rows() {
     IVT.resize(Env::nthreads);
     threads_nnz_rows.resize(Env::nthreads);
     std::vector<int> all_rows(Env::nthreads);
+    /*
     #pragma omp parallel
     {
         int tid = omp_get_thread_num();
@@ -1949,7 +1932,7 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::filter_rows() {
         threads_nnz_rows[tid] = k;
         all_rows[tid] = length;
     }
-    
+    */
     threads_start_sparse_row.resize(Env::nthreads, 0);
     threads_end_sparse_row.resize(Env::nthreads, 0);
     Integer_Type nnz_sum = 0;
@@ -2832,6 +2815,8 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_dcsc() {
 template<typename Weight, typename Integer_Type, typename Fractional_Type>
 void Matrix<Weight, Integer_Type, Fractional_Type>::init_tcsc()
 {
+
+    /*
     if((tiling->tiling_type == _1D_COL_) or (tiling->tiling_type == _1D_ROW_)) {
         auto& tile = tiles[0][Env::rank];
         std::vector<struct Triple<Weight, Integer_Type>>& triples = *(tile.triples);
@@ -2864,7 +2849,8 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_tcsc()
             }
         }
     }
-    else if(tiling->tiling_type == _2DN_) {
+    */
+    //else if(tiling->tiling_type == _2DN_) {
         uint32_t yi = 0, xi = 0, next_row = 0;
         for(uint32_t t: local_tiles_row_order)
         {
@@ -2878,9 +2864,9 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_tcsc()
             auto& jv_data = JV[xi];
             if(tile.nedges) {
                 //int sid =  cid / Env::nthreads_per_socket;
-                bool which = false;
+                //bool which = false;
                 tile.compressor = new TCSC_BASE<Weight, Integer_Type>(tile.triples->size(), c_nitems, r_nitems);
-                tile.compressor->populate(tile.triples, tile_height, tile_width, i_data, iv_data, j_data, jv_data, which);
+                tile.compressor->populate(tile.triples, tile_height, tile_width, i_data, iv_data, j_data, jv_data);
                 Integer_Type* IA   = static_cast<TCSC_BASE<Weight, Integer_Type>*>(tile.compressor)->IA;
                 Integer_Type* JA   = static_cast<TCSC_BASE<Weight, Integer_Type>*>(tile.compressor)->JA;    
                 Integer_Type nnzcols = static_cast<TCSC_BASE<Weight, Integer_Type>*>(tile.compressor)->nnzcols;
@@ -2893,7 +2879,11 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_tcsc()
                 yi++;
             }
         }
-    }
+        
+
+        
+    //}
+    /*
     else {    
         uint32_t yi = 0, xi = 0, next_row = 0;
         for(uint32_t t: local_tiles_row_order)
@@ -2931,6 +2921,7 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_tcsc()
         }  
         del_classifier();
     }
+    */
     //del_triples_t();
 }
 
