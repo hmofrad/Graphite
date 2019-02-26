@@ -20,9 +20,9 @@
 
 
 //#ifdef __linux__
-//#include <numa.h>
+#include <numa.h>
 //#endif 
-#include </ihome/rmelhem/moh18/numactl/libnuma/usr/local/include/numa.h>
+//#include </ihome/rmelhem/moh18/numactl/libnuma/usr/local/include/numa.h>
 //#ifdef NUMA_AVAILABLE 
 
 class Env {
@@ -65,6 +65,7 @@ class Env {
     static int nthreads;
     static int nsockets;
     static int nthreads_per_socket;
+    static int nsegments;
 };
 
 MPI_Comm Env::MPI_WORLD;
@@ -92,6 +93,7 @@ int Env::core_id;
 int Env::nthreads = 1;
 int Env::nsockets = 1;
 int Env::nthreads_per_socket = 1;
+int Env::nsegments = 0;
  
 void Env::init(bool comm_split_) {
     comm_split = comm_split_;
@@ -113,7 +115,7 @@ void Env::init(bool comm_split_) {
     {
         if(is_master)
         {
-            printf("Failure to set MPI_THREAD_MULTIPLE by MPI\n"); 
+            printf("Failure to set MPI_THREAD_MULTIPLE by MPI (%d)\n", provided); 
             printf("Multi-threading is disabled with MPI_THREAD_MULTIPLE (%d/%d)\n", omp_get_num_threads(), omp_get_max_threads());
         }
     }
@@ -179,6 +181,7 @@ void Env::init_t() {
             if(is_master)
                 printf("NUMA-aware OpenMP is disabled with %d threads, %d sockets, and %d threads per socket\n", nthreads, nsockets, nthreads_per_socket);
         }
+        nsegments = nranks * nthreads;
         /*
         if(is_master) {
             #pragma omp parallel
