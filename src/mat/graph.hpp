@@ -96,13 +96,13 @@ void Graph<Weight, Integer_Type, Fractional_Type>::init_graph(std::string filepa
     parallel_edges = parallel_edges_;
     
     uint32_t ntiles_ = 0;
-    if((tiling_type_ == _1D_ROW_) or (tiling_type_ == _1D_COL_))
-        ntiles_ = Env::nranks;
-    else if(tiling_type_ == _2DN_)
+    //if((tiling_type_ == _1D_ROW_) or (tiling_type_ == _1D_COL_))
+      //  ntiles_ = Env::nranks;
+    //else if(tiling_type_ == _2DN_)
         ntiles_ = (Env::nranks * Env::nthreads) * (Env::nranks * Env::nthreads);
         //ntiles_ = Env::nranks * Env::nranks * Env::nthreads;    
-    else
-        ntiles_ = Env::nranks * Env::nranks;
+    //else
+      //  ntiles_ = Env::nranks * Env::nranks;
     
     //while(nrows % Env::nranks)
     while(nrows % (Env::nranks * Env::nthreads))
@@ -191,7 +191,7 @@ void Graph<Weight, Integer_Type, Fractional_Type>::load_text(std::string filepat
     // Filter the graph
     A->init_filtering();
     // Initialize threads
-    A->init_threads();
+    //A->init_threads();
     // Compress the graph
     A->init_compression();
     // Delete triples
@@ -215,7 +215,7 @@ void Graph<Weight, Integer_Type, Fractional_Type>::load_binary(std::string filep
     
     if((tiling_type_ == _1D_ROW_) or (tiling_type_ == _1D_COL_)) {
         // Initialize threads 
-        A->init_threads();              
+        //A->init_threads();              
         // Filter the graph
         A->init_filtering();
     }
@@ -347,7 +347,71 @@ void Graph<Weight, Integer_Type, Fractional_Type>::parread_text() {
 
 template<typename Weight, typename Integer_Type, typename Fractional_Type>
 void Graph<Weight, Integer_Type, Fractional_Type>::parread_binary() {
+    // Open graph file.
+    std::ifstream fin(filepath.c_str(), std::ios_base::binary);
+    if(!fin.is_open()) {
+        fprintf(stderr, "Unable to open input file\n");
+        Env::exit(1); 
+    }
+    // Obtain filesize
+    uint64_t filesize = 0, share = 0, offset = 0, endpos = 0;
+    fin.seekg (0, std::ios_base::end);
+    filesize = (uint64_t) fin.tellg();
+    nedges = filesize / sizeof(Triple<Weight, Integer_Type>);
+    share = (filesize / Env::nranks) / sizeof(Triple<Weight, Integer_Type>) * sizeof(Triple<Weight, Integer_Type>);
+    assert(share % sizeof(Triple<Weight, Integer_Type>) == 0);
+    offset += share * Env::rank;
+    endpos = (Env::rank == Env::nranks - 1) ? filesize : offset + share;
+    fin.seekg(offset, std::ios_base::beg);
     
+    uint64_t nedges_local = 0;
+    uint64_t nedges_global = 0;
+    struct Triple<Weight, Integer_Type> triple;
+    while (offset < endpos) {
+        fin.read(reinterpret_cast<char *>(&triple), sizeof(triple));
+        if(fin.gcount() != sizeof(Triple<Weight, Integer_Type>)) {
+            fprintf(stderr, "read() failure\n");
+            Env::exit(1);
+        }
+        nedges_local++;
+        offset += sizeof(Triple<Weight, Integer_Type>);
+        // Remove self-loops
+        if (triple.row == triple.col) {
+            if(not self_loops)
+                continue;
+        }
+        // Remove cycles
+        if(acyclic) {
+            if(triple.col < triple.row)
+                std::swap(triple.row, triple.col);
+        }
+        // Transpose
+        if(transpose)
+            std::swap(triple.row, triple.col);
+        // Insert edge
+        A->insert(triple);
+        // Only for undirected graphs        
+        if(not directed) {
+            std::swap(triple.row, triple.col);
+            A->insert(triple);
+        }
+        if(Env::is_master) {
+            if ((offset & ((1L << 26) - 1L)) == 0) {
+                printf("|");
+                fflush(stdout);
+            }
+        }
+    }
+    fin.close();
+    
+    assert(offset == endpos);
+    MPI_Allreduce(&nedges_local, &nedges_global, 1, MPI_UNSIGNED_LONG, MPI_SUM, Env::MPI_WORLD);
+    assert(nedges == nedges_global);
+    MPI_Barrier(MPI_COMM_WORLD);
+    if(Env::is_master)
+        printf("\n%s: Read %lu edges\n", filepath.c_str(), nedges);
+    
+    /*
     uint64_t nedges_local_r = 0;
     uint64_t nedges_global_r = 0;
     std::vector<uint64_t> nedges_local_t(Env::nthreads, 0);    
@@ -388,17 +452,6 @@ void Graph<Weight, Integer_Type, Fractional_Type>::parread_binary() {
         end = (end > endpos) ? endpos : end;
         end = (tid == nthreads - 1) ? endpos : end;
         
-        
-        /*
-        uint64_t ntriples = triples_range / sizeof(Triple<Weight, Integer_Type>);
-        uint64_t ntriples_per_thread = ntriples/nthreads;
-        uint64_t offset_t = 
-        uint64_t start = offset + (tid * ntriples_per_thread * sizeof(Triple<Weight, Integer_Type>));
-        uint64_t end = offset + (start + triples_range_per_thread);
-        start = (start > endpos) ? (endpos):(start);
-        end = (end > endpos) ? (endpos):(end);
-        end = (tid == nthreads - 1) ? (endpos):(end);
-        */
 
         fin.seekg(start, std::ios_base::beg);
         uint64_t position = fin.tellg();
@@ -455,64 +508,7 @@ void Graph<Weight, Integer_Type, Fractional_Type>::parread_binary() {
         assert(start == end);
         nedges_local_r += nedges_local;
         //printf("Rank=%d tid=%d start=%d end=%d nedges=%d\n", Env::rank, tid, start, end, nedges_local);
-
-        
-        
-
     }        
-    
-    /*
-    uint64_t nedges_local = 0;
-    uint64_t nedges_global = 0;
-    struct Triple<Weight, Integer_Type> triple;
-    while (offset < endpos) {
-        fin.read(reinterpret_cast<char *>(&triple), sizeof(triple));
-        if(fin.gcount() != sizeof(Triple<Weight, Integer_Type>)) {
-            fprintf(stderr, "read() failure\n");
-            Env::exit(1);
-        }
-        nedges_local++;
-        offset += sizeof(Triple<Weight, Integer_Type>);
-        // Remove self-loops
-        if (triple.row == triple.col) {
-            if(not self_loops)
-                continue;
-        }
-        // Remove cycles
-        if(acyclic) {
-            if(triple.col < triple.row)
-                std::swap(triple.row, triple.col);
-        }
-        // Transpose
-        if(transpose)
-            std::swap(triple.row, triple.col);
-        // Insert edge
-        A->insert(triple);
-        // Only for undirected graphs        
-        if(not directed) {
-            std::swap(triple.row, triple.col);
-            A->insert(triple);
-        }
-        if(Env::is_master) {
-            if ((offset & ((1L << 26) - 1L)) == 0) {
-                printf("|");
-                fflush(stdout);
-            }
-        }
-    }
-    fin.close();
-    
-    
-    */
-    //assert(offset == endpos);
-    
-    
-    MPI_Allreduce(&nedges_local_r, &nedges_global_r, 1, MPI_UNSIGNED_LONG, MPI_SUM, Env::MPI_WORLD);
-    assert(nedges == nedges_global_r);
-    //printf("%d %d %d\n", nedges, nedges_local_r, nedges_global_r);
-    
-
-    
     
     int s = 0;
     for(int i = 0; i < Env::nthreads; i++) {
@@ -526,10 +522,23 @@ void Graph<Weight, Integer_Type, Fractional_Type>::parread_binary() {
     //printf("sum=%d\n", s);
     //Env::barrier();
     
+
+    //assert(offset == endpos);
+    
+    
+    MPI_Allreduce(&nedges_local_r, &nedges_global_r, 1, MPI_UNSIGNED_LONG, MPI_SUM, Env::MPI_WORLD);
+    assert(nedges == nedges_global_r);
+    //printf("%d %d %d\n", nedges, nedges_local_r, nedges_global_r);
+    
+
+    
+    
+
+    
     
     Env::barrier();
     if(Env::is_master)
         printf("\n%s: Read %lu edges\n", filepath.c_str(), nedges);
-    
+    */
 }
 #endif
