@@ -942,8 +942,8 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::scatte
         
     if(stationary) {
         scatter_gather_stationary();
-        if(not (tiling_type == _1D_COL_) and ((ordering_type == _ROW_ and (tiling_type != _2D_COL_)) 
-        or (ordering_type == _COL_ and (tiling_type == _2DT_ or tiling_type == _2D_COL_)))) {
+        //if(not (tiling_type == _1D_COL_) and ((ordering_type == _ROW_ and (tiling_type != _2D_COL_)) 
+        //or (ordering_type == _COL_ and (tiling_type == _2DT_ or tiling_type == _2D_COL_)))) {
             if(Env::comm_split) {
                 if(broadcast_communication)
                     bcast_stationary();
@@ -956,11 +956,11 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::scatte
                 scatter_stationary();
                 gather_stationary();
             }
-        }
+        //}
     }
     else {
         scatter_gather_nonstationary();
-        if((ordering_type == _ROW_ and tiling_type != _2D_COL_) or (ordering_type == _COL_ and (tiling_type == _2DT_ or tiling_type == _2D_COL_))) {
+        //if((ordering_type == _ROW_ and tiling_type != _2D_COL_) or (ordering_type == _COL_ and (tiling_type == _2DT_ or tiling_type == _2D_COL_))) {
             if(Env::comm_split) {
                 if(broadcast_communication)
                     bcast_nonstationary();
@@ -973,7 +973,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::scatte
                 scatter_nonstationary();
                 gather_nonstationary();
             }
-        }
+        //}
     }
     #ifdef TIMING
     t2 = Env::clock();
