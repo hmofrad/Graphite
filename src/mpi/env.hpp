@@ -144,6 +144,10 @@ void Env::init_t() {
         MPI_Get_processor_name(core_name, &cpu_name_len);
         core_id = sched_getcpu();
         printf("Rank=%d is running on %s with core id %d\n", Env::rank, core_name, core_id);
+        nthreads = 1;
+        nsockets = 1;
+        nthreads_per_socket = 1;
+        /*
         if(numa_available() != -1) {
         
         //assert( numa_available() != -1 );
@@ -171,16 +175,21 @@ void Env::init_t() {
             
             omp_set_dynamic(0);
             //omp_set_num_threads(nthreads);
+            
+            
+            
             if(is_master)
                 printf("NUMA-aware OpenMP is enabled with %d threads, %d sockets, and %d threads per socket\n", nthreads, nsockets, nthreads_per_socket);
         }
         else {
-            nthreads = omp_get_max_threads();
+            //nthreads = omp_get_max_threads();
+            nthreads = 1;
             nsockets = 1;
             nthreads_per_socket = nthreads / nsockets;
             if(is_master)
                 printf("NUMA-aware OpenMP is disabled with %d threads, %d sockets, and %d threads per socket\n", nthreads, nsockets, nthreads_per_socket);
         }
+        */
         nsegments = nranks * nthreads;
         /*
         if(is_master) {
