@@ -72,9 +72,10 @@ Tiling::Tiling(uint32_t nranks_, uint32_t ntiles_, uint32_t nrowgrps_, uint32_t 
         rank_ncolgrps = ncolgrps / rowgrp_nranks;        
         assert(rank_nrowgrps * rank_ncolgrps == rank_ntiles);
         */
-        
-        rowgrp_nranks = nranks;
-        colgrp_nranks = 1;
+        integer_factorize(nranks, rowgrp_nranks, colgrp_nranks);
+        assert(rowgrp_nranks * colgrp_nranks == nranks);
+        //rowgrp_nranks = nranks;
+        //colgrp_nranks = 1;
         assert(rowgrp_nranks * colgrp_nranks == nranks);
         rank_nrowgrps = nrowgrps / colgrp_nranks;
         rank_ncolgrps = ncolgrps / rowgrp_nranks;        
