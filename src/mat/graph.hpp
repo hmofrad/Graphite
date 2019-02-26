@@ -223,7 +223,7 @@ void Graph<Weight, Integer_Type, Fractional_Type>::load_binary(std::string filep
         // Filter the graph
         A->init_filtering();        
         // Initialize threads
-        A->init_threads();
+        //A->init_threads();
     }
 
     // Compress the graph
