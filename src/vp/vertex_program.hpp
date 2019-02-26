@@ -1637,12 +1637,14 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::combin
                         std::vector<Fractional_Type> &yj_data = Y[yi][accu];
                         Integer_Type yj_nitems = yj_data.size();
                         MPI_Irecv(yj_data.data(), yj_nitems, TYPE_DOUBLE, follower, pair_idx, communicator, &request);
-                        in_requests.push_back(request);
+                        //in_requests.push_back(request);
+                        in_requests_t[tid].push_back(request);
                     }
                 }
                 else {
                     MPI_Isend(y_data.data(), y_nitems, TYPE_DOUBLE, leader, pair_idx, communicator, &request);
-                    out_requests.push_back(request);
+                    //out_requests.push_back(request);
+                    out_requests_t[tid].push_back(request);
                 }
                 xi = 0;
             }
@@ -2653,7 +2655,15 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::combin
 template<typename Weight, typename Integer_Type, typename Fractional_Type, typename Vertex_State>
 void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::combine_postprocess_stationary_for_all()
 {
-    wait_for_recvs();
+    //wait_for_recvs();
+    #pragma omp parallel
+    {
+        int tid = omp_get_thread_num();
+        MPI_Waitall(in_requests_t[tid].size(), in_requests_t[tid].data(), MPI_STATUSES_IGNORE);
+        in_requests_t[tid].clear();
+    }
+    
+    
     for(int32_t k = 0; k < num_owned_segments; k++) {
         uint32_t accu = 0;
         uint32_t yi  = accu_segment_rows[k];
@@ -2671,7 +2681,13 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::combin
                 combiner(y_data[i], yj_data[i]);
         }
     }
-    wait_for_sends();
+    //wait_for_sends();
+    #pragma omp parallel
+    {
+        int tid = omp_get_thread_num();
+        MPI_Waitall(out_requests_t[tid].size(), out_requests_t[tid].data(), MPI_STATUSES_IGNORE);
+        out_requests_t[tid].clear();
+    }
     
     
     
@@ -3324,6 +3340,7 @@ bool Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::has_co
     uint64_t c_sum_local = 0, c_sum_gloabl = 0;
     
     for(int32_t k = 0; k < num_owned_segments; k++) {
+        c_sum_local = 0;
         auto& c_data = Ct[k];
         Integer_Type c_nitems = c_data.size();   
         for(uint32_t i = 0; i < c_nitems; i++)
