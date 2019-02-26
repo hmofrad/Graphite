@@ -711,6 +711,24 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::initia
     #endif
     if(stationary) {
         init_stationary();
+        
+        for(int32_t k = 0; k < num_owned_segments; k++) {
+            uint32_t yi = accu_segment_rows[k];
+            auto &i_data = (*I)[yi];         
+            auto& v_data = Vt[k];
+            auto& c_data = Ct[k];
+            Integer_Type v_nitems = v_data.size();
+            #pragma omp parallel for schedule(static)
+            for(uint32_t i = 0; i < v_nitems; i++)
+            {
+                Vertex_State &state = v_data[i]; 
+                if(i_data[i])
+                    c_data[i] = initializer(get_vid(i, owned_segments[k]), state, (const State&) VProgram.Vt[k][i]);
+            }
+        }
+        
+        
+        /*
         if(tiling_type == _1D_COL_) { 
             auto &i_data = (*II);          
             Integer_Type v_nitems = V.size();
@@ -732,7 +750,8 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::initia
                 if(i_data[i])
                     C[i] = initializer(get_vid(i), state, (const State&) VProgram.V[i]);
             }
-        }            
+        }  
+        */        
     }
     else {
         init_stationary();
@@ -754,15 +773,15 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::init_s
     // Initialize Values
     Vt.resize(num_owned_segments, std::vector<Vertex_State>(tile_width));
     Ct.resize(num_owned_segments, std::vector<char>(tile_width));
-    for(int32_t i = 0; i < num_owned_segments; i++) {
-        auto& v_data = Vt[i];
-        auto& c_data = Ct[i];
+    for(int32_t k = 0; k < num_owned_segments; k++) {
+        auto& v_data = Vt[k];
+        auto& c_data = Ct[k];
         Integer_Type v_nitems = v_data.size();
         #pragma omp parallel for schedule(static)
-        for(uint32_t j = 0; j < v_nitems; j++)
+        for(uint32_t i = 0; i < v_nitems; i++)
         {
-            Vertex_State &state = v_data[j]; 
-            c_data[j] = initializer(get_vid(j, owned_segments[i]), state);
+            Vertex_State &state = v_data[i]; 
+            c_data[i] = initializer(get_vid(i, owned_segments[k]), state);
         }
     }
 
