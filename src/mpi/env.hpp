@@ -20,7 +20,7 @@
 
 
 //#ifdef __linux__
-#include <numa.h>
+//#include <numa.h>
 //#endif 
 //#include </ihome/rmelhem/moh18/numactl/libnuma/usr/local/include/numa.h>
 //#ifdef NUMA_AVAILABLE 
@@ -116,13 +116,15 @@ void Env::init(bool comm_split_) {
         if(is_master)
         {
             printf("Failure to set MPI_THREAD_MULTIPLE by MPI (%d)\n", provided); 
-            printf("Multi-threading is disabled with MPI_THREAD_MULTIPLE (%d/%d)\n", omp_get_num_threads(), omp_get_max_threads());
+            //printf("Multi-threading is disabled with MPI_THREAD_MULTIPLE (%d/%d)\n", omp_get_num_threads(), omp_get_max_threads());
         }
     }
     else
     {
-        if(is_master)
-            printf("Multi-threading is enabled with MPI_THREAD_MULTIPLE (%d/%d)\n", omp_get_num_threads(), omp_get_max_threads());
+        if(is_master) {
+            printf("MPI_THREAD_MULTIPLE is set by MPI (%d)\n", provided);
+            //printf("Multi-threading is enabled with MPI_THREAD_MULTIPLE (%d/%d)\n", omp_get_num_threads(), omp_get_max_threads());
+        }
     }
     
     init_t();
