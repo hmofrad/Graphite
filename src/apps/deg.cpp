@@ -27,7 +27,7 @@ int main(int argc, char** argv) {
     bool self_loops = true;
     bool acyclic = false;
     bool parallel_edges = true;
-    Tiling_type TT = _2DN_;
+    Tiling_type TT = _2DT_;
     Compression_type CT = _TCSC_;
     Graph<wp, ip, ip> G;    
     G.load(file_path, num_vertices, num_vertices, directed, transpose, self_loops, acyclic, parallel_edges, TT, CT);
@@ -35,7 +35,6 @@ int main(int argc, char** argv) {
     bool gather_depends_on_apply = false;
     bool apply_depends_on_iter  = false;
     Ordering_type OT = _ROW_;
-
     /* Degree execution */
     Deg_Program<wp, ip, ip> V(G, stationary, gather_depends_on_apply, apply_depends_on_iter, OT);
     V.execute(num_iterations);
