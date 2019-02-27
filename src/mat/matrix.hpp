@@ -7,7 +7,7 @@
 #ifndef MATRIX_HPP
 #define MATRIX_HPP
 
-#include <omp.h>
+//#include <omp.h>
  
 #include <cmath>
 #include <algorithm>
@@ -3100,9 +3100,11 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::del_triples_t() {
         pair = tile_of_local_tile(t);
         auto& tile = tiles[pair.row][pair.col];
         if(tile.nedges) {
-            #pragma omp parallel 
+            //#pragma omp parallel 
+            for(int32_t i = 0; i < Env::nthreads; i++)
             {
-                int tid = omp_get_thread_num();
+                //int tid = omp_get_thread_num();
+                int tid = i;
                 tile.triples_t[tid]->clear();
                 tile.triples_t[tid]->shrink_to_fit();
                 delete tile.triples_t[tid];
