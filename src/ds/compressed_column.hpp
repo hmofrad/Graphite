@@ -13,7 +13,7 @@
 #include <sys/mman.h>
 #include <cstring> 
 #include <algorithm>
-#include "omp.h"
+//#include "omp.h"
  
 enum Compression_type
 {
