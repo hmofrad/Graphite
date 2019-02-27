@@ -28,7 +28,7 @@ int main(int argc, char** argv) {
     bool self_loops = false;
     bool acyclic = false;
     bool parallel_edges = false;
-    Tiling_type TT = _2D_COL_;
+    Tiling_type TT = _2DT_;
     Compression_type CT = _TCSC_;
     
     /* Single Source Shortest Path (SSSP) execution*/
