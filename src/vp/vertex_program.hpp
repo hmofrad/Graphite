@@ -839,7 +839,8 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State>::init_s
         Y.resize(rank_nrowgrps);
         int32_t k = 0;
         for(uint32_t i = 0; i < rank_nrowgrps; i++) {
-            if(local_row_segments[i] == owned_segments[k]) {
+            if(leader_ranks[local_row_segments[i]] == Env::rank) {    
+            //if(local_row_segments[i] == owned_segments[k]) {
                 Y[i].resize(rowgrp_nranks);
                 for(uint32_t j = 0; j < rowgrp_nranks; j++)
                     Y[i][j].resize(y_sizes[i]);
