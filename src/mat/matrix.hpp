@@ -581,7 +581,7 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_matrix() {
     leader_ranks.resize(nrowgrps, -1);
     leader_ranks_rg.resize(nrowgrps);
     leader_ranks_cg.resize(ncolgrps);
-    std::vector<int32_t> counts(Env::nranks);
+
     
     leader_ranks_row.resize(nrowgrps);
     leader_ranks_col.resize(ncolgrps);
@@ -612,21 +612,47 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_matrix() {
     }
     else {
         */
+    std::vector<int32_t> counts(Env::nranks);
     num_owned_segments = nrowgrps / Env::nranks;
     assert(num_owned_segments == Env::nthreads);
+    //if(!Env::rank) {
     for (uint32_t i = 0; i < nrowgrps; i++) {
-        for (uint32_t j = i; j < ncolgrps; j++) {    
-            if((not (std::find(leader_ranks.begin(), leader_ranks.end(), tiles[j][i].rank)
-                 != leader_ranks.end())) or (counts[tiles[j][i].rank] < num_owned_segments)) {
-                std::swap(tiles[j], tiles[i]);
-                counts[tiles[j][i].rank]++;
-                break;
-            }
+        for (uint32_t j = i; j < ncolgrps; j++) {
+                
+            //if(std::find(leader_ranks.begin(), leader_ranks.end(), tiles[j][i].rank) != leader_ranks.end()) {
+                if(counts[tiles[j][i].rank] < num_owned_segments) {
+                    //printf("%d %d %d %d\n", i, j, tiles[j][i].rank, tiles[j][i].rank);    
+                    counts[tiles[j][i].rank]++;
+                    std::swap(tiles[j], tiles[i]);
+                    
+                    break;
+                }
+            //}
         }
         leader_ranks[i] = tiles[i][i].rank;
         leader_ranks_rg[i] = tiles[i][i].rank_rg;
         leader_ranks_cg[i] = tiles[i][i].rank_cg;
     }
+    //}
+    /*
+    for (uint32_t i = 0; i < nrowgrps; i++) {
+        for (uint32_t j = 0; j < ncolgrps; j++) {
+         if(i == j) {
+                if(leader_ranks[i] == Env::rank) {
+                    //owned_segment = i;
+                    owned_segments.push_back(i);
+                }
+         }                
+        }
+    }
+    
+    printf("%d %lu\n", num_owned_segments, owned_segments.size());
+    //if(num_owned_segments != (int32_t) owned_segments.size())
+    //{
+    Env::barrier();
+    Env::exit(0);
+    //}
+    */
         
     //}
     
