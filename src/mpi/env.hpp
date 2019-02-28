@@ -146,7 +146,8 @@ void Env::init_t() {
         MPI_Get_processor_name(core_name, &cpu_name_len);
         core_id = sched_getcpu();
         printf("Rank=%d is running on %s with core id %d\n", Env::rank, core_name, core_id);
-        nthreads = 1;
+        //nthreads = omp_get_max_threads();
+        nthreads = 7;
         nsockets = 1;
         nthreads_per_socket = 1;
         /*
