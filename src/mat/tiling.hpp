@@ -25,7 +25,7 @@ class Tiling {
     friend class Matrix;
     template<typename Weight__, typename Integer_Type__, typename Fractional_Type__>
     friend class Graph;
-    template<typename Weight___, typename Integer_Type___, typename Fractional_Type___, typename Vertex_State>
+    template<typename Weight___, typename Integer_Type___, typename Fractional_Type___, typename Vertex_State, typename Vertex_Methods_Impl>
     friend class Vertex_Program;
     
     public:    
