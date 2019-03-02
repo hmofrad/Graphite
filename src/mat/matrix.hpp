@@ -7,8 +7,6 @@
 #ifndef MATRIX_HPP
 #define MATRIX_HPP
 
-//#include <omp.h>
- 
 #include <cmath>
 #include <algorithm>
 #include <vector>
@@ -65,7 +63,7 @@ template<typename Weight, typename Integer_Type, typename Fractional_Type>
 class Matrix {
     template<typename Weight_, typename Integer_Type_, typename Fractional_Type_>
     friend class Graph;
-    template<typename Weight__, typename Integer_Type__, typename Fractional_Type__, typename Vertex_state>
+    template<typename Weight__, typename Integer_Type__, typename Fractional_Type__, typename Vertex_State, typename Vertex_Methods_Impl>
     friend class Vertex_Program;
     
     public:    
@@ -581,7 +579,7 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_matrix() {
     leader_ranks.resize(nrowgrps, -1);
     leader_ranks_rg.resize(nrowgrps);
     leader_ranks_cg.resize(ncolgrps);
-
+    std::vector<int32_t> counts(Env::nranks);
     
     leader_ranks_row.resize(nrowgrps);
     leader_ranks_col.resize(ncolgrps);
@@ -612,47 +610,23 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_matrix() {
     }
     else {
         */
-    std::vector<int32_t> counts(Env::nranks);
     num_owned_segments = nrowgrps / Env::nranks;
     assert(num_owned_segments == Env::nthreads);
-    //if(!Env::rank) {
     for (uint32_t i = 0; i < nrowgrps; i++) {
-        for (uint32_t j = i; j < ncolgrps; j++) {
+        for (uint32_t j = i; j < ncolgrps; j++) { 
+            if(counts[tiles[j][i].rank] < num_owned_segments) {        
+            //if((not (std::find(leader_ranks.begin(), leader_ranks.end(), tiles[j][i].rank)
+              //   != leader_ranks.end())) or (counts[tiles[j][i].rank] < num_owned_segments)) {
+                  counts[tiles[j][i].rank]++;
+                std::swap(tiles[j], tiles[i]);
                 
-            //if(std::find(leader_ranks.begin(), leader_ranks.end(), tiles[j][i].rank) != leader_ranks.end()) {
-                if(counts[tiles[j][i].rank] < num_owned_segments) {
-                    //printf("%d %d %d %d\n", i, j, tiles[j][i].rank, tiles[j][i].rank);    
-                    counts[tiles[j][i].rank]++;
-                    std::swap(tiles[j], tiles[i]);
-                    
-                    break;
-                }
-            //}
+                break;
+            }
         }
         leader_ranks[i] = tiles[i][i].rank;
         leader_ranks_rg[i] = tiles[i][i].rank_rg;
         leader_ranks_cg[i] = tiles[i][i].rank_cg;
     }
-    //}
-    /*
-    for (uint32_t i = 0; i < nrowgrps; i++) {
-        for (uint32_t j = 0; j < ncolgrps; j++) {
-         if(i == j) {
-                if(leader_ranks[i] == Env::rank) {
-                    //owned_segment = i;
-                    owned_segments.push_back(i);
-                }
-         }                
-        }
-    }
-    
-    printf("%d %lu\n", num_owned_segments, owned_segments.size());
-    //if(num_owned_segments != (int32_t) owned_segments.size())
-    //{
-    Env::barrier();
-    Env::exit(0);
-    //}
-    */
         
     //}
     
@@ -730,6 +704,7 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_matrix() {
     
 
     assert(num_owned_segments == (int32_t) owned_segments.size());
+    //printf("1. %d %d %d\n", Env::rank, owned_segments.size(), num_owned_segments);
     
     for (uint32_t j = 0; j < ncolgrps; j++) {
         for (uint32_t i = 0; i < nrowgrps; i++) {
@@ -1459,11 +1434,6 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_filtering() {
         
 
 
-        
-        
-        //Env::barrier();
-        //Env::exit(0);
-        
         if(Env::is_master)
             printf("Vertex filtering: Filtering nonzero columns\n");
         J.resize(tiling->rank_ncolgrps);
@@ -2442,10 +2412,12 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::filter_vertices(Filtering_ty
     in_requests.clear();
     out_requests.clear();
     
+
+    
     nnz_sizes_all.resize(Env::nsegments);    
     std::vector<Integer_Type> nnz_sizes_loc_val_temp;
     std::vector<Integer_Type> nnz_sizes_loc_pos_temp;
-    
+    //printf("Env::nsegments=%d, %d %d\n", Env::nsegments, num_owned_segments, accu_segment_rows_.size());
     for(int32_t k = 0; k < num_owned_segments; k++) {
         fi = accu_segment_rows_[k];
         fo = accu_segment_rg_;
@@ -2456,11 +2428,14 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::filter_vertices(Filtering_ty
             accu = follower_rowgrp_ranks_accu_seg_[j];
             auto &fj_data = F[fi][accu];
             Integer_Type fj_nitems = tile_length;                  
+            
             for(uint32_t i = 0; i < fj_nitems; i++) {
                 if(fj_data[i] and !f_data[i])
                     f_data[i] = 1;
             }
+            
         }  
+        
         Integer_Type nnz_local = 0;
         for(uint32_t i = 0; i < f_nitems; i++) {
             if(f_data[i])
@@ -2471,11 +2446,11 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::filter_vertices(Filtering_ty
         nnz_sizes_loc_val_temp.push_back(nnz_local);
         nnz_sizes_loc_pos_temp.push_back(owned_segments[k]);
         
+        
     }
     //Env::barrier();
     //Env::exit(0); 
     
-
     
     std::vector<Integer_Type> nnz_sizes_all_val_temp(Env::nsegments);
     std::vector<Integer_Type> nnz_sizes_all_pos_temp(Env::nsegments);
