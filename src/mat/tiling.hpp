@@ -1,6 +1,6 @@
 /*
  * tiling.hpp: Tiling implementation
- * (c) Mohammad Mofrad, 2018
+ * (c) Mohammad Mofrad, 2019
  * (e) m.hasanzadeh.mofrad@gmail.com 
  */
 
@@ -11,13 +11,7 @@
 #include <cmath>
  
 enum Tiling_type {
-    _1D_COL_,
-    _1D_ROW_,
-    _2D_COL_,
-    _2D_ROW_,
-    _2DN_,
-    _2D_,
-    _2DT_
+    _2D_
 };
 
 class Tiling {    
@@ -57,58 +51,10 @@ Tiling::Tiling(uint32_t nranks_, uint32_t ntiles_, uint32_t nrowgrps_, uint32_t 
         rank_ncolgrps = ncolgrps / rowgrp_nranks;        
         assert(rank_nrowgrps * rank_ncolgrps == rank_ntiles);
     }
-    else if (tiling_type == Tiling_type::_2DT_) {
-        integer_factorize(nranks, rowgrp_nranks, colgrp_nranks);
-        assert(rowgrp_nranks * colgrp_nranks == nranks);
-        rank_nrowgrps = nrowgrps / colgrp_nranks;
-        rank_ncolgrps = ncolgrps / rowgrp_nranks;        
-        assert(rank_nrowgrps * rank_ncolgrps == rank_ntiles);
+    else {
+        fprintf(stderr, "ERROR(rank=%d): Invalid tiling type\n", Env::rank);
+        Env::exit(1);
     }
-    else if (tiling_type == Tiling_type::_2DN_) {
-        /*
-        integer_factorize(nranks, rowgrp_nranks, colgrp_nranks);
-        assert(rowgrp_nranks * colgrp_nranks == nranks);
-        rank_nrowgrps = nrowgrps / colgrp_nranks;
-        rank_ncolgrps = ncolgrps / rowgrp_nranks;        
-        assert(rank_nrowgrps * rank_ncolgrps == rank_ntiles);
-        */
-        integer_factorize(nranks, rowgrp_nranks, colgrp_nranks);
-        assert(rowgrp_nranks * colgrp_nranks == nranks);
-        //rowgrp_nranks = nranks;
-        //colgrp_nranks = 1;
-        assert(rowgrp_nranks * colgrp_nranks == nranks);
-        rank_nrowgrps = nrowgrps / colgrp_nranks;
-        rank_ncolgrps = ncolgrps / rowgrp_nranks;        
-        assert(rank_nrowgrps * rank_ncolgrps == rank_ntiles);
-    }
-    else if (tiling_type == Tiling_type::_2D_COL_) {
-        rowgrp_nranks = nranks;
-        colgrp_nranks = 1;
-        rank_nrowgrps = nranks;
-        rank_ncolgrps = 1;
-    }
-    else if (tiling_type == Tiling_type::_2D_ROW_) {
-        rowgrp_nranks = 1;
-        colgrp_nranks = nranks;
-        rank_nrowgrps = 1;
-        rank_ncolgrps = nranks;
-    }
-    else if (tiling_type == Tiling_type::_1D_COL_) {
-        rowgrp_nranks = nranks;
-        colgrp_nranks = 1;
-        rank_nrowgrps = nranks;
-        rank_ncolgrps = 1;
-    }
-    else if (tiling_type == Tiling_type::_1D_ROW_) {
-        rowgrp_nranks = 1;
-        colgrp_nranks = nranks;
-        rank_nrowgrps = 1;
-        rank_ncolgrps = nranks;
-    }
-    
-if(!Env::rank)
-    printf("rowgrp_nranks=%d colgrp_nranks=%d rank_nrowgrps=%d rank_ncolgrps=%d\n", rowgrp_nranks, colgrp_nranks, rank_nrowgrps, rank_ncolgrps);
-
 };
 
 Tiling::~Tiling() {};
