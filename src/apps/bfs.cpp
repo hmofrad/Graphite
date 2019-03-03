@@ -1,6 +1,6 @@
 /*
  * bfs.cpp: Breadth First Search (BFS) benchmark main
- * (c) Mohammad Mofrad, 2018
+ * (c) Mohammad Mofrad, 2019
  * (e) m.hasanzadeh.mofrad@gmail.com 
  */
 
@@ -28,8 +28,7 @@ int main(int argc, char** argv) {
     bool self_loops = false;
     bool acyclic = false;
     bool parallel_edges = false;
-    Tiling_type TT = _2DT_;
-    // Only CSC is supported for nonstationary algorithms
+    Tiling_type TT = _2D_;
     Compression_type CT = _TCSC_; 
     
     /* Breadth First Search (BFS) execution */
@@ -43,7 +42,8 @@ int main(int argc, char** argv) {
     bool apply_depends_on_iter  = true;
     Ordering_type OT = _ROW_;
     BFS_Program<wp, ip, fp> V(G, stationary, gather_depends_on_apply, apply_depends_on_iter, OT);   
-    V.root = root;
+    //V.root = root;
+    V.set_root(root);
     V.execute();
     V.checksum();
     V.display();
