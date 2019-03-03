@@ -1,6 +1,6 @@
 /* 
  * bfs.h: Breadth First Search (BFS) benchmark helper
- * (c) Mohammad Mofrad, 2018
+ * (c) Mohammad Mofrad, 2019
  * (e) m.hasanzadeh.mofrad@gmail.com 
  */
 
@@ -30,6 +30,71 @@ struct BFS_State {
                                                    : ("Parent=" + std::to_string(parent) + ",Hops=" + std::to_string(hops)));};
 };
 
+
+class BFS_Methods_Impl {
+  public:
+    ip root = 0;
+    inline void set_root(ip root_) { 
+        root = root_; 
+    };
+    inline bool initializer(ip vid, BFS_State& state) {
+        if(vid == root) {
+                state.vid = vid;
+                state.parent = vid;
+                state.hops = 0;
+                return(true);
+        }
+        else {
+            state.vid = vid;
+            state.hops = INF;
+            return(false);
+        }
+    }
+    inline bool initializer(ip vid, BFS_State& state, const State& other) {
+        return(true);
+    }
+    inline fp messenger(BFS_State& state) {
+        return(state.vid);
+    }
+    inline void combiner(fp& y1, const fp& y2, const fp& w) {
+        fp tmp = y2 + w;
+        y1 = (y1 < tmp) ? y1 : tmp;
+    }
+    inline void combiner(fp& y1, const fp& y2) {
+        y1 = (y1 < y2) ? y1 : y2;
+    }
+    inline bool applicator(BFS_State& state) {
+        return(false);
+    }   
+    inline bool applicator(BFS_State& state, const fp& y) {
+        return(false);
+    }  
+    inline bool applicator(BFS_State& state, const fp& y, const ip iteration) {
+        if(state.hops != INF)
+            return(false); // already visited
+        else {
+            if(y != INF) {
+                state.hops = iteration + 1;
+                state.parent = y;
+                return(true);
+            }
+            else
+                return(false);
+        }
+    }
+    inline fp infinity() {
+        return(INF);
+    }
+};
+
+template<typename Weight, typename Integer_Type, typename Fractional_Type>
+class BFS_Program : public Vertex_Program<Weight, Integer_Type, Fractional_Type, BFS_State, BFS_Methods_Impl> {
+    public:  
+        Integer_Type root = 0;
+        using Vertex_Program<Weight, Integer_Type, Fractional_Type, BFS_State, BFS_Methods_Impl>::Vertex_Program;
+};
+
+/*
 template<typename Weight, typename Integer_Type, typename Fractional_Type>
 class BFS_Program : public Vertex_Program<Weight, Integer_Type, Fractional_Type, BFS_State> {
     public:  
@@ -80,4 +145,5 @@ class BFS_Program : public Vertex_Program<Weight, Integer_Type, Fractional_Type,
             return(INF);
         }        
 };
+*/
 #endif
