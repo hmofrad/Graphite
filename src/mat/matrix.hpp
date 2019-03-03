@@ -142,6 +142,7 @@ class Matrix {
         std::vector<int32_t> owned_segments, accu_segments, accu_segment_rows, accu_segment_cols;
         std::vector<int32_t> owned_segments_row, owned_segments_col;
         int32_t num_owned_segments;
+        std::vector<int32_t> owned_segments_all;
         std::vector<Integer_Type> nnz_row_sizes_all;
         std::vector<Integer_Type> nnz_col_sizes_all;
         std::vector<Integer_Type> nnz_row_sizes_loc;
@@ -343,6 +344,21 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_matrix() {
         }
     }
     assert(num_owned_segments == (int32_t) owned_segments.size());
+    
+    std::fill(counts.begin(), counts.end(), 0);
+    owned_segments_all.resize(Env::nsegments);
+    for (uint32_t i = 0; i < nrowgrps; i++) {
+        for (uint32_t j = 0; j < ncolgrps; j++) {
+            if(i == j) {
+                auto& tile = tiles[i][j];
+                int32_t r = tile.rank;
+                int32_t k = counts[r] + (r * num_owned_segments);
+                owned_segments_all[k] = i;
+                counts[r]++;
+            }
+        }
+    }
+    
 
     //Calculate local tiles in column order
     for (uint32_t j = 0; j < ncolgrps; j++) {
