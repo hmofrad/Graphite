@@ -1,6 +1,6 @@
 /*
  * sssp.cpp: Single Source Shortest Path (SSSP) benchmark main
- * (c) Mohammad Mofrad, 2018
+ * (c) Mohammad Mofrad, 2019
  * (e) m.hasanzadeh.mofrad@gmail.com 
  */
 
@@ -22,13 +22,15 @@ int main(int argc, char** argv) {
     }
     std::string file_path = argv[1]; 
     ip num_vertices = std::atoi(argv[2]);
+    ip num_iterations = 0;
     ip root = (argc > 3) ? std::atoi(argv[3]) : 0;
+    
     bool directed = true;
     bool transpose = false;
     bool self_loops = false;
     bool acyclic = false;
     bool parallel_edges = false;
-    Tiling_type TT = _2DT_;
+    Tiling_type TT = _2D_;
     Compression_type CT = _TCSC_;
     
     /* Single Source Shortest Path (SSSP) execution*/
@@ -42,8 +44,9 @@ int main(int argc, char** argv) {
     bool apply_depends_on_iter  = false;
     Ordering_type OT = _ROW_;
     SSSP_Program<wp, ip, fp> V(G, stationary, gather_depends_on_apply, apply_depends_on_iter, OT);   
-    V.root = root;
-    V.execute();
+    //V.root = root;
+    V.set_root(root);
+    V.execute(num_iterations);
     //V.execute(std::atoi(argv[4]));
     V.checksum();
     V.display();
