@@ -1,6 +1,6 @@
 /*
  * deg.cpp: Degree benchmark main
- * (c) Mohammad Mofrad, 2018
+ * (c) Mohammad Mofrad, 2019
  * (e) m.hasanzadeh.mofrad@gmail.com 
  */
 
@@ -27,16 +27,17 @@ int main(int argc, char** argv) {
     bool self_loops = true;
     bool acyclic = false;
     bool parallel_edges = true;
-    Tiling_type TT = _2DT_;
+    Tiling_type TT = _2D_;
     Compression_type CT = _TCSC_;
-    Graph<wp, ip, ip> G;    
+    Graph<wp, ip, fp> G;    
     G.load(file_path, num_vertices, num_vertices, directed, transpose, self_loops, acyclic, parallel_edges, TT, CT);
     bool stationary = true;
     bool gather_depends_on_apply = false;
     bool apply_depends_on_iter  = false;
     Ordering_type OT = _ROW_;
+    
     /* Degree execution */
-    Deg_Program<wp, ip, ip> V(G, stationary, gather_depends_on_apply, apply_depends_on_iter, OT);
+    Deg_Program<wp, ip, fp> V(G, stationary, gather_depends_on_apply, apply_depends_on_iter, OT);
     V.execute(num_iterations);
     V.checksum();
     V.display();
