@@ -28,7 +28,7 @@ class Graph {
         
         void load(std::string filepath_, Integer_Type nrows_, Integer_Type ncols_,
             bool directed_ = true, bool transpose_ = false, bool self_loops_ = true, bool acyclic_ = false,
-            bool parallel_edges_ = true, Tiling_type tiling_type_ = _2DT_, Compression_type compression_type_ = _CSC_);
+            bool parallel_edges_ = true, Tiling_type tiling_type_ = _2D_, Compression_type compression_type_ = _TCSC_);
         void load_binary(std::string filepath_, Integer_Type nrows_, Integer_Type ncols_,
             bool directed_, bool transpose_, bool self_loops_, bool acyclic_, bool parallel_edges_, Tiling_type tiling_type_, 
             Compression_type compression_type_);
@@ -82,8 +82,8 @@ void Graph<Weight, Integer_Type, Fractional_Type>::init_graph(std::string filepa
     self_loops = self_loops_;
     acyclic = acyclic_;
     parallel_edges = parallel_edges_;
-    uint32_t ntiles_ = (Env::nranks * Env::nthreads) * (Env::nranks * Env::nthreads);
-    while(nrows % (Env::nranks * Env::nthreads))
+    uint32_t ntiles_ = Env::nsegments * Env::nsegments;
+    while(nrows % Env::nsegments)
         nrows++;
     ncols = nrows;
     // Initialize matrix
@@ -129,7 +129,7 @@ void Graph<Weight, Integer_Type, Fractional_Type>::load(std::string filepath_,
                     acyclic_, parallel_edges_, tiling_type_, compression_type_);
     }
     else {
-        fprintf(stderr, "Undefined file type %s\n", token);
+        fprintf(stderr, "ERROR(rank=%d): Undefined file type %s\n", Env::rank, token);
         Env::exit(1);
     }
     t2 = Env::clock();
@@ -164,7 +164,7 @@ void Graph<Weight, Integer_Type, Fractional_Type>::load_binary(std::string filep
                tiling_type_, compression_type_);
     // Read graph
     if(Env::is_master)
-        printf("%s: Distributed read using %d ranks\n", filepath_.c_str(), Env::nranks);
+        printf("INFO(rank=%d): %s: Distributed read using %d ranks\n", Env::rank, filepath_.c_str(), Env::nranks);
     parread_binary();
     A->init_tiles();       // Initialize tiles
     A->init_filtering();   // Filter the graph
@@ -178,7 +178,7 @@ void Graph<Weight, Integer_Type, Fractional_Type>::parread_text() {
     // Open graph file.
     std::ifstream fin(filepath.c_str());
     if(!fin.is_open()) {
-        fprintf(stderr, "Unable to open input file\n");
+        fprintf(stderr, "ERROR(rank=%d): Unable to open input file\n", Env::rank);
         Env::exit(1);
     }
     // Obtain filesize
@@ -234,7 +234,7 @@ void Graph<Weight, Integer_Type, Fractional_Type>::parread_text() {
         if((std::count(line.cbegin(), line.cend(), ' ') + 1) != 2)
         #endif
         {
-            fprintf(stderr, "read() failure \"%s\"\n", line.c_str());
+            fprintf(stderr, "ERROR(rank=%d): read() failure \"%s\"\n", Env::rank, line.c_str());
             Env::exit(1);
         }
         nedges_local++;
@@ -282,7 +282,7 @@ void Graph<Weight, Integer_Type, Fractional_Type>::parread_text() {
     assert(nedges == nedges_global);
     MPI_Barrier(MPI_COMM_WORLD);
     if(Env::is_master)
-        printf("\n%s: Read %lu edges\n", filepath.c_str(), nedges);
+        printf("\nINFO(rank=%d): %s: Read %lu edges\n", Env::rank, filepath.c_str(), nedges);
 }
 
 // Supports OpenMP
@@ -297,7 +297,7 @@ void Graph<Weight, Integer_Type, Fractional_Type>::parread_binary() {
         // Open graph file.
         std::ifstream fin(filepath.c_str(), std::ios_base::binary);
         if(!fin.is_open()) {
-            fprintf(stderr, "Unable to open input file\n");
+            fprintf(stderr, "ERROR(rank=%d): Unable to open input file\n", Env::rank);
             Env::exit(1); 
         }
         // Obtain filesize
@@ -329,7 +329,7 @@ void Graph<Weight, Integer_Type, Fractional_Type>::parread_binary() {
         while (start < end) {
             fin.read(reinterpret_cast<char *>(&triple), sizeof(triple));
             if(fin.gcount() != sizeof(Triple<Weight, Integer_Type>)) {
-                fprintf(stderr, "read() failure");
+                fprintf(stderr, "ERROR(rank=%d): read() failure", Env::rank);
                 Env::exit(1);
             }
             nedges_local++;
@@ -377,9 +377,9 @@ void Graph<Weight, Integer_Type, Fractional_Type>::parread_binary() {
     MPI_Allreduce(&nedges_local_r, &nedges_global, 1, MPI_UNSIGNED_LONG, MPI_SUM, Env::MPI_WORLD);
     assert(nedges == nedges_global);
     
-    Env::barrier();
+    MPI_Barrier(MPI_COMM_WORLD);
     if(Env::is_master)
-        printf("\n%s: Read %lu edges\n", filepath.c_str(), nedges);
+        printf("\nINFO(rank=%d): %s: Read %lu edges\n", Env::rank, filepath.c_str(), nedges);
     
 }
 #endif
