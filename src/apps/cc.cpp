@@ -1,6 +1,6 @@
 /*
  * cc.cpp: Connected Component (CC) benchmark main
- * (c) Mohammad Mofrad, 2018
+ * (c) Mohammad Mofrad, 2019
  * (e) m.hasanzadeh.mofrad@gmail.com 
  */
 
@@ -27,8 +27,7 @@ int main(int argc, char** argv) {
     bool self_loops = true;
     bool acyclic = false;
     bool parallel_edges = false;
-    Tiling_type TT = _2DT_;
-    // Only CSC is supported for nonstationary algorithms
+    Tiling_type TT = _2D_;
     Compression_type CT = _TCSC_;
 
     /* Connected component execution */
