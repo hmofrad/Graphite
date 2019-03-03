@@ -105,10 +105,14 @@ void Env::init(bool comm_split_) {
     assert(rank >= 0);
     is_master = rank == 0;
     MPI_WORLD = MPI_COMM_WORLD;
+    
+    init_threads();
+    
     if(required != provided) {
         printf("WARN(rank=%d): Failure to enable MPI_THREAD_MULTIPLE(%d) for multithreading\n", rank, provided); 
+        nthreads = 1;
     }
-    init_threads();
+    printf("INFO(rank=%d): Hostname=%s, core_id=%d, nthreads=%d\n", rank, core_name, core_id, nthreads);
 }
 
 void Env::init_threads() {
@@ -131,7 +135,6 @@ void Env::init_threads() {
         nsegments = nranks * nthreads;
         printf("WARN(rank=%d): Failure to enable NUMA-aware memory allocation\n", rank);
     }
-    printf("INFO(rank=%d): Hostname=%s, core_id=%d, nthreads=%d\n", rank, core_name, core_id, nthreads);
 }
 
 bool Env::get_comm_split() {
