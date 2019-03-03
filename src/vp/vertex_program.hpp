@@ -1842,7 +1842,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
     
     count = (v_nitems < count) ? v_nitems : count;
     Env::barrier();
-    if(!Env::rank)
+    if(Env::is_master)
     {
         Triple<Weight, Integer_Type> pair, pair1;
         //if(stationary) {
