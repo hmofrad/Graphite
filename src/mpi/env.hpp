@@ -15,7 +15,7 @@
 #include <set>
 #include <cstring>
 #include <numeric>
-#include <algorithm>
+//#include <algorithm>
 
 #include <mpi.h>
 #include <omp.h>
@@ -106,7 +106,7 @@ void Env::init(bool comm_split_) {
     is_master = rank == 0;
     MPI_WORLD = MPI_COMM_WORLD;
     if(required != provided) {
-        printf("Warning[Rank=%d]: Failure to enable MPI_THREAD_MULTIPLE(%d) for multithreading.\n", rank, provided); 
+        printf("WARN(rank=%d): Failure to enable MPI_THREAD_MULTIPLE(%d) for multithreading\n", rank, provided); 
     }
     init_threads();
 }
@@ -121,13 +121,17 @@ void Env::init_threads() {
         nsockets = (nsockets) ? nsockets : 1;
         nthreads_per_socket = numa_num_configured_cpus() / nsockets;
         nthreads_per_socket = (nthreads_per_socket) ? nthreads_per_socket : 1;
+        nsegments = nranks * nthreads;
+        if(is_master)
+            printf("INFO(rank=%d): nsockets = %d, and nthreads per socket= %d\n", rank, nsockets, nthreads_per_socket);
     }
     else {
         nsockets = 1;
         nthreads_per_socket = nthreads / nsockets;
-        printf("Warning[Rank=%d]: Failure to enable NUMA-aware memory allocation.\n", rank);
+        nsegments = nranks * nthreads;
+        printf("WARN(rank=%d): Failure to enable NUMA-aware memory allocation\n", rank);
     }
-    nsegments = nranks * nthreads;
+    printf("INFO(rank=%d): Hostname=%s, core_id=%d, nthreads=%d\n", rank, core_name, core_id, nthreads);
 }
 
 bool Env::get_comm_split() {
@@ -167,12 +171,12 @@ double Env::clock() {
 
 void Env::print_time(std::string preamble, double time) {
     if(is_master)
-        printf("%s time: %f seconds\n", preamble.c_str(), time);
+        printf("INFO(rank=%d): %s time: %f seconds\n", Env::rank, preamble.c_str(), time);
 }
 
 void Env::print_num(std::string preamble, uint32_t num) {
     if(is_master)
-        printf("%s %d\n", preamble.c_str(), num);
+        printf("INFO(rank=%d): %s %d\n", Env::rank, preamble.c_str(), num);
 }
 
 void Env::finalize() {
