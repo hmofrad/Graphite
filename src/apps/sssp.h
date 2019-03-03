@@ -1,6 +1,6 @@
 /* 
  * bfs.h: Breadth First Search (BFS) benchmark helper
- * (c) Mohammad Mofrad, 2018
+ * (c) Mohammad Mofrad, 2019
  * (e) m.hasanzadeh.mofrad@gmail.com 
  */
 
@@ -26,6 +26,71 @@ struct SSSP_State {
     std::string print_state(){return((distance == INF) ? ("Distance=INF") : ("Distance=" + std::to_string(distance)));};
 };
 
+class SSSP_Methods_Impl {
+  public:
+    ip root = 0;
+    inline void set_root(ip root_) { 
+        root = root_; 
+    };
+    inline bool initializer(ip vid, SSSP_State& state) {
+        if(vid == root) {
+            state.distance = 0;
+            return(true);
+        }
+        else {
+            state.distance = INF;
+            return(false);
+        }
+    }
+    inline bool initializer(ip vid, SSSP_State& state, const State& other) {
+        return(true);
+    }
+    inline fp messenger(SSSP_State& state) {
+        return(state.distance);
+    }
+    inline void combiner(fp& y1, const fp& y2, const fp& w) {
+        fp tmp = y2 + w;
+        y1 = (y1 < tmp) ? y1 : tmp;
+    }
+    inline void combiner(fp& y1, const fp& y2) {
+        y1 = (y1 < y2) ? y1 : y2;
+    }
+    inline bool applicator(SSSP_State& state) {
+        return(false);
+    }   
+    inline bool applicator(SSSP_State& state, const fp& y) {
+        fp tmp = state.distance;
+        #ifdef HAS_WEIGHT
+        state.distance = (y < state.distance) ? y : state.distance;
+        #else
+        state.distance = (y < state.distance) ? y + 1 : state.distance;
+        #endif
+        return(tmp != state.distance);
+    }  
+    inline bool applicator(SSSP_State& state, const fp& y, const ip iteration) {
+        return(false); 
+    }
+    inline fp infinity() {
+        return(INF);
+    }
+};
+
+
+
+template<typename Weight, typename Integer_Type, typename Fractional_Type>
+class SSSP_Program : public Vertex_Program<Weight, Integer_Type, Fractional_Type, SSSP_State, SSSP_Methods_Impl> {
+    public: 
+        using Vertex_Program<Weight, Integer_Type, Fractional_Type, SSSP_State, SSSP_Methods_Impl>::Vertex_Program;        
+        //SSSP_Methods_Impl.root = root;
+        
+        
+        //void set_root(Integer_Type root) { 
+        //    SSSP_Methods_Impl::set_root(root);
+        //};
+        
+};
+
+/*
 template<typename Weight, typename Integer_Type, typename Fractional_Type>
 class SSSP_Program : public Vertex_Program<Weight, Integer_Type, Fractional_Type, SSSP_State> {
     public:  
@@ -69,4 +134,5 @@ class SSSP_Program : public Vertex_Program<Weight, Integer_Type, Fractional_Type
             return(INF);
         }
 };
+*/
 #endif
