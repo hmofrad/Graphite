@@ -980,7 +980,10 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
 
 template<typename Weight, typename Integer_Type, typename Fractional_Type, typename Vertex_State, typename Vertex_Methods_Impl>
 void   Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_Methods_Impl>::thread_function_stationary(int tid) {
-    
+    #ifdef TIMING
+    double t1, t2, elapsed_time;
+    t1 = Env::clock();
+    #endif
     //if(!Env::rank and tid == 10)
       //  printf("%d/%d\n", tid, sched_getcpu());
     MPI_Request request;
@@ -1092,12 +1095,24 @@ void   Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Verte
     MPI_Waitall(out_requests_t[tid].size(), out_requests_t[tid].data(), MPI_STATUSES_IGNORE);
     out_requests_t[tid].clear();
     
+    #ifdef TIMING    
+    t2 = Env::clock();
+    elapsed_time = t2 - t1;
+    if(Env::is_master and tid == 0) {
+        Env::print_time("Combine", elapsed_time);
+        combine_time.push_back(elapsed_time);
+    }
+
+    t1 = Env::clock();
+    #endif
+    
     
     //for(int32_t k = 0; k < num_owned_segments; k++) {
         //uint32_t accu = 0;
         yi  = accu_segment_rows[tid];
         yo = accu_segment_rg;
-        std::vector<Fractional_Type>& y_data = Y[yi][yo];
+        //std::vector<Fractional_Type>& 
+        y_data = Y[yi][yo];
         auto& i_data = (*I)[yi];
         auto& iv_data = (*IV)[yi];
         auto& v_data = Vt[tid];
@@ -1120,13 +1135,22 @@ void   Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Verte
     int32_t start = tid * (rank_nrowgrps / Env::nthreads);
     int32_t end = start + (rank_nrowgrps / Env::nthreads);
     end = (tid != Env::nthreads - 1) ? end : rank_nrowgrps;
-    for(uint32_t i = start; i < end; i++) {
+    for(int32_t i = start; i < end; i++) {
         for(uint32_t j = 0; j < Y[i].size(); j++) {
             std::vector<Fractional_Type> &y_data = Y[i][j];
             Integer_Type y_nitems = y_data.size();
             std::fill(y_data.begin(), y_data.end(), 0);
         }
     }
+    
+    #ifdef TIMING
+    t2 = Env::clock();
+    elapsed_time = t2 - t1;
+    if(Env::is_master and tid == 0) {
+        Env::print_time("Apply", elapsed_time);
+        apply_time.push_back(elapsed_time);
+    }
+    #endif
     
 }
 
@@ -1147,7 +1171,10 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
 
 template<typename Weight, typename Integer_Type, typename Fractional_Type, typename Vertex_State, typename Vertex_Methods_Impl>
 void   Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_Methods_Impl>::thread_function_nonstationary(int tid) {
-
+    #ifdef TIMING
+    double t1, t2, elapsed_time;
+    t1 = Env::clock();
+    #endif
     MPI_Request request;
     uint32_t tile_th, pair_idx;
     int32_t leader, follower, my_rank, accu;
@@ -1350,7 +1377,17 @@ void   Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Verte
     int32_t end = start + (rank_ncolgrps / Env::nthreads);
     end = (tid != Env::nthreads - 1) ? end : rank_ncolgrps;
     std::fill(msgs_activity_statuses.begin() + start, msgs_activity_statuses.begin() + end, 0);
-    
+
+    #ifdef TIMING    
+    t2 = Env::clock();
+    elapsed_time = t2 - t1;
+    if(Env::is_master and tid == 0) {
+        Env::print_time("Combine", elapsed_time);
+        combine_time.push_back(elapsed_time);
+    }
+
+    t1 = Env::clock();
+    #endif    
     
     if(apply_depends_on_iter)
     {
@@ -1465,7 +1502,14 @@ void   Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Verte
             std::fill(t_data.begin(), t_data.end(), 0);
         }
     }
-    
+    #ifdef TIMING
+    t2 = Env::clock();
+    elapsed_time = t2 - t1;
+    if(Env::is_master and tid == 0) {
+        Env::print_time("Apply", elapsed_time);
+        apply_time.push_back(elapsed_time);
+    }
+    #endif
     
 }
 
@@ -2025,14 +2069,14 @@ template<typename Weight, typename Integer_Type, typename Fractional_Type, typen
 void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_Methods_Impl>::times() {
     if(Env::is_master) {
         double sum = 0.0, mean = 0.0, std_dev = 0.0;
-        std::cout << "INFO(rank=" << Env::rank << "): " << "Init    time: " << init_time[0] * 1e3 << " ms" << std::endl;
+        std::cout << "INFO(rank=" << Env::rank << "): " << "Init    time: " << init_time[0] << " seconds" << std::endl;
         stats(bcast_time, sum, mean, std_dev);
-        std::cout << "INFO(rank=" << Env::rank << "): " << "Bcast   time (sum: avg +/- std_dev): " << sum * 1e3 << ": " << mean * 1e3  << " +/- " << std_dev * 1e3 << " ms" << std::endl;
+        std::cout << "INFO(rank=" << Env::rank << "): " << "Bcast   time (sum: avg +/- std_dev): " << sum << ": " << mean  << " +/- " << std_dev << " seconds" << std::endl;
         stats(combine_time, sum, mean, std_dev);
-        std::cout << "INFO(rank=" << Env::rank << "): " << "Combine time (sum: avg +/- std_dev): " << sum * 1e3 << ": " << mean * 1e3  << " +/- " << std_dev * 1e3 << " ms" << std::endl;
+        std::cout << "INFO(rank=" << Env::rank << "): " << "Combine time (sum: avg +/- std_dev): " << sum << ": " << mean  << " +/- " << std_dev << " seconds" << std::endl;
         stats(apply_time, sum, mean, std_dev);
-        std::cout << "INFO(rank=" << Env::rank << "): " << "Apply   time (sum: avg +/- std_dev): " << sum * 1e3 << ": " << mean * 1e3  << " +/- " << std_dev * 1e3 << " ms" << std::endl;
-        std::cout << "INFO(rank=" << Env::rank << "): " << "Execute time: " << execute_time[0] * 1e3 << " ms" << std::endl;
+        std::cout << "INFO(rank=" << Env::rank << "): " << "Apply   time (sum: avg +/- std_dev): " << sum << ": " << mean  << " +/- " << std_dev << " seconds" << std::endl;
+        std::cout << "INFO(rank=" << Env::rank << "): " << "Execute time: " << execute_time[0] << " seconds" << std::endl;
         /*
         std::cout << "DETAILED TIMING " << init_time[0] * 1e3;
         stats(bcast_time, sum, mean, std_dev);
