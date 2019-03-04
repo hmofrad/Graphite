@@ -1091,6 +1091,43 @@ void   Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Verte
    
     MPI_Waitall(out_requests_t[tid].size(), out_requests_t[tid].data(), MPI_STATUSES_IGNORE);
     out_requests_t[tid].clear();
+    
+    
+    //for(int32_t k = 0; k < num_owned_segments; k++) {
+        //uint32_t accu = 0;
+        yi  = accu_segment_rows[tid];
+        yo = accu_segment_rg;
+        std::vector<Fractional_Type>& y_data = Y[yi][yo];
+        auto& i_data = (*I)[yi];
+        auto& iv_data = (*IV)[yi];
+        auto& v_data = Vt[tid];
+        auto& c_data = Ct[tid];
+        Integer_Type v_nitems = v_data.size();
+        //#pragma omp parallel for schedule(static)
+        for(uint32_t i = 0; i < v_nitems; i++)
+        {
+            Vertex_State &state = v_data[i];
+            if(i_data[i]) {
+                c_data[i] = Vertex_Methods.applicator(state, y_data[iv_data[i]]);
+            }
+            else
+                c_data[i] = Vertex_Methods.applicator(state);
+            
+        }   
+    //}
+    
+    
+    int32_t start = tid * (rank_nrowgrps / Env::nthreads);
+    int32_t end = start + (rank_nrowgrps / Env::nthreads);
+    end = (tid != Env::nthreads - 1) ? end : rank_nrowgrps;
+    for(uint32_t i = start; i < end; i++) {
+        for(uint32_t j = 0; j < Y[i].size(); j++) {
+            std::vector<Fractional_Type> &y_data = Y[i][j];
+            Integer_Type y_nitems = y_data.size();
+            std::fill(y_data.begin(), y_data.end(), 0);
+        }
+    }
+    
 }
 
 
