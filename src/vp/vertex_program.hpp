@@ -490,7 +490,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
     while(true) {
         bcast();
         combine();
-        apply();
+        //apply();
         iteration++;
         Env::print_num("Iteration", iteration);
         if(check_for_convergence) {
@@ -1309,6 +1309,127 @@ void   Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Verte
 
     std::fill(accus_activity_statuses[tid].begin(), accus_activity_statuses[tid].end(), 0);
     
+    int32_t start = tid * (rank_ncolgrps / Env::nthreads);
+    int32_t end = start + (rank_ncolgrps / Env::nthreads);
+    end = (tid != Env::nthreads - 1) ? end : rank_ncolgrps;
+    std::fill(msgs_activity_statuses.begin() + start, msgs_activity_statuses.begin() + end, 0);
+    
+    
+    if(apply_depends_on_iter)
+    {
+        if(iteration == 0)
+        {
+            //for(int32_t k = 0; k < num_owned_segments; k++) {
+                yi  = accu_segment_rows[tid];
+                uint32_t yo = accu_segment_rg;
+                std::vector<Fractional_Type>& y_data = Y[yi][yo];
+                auto& i_data = (*I)[yi];
+                auto& iv_data = (*IV)[yi];
+                auto& v_data = Vt[tid];
+                auto& c_data = Ct[tid];
+                Integer_Type v_nitems = v_data.size();
+                //#pragma omp parallel for schedule(static)
+                for(uint32_t i = 0; i < v_nitems; i++)
+                {
+                    Vertex_State &state = v_data[i];
+                    if(i_data[i])
+                        c_data[i] = Vertex_Methods.applicator(state, y_data[iv_data[i]], iteration);
+                    else
+                        c_data[i] = Vertex_Methods.applicator(state);    
+                }
+            //}
+        }
+        else
+        {
+          //  for(int32_t k = 0; k < num_owned_segments; k++) {
+                yi  = accu_segment_rows[tid];
+                yo = accu_segment_rg;
+                std::vector<Fractional_Type>& y_data = Y[yi][yo];
+                Integer_Type j = 0;
+                auto& iv_data = (*IV)[yi];
+                auto& IR = rowgrp_nnz_rows_t[tid];
+                Integer_Type IR_nitems = IR.size();
+                auto& v_data = Vt[tid];
+                auto& c_data = Ct[tid];
+                //#pragma omp parallel for schedule(static)
+                for(Integer_Type j = 0; j < IR_nitems; j++) {
+                    Integer_Type i = IR[j];
+                    Vertex_State &state = v_data[i];
+                    Integer_Type l = iv_data[i];    
+                    c_data[i] = Vertex_Methods.applicator(state, y_data[l], iteration);
+                }
+         //   }
+        }
+    }
+    else {
+        if(iteration == 0)
+        {
+            //for(int32_t k = 0; k < num_owned_segments; k++) {
+                yi  = accu_segment_rows[tid];
+                yo = accu_segment_rg;
+                std::vector<Fractional_Type>& y_data = Y[yi][yo];
+                auto& i_data = (*I)[yi];
+                auto& iv_data = (*IV)[yi];
+                auto& v_data = Vt[tid];
+                auto& c_data = Ct[tid];
+                Integer_Type v_nitems = v_data.size();
+                //#pragma omp parallel for schedule(static)
+                for(uint32_t i = 0; i < v_nitems; i++)
+                {
+                    Vertex_State &state = v_data[i];
+                    if(i_data[i])
+                        c_data[i] = Vertex_Methods.applicator(state, y_data[iv_data[i]]);
+                    else
+                        c_data[i] = Vertex_Methods.applicator(state);    
+                }
+            //}
+        }
+        else
+        {
+            //for(int32_t k = 0; k < num_owned_segments; k++) {
+                yi  = accu_segment_rows[tid];
+                yo = accu_segment_rg;
+                std::vector<Fractional_Type>& y_data = Y[yi][yo];
+                Integer_Type j = 0;
+                auto& iv_data = (*IV)[yi];
+                auto& IR = rowgrp_nnz_rows_t[tid];
+                Integer_Type IR_nitems = IR.size();
+                auto& v_data = Vt[tid];
+                auto& c_data = Ct[tid];
+                //#pragma omp parallel for schedule(static)
+                for(Integer_Type j = 0; j < IR_nitems; j++) {
+                    Integer_Type i = IR[j];
+                    Vertex_State &state = v_data[i];
+                    Integer_Type l = iv_data[i];    
+                    c_data[i] = Vertex_Methods.applicator(state, y_data[l]);
+                }
+            //}
+        }
+    }
+
+            
+    start = tid * (rank_nrowgrps / Env::nthreads);
+    end = start + (rank_nrowgrps / Env::nthreads);
+    end = (tid != Env::nthreads - 1) ? end : rank_nrowgrps;
+    if(not gather_depends_on_apply and not apply_depends_on_iter) {
+        for(int32_t i = start; i < end; i++) {
+            for(uint32_t j = 0; j < Y[i].size(); j++) {
+                std::vector<Fractional_Type> &y_data = Y[i][j];
+                Integer_Type y_nitems = y_data.size();
+                std::fill(y_data.begin(), y_data.end(), 0);
+            }
+        }
+    }
+
+    if(activity_filtering) {
+        for(int32_t i = start; i < end; i++) {
+            std::vector<char> &t_data = T[i];
+            Integer_Type t_nitems = t_data.size();
+            std::fill(t_data.begin(), t_data.end(), 0);
+        }
+    }
+    
+    
 }
 
 template<typename Weight, typename Integer_Type, typename Fractional_Type, typename Vertex_State, typename Vertex_Methods_Impl>
@@ -1324,7 +1445,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
         th.join();
     }
     
-    std::fill(msgs_activity_statuses.begin(), msgs_activity_statuses.end(), 0);
+    //std::fill(msgs_activity_statuses.begin(), msgs_activity_statuses.end(), 0);
     
 }
 
