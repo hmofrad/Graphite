@@ -184,7 +184,7 @@ class Vertex_Program
         std::vector<std::vector<std::vector<Fractional_Type>>> YV; // Y Values (Nonstationary)
         std::vector<std::vector<char>> T;                          // Accumulators activity vectors
         std::vector<Integer_Type> msgs_activity_statuses;
-        std::vector<Integer_Type> accus_activity_statuses;
+        std::vector<std::vector<Integer_Type>> accus_activity_statuses;
         std::vector<Integer_Type> activity_statuses;
         std::vector<Integer_Type> active_vertices;
         /* Row/Col Filtering indices */
@@ -665,7 +665,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
     for(uint32_t i = 0; i < rank_nrowgrps; i++)
         T[i].resize(y_sizes[i]);
     
-    accus_activity_statuses.resize(rowgrp_nranks);
+    accus_activity_statuses.resize(Env::nthreads, std::vector<Integer_Type>(rowgrp_nranks));
     
     // Initialiaze nonstationary accumulators values
     YV.resize(rank_nrowgrps);
@@ -1208,14 +1208,14 @@ void   Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Verte
                         int nitems = 0;
                         MPI_Status status;
                         MPI_Recv(&nitems, 1, MPI_INT, follower, pair_idx, rowgrps_communicator, &status);
-                        accus_activity_statuses[accu] = nitems;
-                        if(accus_activity_statuses[accu] > 1) {
+                        accus_activity_statuses[tid][accu] = nitems;
+                        if(accus_activity_statuses[tid][accu] > 1) {
                             std::vector<Integer_Type> &yij_data = YI[yi][accu];
                             std::vector<Fractional_Type> &yvj_data = YV[yi][accu];
-                            MPI_Irecv(yij_data.data(), accus_activity_statuses[accu] - 1, TYPE_INT, follower, pair_idx, rowgrps_communicator, &request);
+                            MPI_Irecv(yij_data.data(), accus_activity_statuses[tid][accu] - 1, TYPE_INT, follower, pair_idx, rowgrps_communicator, &request);
                             //in_requests.push_back(request);
                             in_requests_t[tid].push_back(request);
-                            MPI_Irecv(yvj_data.data(), accus_activity_statuses[accu] - 1, TYPE_DOUBLE, follower, pair_idx, rowgrps_communicator, &request);
+                            MPI_Irecv(yvj_data.data(), accus_activity_statuses[tid][accu] - 1, TYPE_DOUBLE, follower, pair_idx, rowgrps_communicator, &request);
                             //in_requests_.push_back(request);
                             in_requests_t[tid].push_back(request);
                         }
@@ -1283,12 +1283,12 @@ void   Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Verte
             accu = follower_rowgrp_ranks_accu_seg_rg[j];
         //else
           //  accu = follower_rowgrp_ranks_accu_seg[j];
-        if(activity_filtering and accus_activity_statuses[accu]) {
-            if(accus_activity_statuses[accu] > 1) {
+        if(activity_filtering and accus_activity_statuses[tid][accu]) {
+            if(accus_activity_statuses[tid][accu] > 1) {
                 std::vector<Integer_Type>& yij_data = YI[yi][accu];
                 std::vector<Fractional_Type>& yvj_data = YV[yi][accu];
                 //#pragma omp parallel for schedule(static)
-                for(uint32_t i = 0; i < accus_activity_statuses[accu] - 1; i++) {
+                for(uint32_t i = 0; i < accus_activity_statuses[tid][accu] - 1; i++) {
                     Integer_Type k = yij_data[i];
                     Vertex_Methods.combiner(y_data[k], yvj_data[i]);
                 }
@@ -1305,6 +1305,10 @@ void   Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Verte
     
     MPI_Waitall(out_requests_t[tid].size(), out_requests_t[tid].data(), MPI_STATUSES_IGNORE);
     out_requests_t[tid].clear();
+    
+
+    std::fill(accus_activity_statuses[tid].begin(), accus_activity_statuses[tid].end(), 0);
+    
 }
 
 template<typename Weight, typename Integer_Type, typename Fractional_Type, typename Vertex_State, typename Vertex_Methods_Impl>
@@ -1321,7 +1325,6 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
     }
     
     std::fill(msgs_activity_statuses.begin(), msgs_activity_statuses.end(), 0);
-    std::fill(accus_activity_statuses.begin(), accus_activity_statuses.end(), 0);
     
 }
 
