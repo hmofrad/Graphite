@@ -798,7 +798,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
             else
                 nitems = 0;
             msgs_activity_statuses[xo] = nitems;
-            activity_statuses[owned_segment] = msgs_activity_statuses[xo];
+            activity_statuses[owned_segments[k]] = msgs_activity_statuses[xo];
             
             //Env::barrier();
             for(int32_t r = 0; r < Env::nranks; r++) {
@@ -806,9 +806,9 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
                 
                 if(r != Env::rank) {
                     int32_t j = k + (r * num_owned_segments);
-                    int32_t l = owned_segments_all[j];
+                    int32_t m = owned_segments_all[j];
                     MPI_Sendrecv(&activity_statuses[owned_segments[k]], 1, TYPE_INT, r, k, 
-                                 &activity_statuses[l], 1, TYPE_INT, r, k, Env::MPI_WORLD, MPI_STATUS_IGNORE);
+                                 &activity_statuses[m], 1, TYPE_INT, r, k, Env::MPI_WORLD, MPI_STATUS_IGNORE);
                 }
             }
             //Env::barrier();
@@ -938,28 +938,16 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
         if(Env::rank_cg != leader_cg)
             msgs_activity_statuses[i] = nitems;
         if(activity_filtering and nitems) {
-            if(Env::comm_split) {
-                if(nitems > 1) {
-                    MPI_Ibcast(xij_data.data(), nitems - 1, TYPE_INT, leader_cg, colgrps_communicator, &request);
-                    out_requests.push_back(request);
-                    MPI_Ibcast(xvj_data.data(), nitems - 1, TYPE_DOUBLE, leader_cg, colgrps_communicator, &request);
-                    out_requests.push_back(request);
-                }
-            }
-            else {
-                fprintf(stderr, "Invalid communicator\n");
-                Env::exit(1);
+            if(nitems > 1) {
+                MPI_Ibcast(xij_data.data(), nitems - 1, TYPE_INT, leader_cg, colgrps_communicator, &request);
+                out_requests.push_back(request);
+                MPI_Ibcast(xvj_data.data(), nitems - 1, TYPE_DOUBLE, leader_cg, colgrps_communicator, &request);
+                out_requests.push_back(request);
             }
         }
         else {
-            if(Env::comm_split) {
-                MPI_Ibcast(xj_data.data(), xj_nitems, TYPE_DOUBLE, leader_cg, colgrps_communicator, &request);
-                out_requests.push_back(request);
-            }
-            else {
-                fprintf(stderr, "Invalid communicator\n");
-                Env::exit(1);
-            }
+            MPI_Ibcast(xj_data.data(), xj_nitems, TYPE_DOUBLE, leader_cg, colgrps_communicator, &request);
+            out_requests.push_back(request);
         }
     }
     MPI_Waitall(out_requests.size(), out_requests.data(), MPI_STATUSES_IGNORE);
