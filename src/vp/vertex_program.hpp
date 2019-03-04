@@ -651,7 +651,8 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
     for(uint32_t i = 0; i < rank_ncolgrps; i++)
         XI[i].resize(x_sizes[i]);
     
-    msgs_activity_statuses.resize(colgrp_nranks);
+    //msgs_activity_statuses.resize(colgrp_nranks);
+    msgs_activity_statuses.resize(rank_ncolgrps);
     
     std::vector<Integer_Type> y_sizes;
     //if((compression_type == _CSC_) or (compression_type == _DCSC_))
