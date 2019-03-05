@@ -164,6 +164,7 @@ class Matrix {
                      std::vector<uint64_t>& start, std::vector<uint64_t>& end);
         void init_compression();
         void init_tcsc();
+        void init_tcsc_threaded(int tid);
 ;
         void del_compression();
         void del_filter();
@@ -1053,9 +1054,21 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_compression() {
     Env::barrier();
 }
 
+
 template<typename Weight, typename Integer_Type, typename Fractional_Type>
-void Matrix<Weight, Integer_Type, Fractional_Type>::init_tcsc()
-{
+void Matrix<Weight, Integer_Type, Fractional_Type>::init_tcsc() {
+    int nthreads = Env::nthreads;
+    std::vector<std::thread> threads;
+    for(int i = 0; i < nthreads; i++) {
+        threads.push_back(std::thread(&Matrix<Weight, Integer_Type, Fractional_Type>::init_tcsc_threaded, this, i));
+    }
+    
+    for(std::thread& th: threads) {
+        th.join();
+    }
+
+    
+    /*
     uint32_t yi = 0, xi = 0, next_row = 0;
     for(uint32_t t: local_tiles_row_order)
     {
@@ -1082,7 +1095,42 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_tcsc()
             yi++;
         }
     }
+    */
 }
+
+
+template<typename Weight, typename Integer_Type, typename Fractional_Type>
+void Matrix<Weight, Integer_Type, Fractional_Type>::init_tcsc_threaded(int tid) {
+    int ret = Env::set_thread_affinity(tid);
+    int cid = sched_getcpu();
+    int sid =  cid / Env::nthreads_per_socket;
+    uint32_t yi = 0, xi = 0, next_row = 0;
+    for(uint32_t t: local_tiles_row_order_t[tid]) {
+        auto pair = tile_of_local_tile(t);
+        auto& tile = tiles[pair.row][pair.col];
+        yi = tile.ith;
+        Integer_Type c_nitems = nnz_col_sizes_loc[xi];
+        Integer_Type r_nitems = nnz_row_sizes_loc[yi];
+        auto& i_data = I[yi];
+        auto& iv_data = IV[yi];
+        auto& j_data = J[xi];
+        auto& jv_data = JV[xi];
+        if(tile.nedges) {
+            tile.compressor = new TCSC_BASE<Weight, Integer_Type>(tile.triples->size(), c_nitems, r_nitems, sid);
+            tile.compressor->populate(tile.triples, tile_height, tile_width, i_data, iv_data, j_data, jv_data);
+            //Integer_Type* IA   = static_cast<TCSC_BASE<Weight, Integer_Type>*>(tile.compressor)->IA;
+            //Integer_Type* JA   = static_cast<TCSC_BASE<Weight, Integer_Type>*>(tile.compressor)->JA;    
+            //Integer_Type nnzcols = static_cast<TCSC_BASE<Weight, Integer_Type>*>(tile.compressor)->nnzcols;
+        }
+        xi++;
+        next_row = (((tile.nth + 1) % tiling->rank_ncolgrps) == 0);
+        if(next_row) {
+            xi = 0;
+            //yi++;
+        }
+    }
+}
+
 
 template<typename Weight, typename Integer_Type, typename Fractional_Type>
 void Matrix<Weight, Integer_Type, Fractional_Type>::del_filter() {
