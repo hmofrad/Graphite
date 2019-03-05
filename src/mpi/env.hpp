@@ -57,7 +57,7 @@ class Env {
     static void   print_num(std::string preamble, uint32_t num);
     static void   set_comm_split();
     static bool   get_comm_split();
-    static int set_thread_affinitty(int thread_id);
+    static int set_thread_affinity(int thread_id);
     
     static char core_name[]; // Core name = hostname of MPI rank
     static int core_id;      // Core id of MPI rank
@@ -155,7 +155,7 @@ void Env::init_threads() {
     //}
 }
 
-int Env::set_thread_affinitty(int thread_id) {
+int Env::set_thread_affinity(int thread_id) {
     int num_unique_cores = core_ids.size();
     int cid = core_ids[thread_id % num_unique_cores];
     cpu_set_t cpuset;
