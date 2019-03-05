@@ -15,7 +15,7 @@
 #include <set>
 #include <cstring>
 #include <numeric>
-//#include <algorithm>
+#include <algorithm>
 
 #include <mpi.h>
 #include <omp.h>
@@ -64,6 +64,7 @@ class Env {
     static int nsockets;     // Number of sockets
     static int nthreads_per_socket;
     static int nsegments;    // Number of segments = nranks * nthreads
+    static std::vector<int> core_ids;
 };
 
 MPI_Comm Env::MPI_WORLD;
@@ -92,6 +93,7 @@ int Env::nthreads = 1;
 int Env::nsockets = 1;
 int Env::nthreads_per_socket = 1;
 int Env::nsegments = 0;
+std::vector<int> Env::core_ids;
  
 void Env::init(bool comm_split_) {
     comm_split = comm_split_;
@@ -134,6 +136,20 @@ void Env::init_threads() {
         nthreads_per_socket = nthreads / nsockets;
         nsegments = nranks * nthreads;
         printf("WARN(rank=%d): Failure to enable NUMA-aware memory allocation\n", rank);
+    }
+    
+    core_ids.resize(Env::nthreads);
+    #pragma omp parallel
+    {
+        int tid = omp_get_thread_num();
+        core_ids[tid] = sched_getcpu();
+    }
+    std::sort(core_ids.begin(), core_ids.end());
+    core_ids.erase(std::unique(core_ids.begin(), core_ids.end()), core_ids.end());
+    if(!Env::rank) {
+        for(int i: core_ids)
+            printf("%d ", i);
+        printf("\n");
     }
 }
 
