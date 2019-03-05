@@ -57,6 +57,7 @@ class Env {
     static void   print_num(std::string preamble, uint32_t num);
     static void   set_comm_split();
     static bool   get_comm_split();
+    static int set_thread_affinitty(int thread_id);
     
     static char core_name[]; // Core name = hostname of MPI rank
     static int core_id;      // Core id of MPI rank
@@ -65,6 +66,7 @@ class Env {
     static int nthreads_per_socket;
     static int nsegments;    // Number of segments = nranks * nthreads
     static std::vector<int> core_ids;
+    
 };
 
 MPI_Comm Env::MPI_WORLD;
@@ -146,12 +148,24 @@ void Env::init_threads() {
     }
     std::sort(core_ids.begin(), core_ids.end());
     core_ids.erase(std::unique(core_ids.begin(), core_ids.end()), core_ids.end());
-    if(!Env::rank) {
-        for(int i: core_ids)
-            printf("%d ", i);
-        printf("\n");
-    }
+    //if(!Env::rank) {
+    //    for(int i: core_ids)
+    //        printf("%d ", i);
+    //    printf("\n");
+    //}
 }
+
+int set_thread_affinitty(int thread_id) {
+    int num_unique_cores = core_ids.size();
+    int cid = core_ids[thread_id % num_unique_cores];
+    cpu_set_t cpuset;
+    CPU_ZERO(&cpuset);
+    CPU_SET(cid, &cpuset);
+    pthread_t current_thread = pthread_self();    
+   return pthread_setaffinity_np(current_thread, sizeof(cpu_set_t), &cpuset);
+}
+
+
 
 bool Env::get_comm_split() {
     return(comm_created);
