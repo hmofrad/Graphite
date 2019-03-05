@@ -155,7 +155,7 @@ void Env::init_threads() {
     //}
 }
 
-int set_thread_affinitty(int thread_id) {
+int Env::set_thread_affinitty(int thread_id) {
     int num_unique_cores = core_ids.size();
     int cid = core_ids[thread_id % num_unique_cores];
     cpu_set_t cpuset;
