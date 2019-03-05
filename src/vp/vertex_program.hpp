@@ -495,6 +495,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
     
     if(stationary) {
         do{
+            bcast();
             std::vector<std::thread> threads;
             for(int i = 0; i < Env::nthreads; i++) {
                 threads.push_back(std::thread(&Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_Methods_Impl>::thread_function_stationary, this, i));
@@ -1012,7 +1013,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
     #endif
     
     
-    
+    /*
     //for(int32_t k = 0; k < num_owned_segments; k++) {
         uint32_t xo = accu_segment_cols[tid];    
         std::vector<Fractional_Type>& x_data = X[xo];
@@ -1047,6 +1048,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
     
     
     
+    
     #ifdef TIMING
     t2 = Env::clock();
     elapsed_time = t2 - t1;
@@ -1057,7 +1059,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
     
     t1 = Env::clock();
     #endif
-    
+    */
     
     
     
@@ -1065,10 +1067,11 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
     
     //if(!Env::rank and tid == 10)
       //  printf("%d/%d\n", tid, sched_getcpu());
-    //MPI_Request request;
+    MPI_Request request;
     //uint32_t xi= 0, yi = 0, yo = 0, follower = 0, accu = 0, tile_th = 0, pair_idx = 0;
     //bool vec_owner = false, communication = false;
     uint32_t tile_th, pair_idx;
+    int32_t leader;
     int32_t follower, my_rank, accu;
     bool vec_owner, communication;
     uint32_t xi= 0, yi = 0, yo = 0;
@@ -1194,7 +1197,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
         y_data = Y[yi][yo];
         auto& i_data = (*I)[yi];
         auto& iv_data = (*IV)[yi];
-        v_data = Vt[tid];
+        auto& v_data = Vt[tid];
         auto& c_data = Ct[tid];
         Integer_Type v_nitems = v_data.size();
         //#pragma omp parallel for schedule(static)
