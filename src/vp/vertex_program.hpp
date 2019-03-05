@@ -505,7 +505,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
             }
             iteration++;
             Env::print_num("Iteration", iteration);
-        } while(has_converged());
+        } while(not has_converged());
         
     }
     else {
