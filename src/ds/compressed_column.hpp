@@ -60,8 +60,8 @@ TCSC_BASE<Weight, Integer_Type>::TCSC_BASE(uint64_t nnz_, Integer_Type nnzcols_,
     nnzcols = nnzcols_;
     nnzrows = nnzrows_;
     if(nnz and nnzcols and nnzrows) {
-        //if(numa_available() != -1) {
-        if(0) {            
+        if(numa_available() != -1) {
+        //if(0) {            
             #ifdef HAS_WEIGHT
             A = (Weight*) numa_alloc_onnode(nnz * sizeof(Weight), socket_id);
             memset(A, 0, nnz * sizeof(Weight));
@@ -100,8 +100,8 @@ template<typename Weight, typename Integer_Type>
 TCSC_BASE<Weight, Integer_Type>::~TCSC_BASE() {
     if(nnz and nnzcols and nnzrows) {
         
-        //if(numa_available() != -1) {
-        if(0) {            
+        if(numa_available() != -1) {
+        //if(0) {            
             #ifdef HAS_WEIGHT
             numa_free(A, (nnz * sizeof(Weight)));
             #endif
