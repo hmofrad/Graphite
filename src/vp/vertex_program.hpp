@@ -494,15 +494,18 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
     t1 = Env::clock();
     
     if(stationary) {
-        std::vector<std::thread> threads;
-        for(int i = 0; i < Env::nthreads; i++) {
-            threads.push_back(std::thread(&Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_Methods_Impl>::thread_function_stationary, this, i));
-        }
-        
-        for(std::thread& th: threads) {
-            th.join();
-        }
-        
+        do{
+            std::vector<std::thread> threads;
+            for(int i = 0; i < Env::nthreads; i++) {
+                threads.push_back(std::thread(&Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_Methods_Impl>::thread_function_stationary, this, i));
+            }
+            
+            for(std::thread& th: threads) {
+                th.join();
+            }
+            iteration++;
+            Env::print_num("Iteration", iteration);
+        } while(has_converged());
         
     }
     else {
@@ -1002,7 +1005,7 @@ template<typename Weight, typename Integer_Type, typename Fractional_Type, typen
 void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_Methods_Impl>::thread_function_stationary(int tid) {
     int ret = Env::set_thread_affinity(tid);
     
-    do {
+    //do {
     #ifdef TIMING
     double t1, t2, elapsed_time;
     t1 = Env::clock();
@@ -1040,15 +1043,17 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
         out_requests_t[tid].push_back(request);
     }
     MPI_Waitall(out_requests_t[tid].size(), out_requests_t[tid].data(), MPI_STATUSES_IGNORE);
-    out_requests.clear();
+    out_requests_t[tid].clear();
     
     
     
     #ifdef TIMING
     t2 = Env::clock();
     elapsed_time = t2 - t1;
-    Env::print_time("Bcast", elapsed_time);
-    bcast_time.push_back(elapsed_time);
+    if(Env::is_master and tid == 0) {
+        Env::print_time("Bcast", elapsed_time);
+        bcast_time.push_back(elapsed_time);
+    }
     
     t1 = Env::clock();
     #endif
@@ -1229,9 +1234,10 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
 
     
     
-    converged = false;
-    uint64_t c_sum_local = 0, c_sum_gloabl = 0;
+    //converged = false;
+    
     if(check_for_convergence) {
+        uint64_t c_sum_local = 0, c_sum_gloabl = 0;
         convergence_vec[tid] = 0;     
         c_data = Ct[tid];
         Integer_Type c_nitems = c_data.size();   
@@ -1241,8 +1247,10 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
         }
         if(c_sum_local == c_nitems)
             convergence_vec[tid] = 1;
-        
+    }
+    /*
         pthread_barrier_wait(&p_barrier);
+        
         if(tid == 0) {
             iteration++;
             Env::print_num("Iteration", iteration);
@@ -1258,17 +1266,19 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
         //pthread_barrier_wait(&p_barrier);
     }
     else {
+        //pthread_barrier_wait(&p_barrier);
         if(tid == 0) {
             iteration++;
             Env::print_num("Iteration", iteration);
             if(iteration >= num_iterations)
                 converged = true;
         }
+     //   pthread_barrier_wait(&p_barrier);
         
     }
-    pthread_barrier_wait(&p_barrier);
-    
-    }while(not converged);
+   // pthread_barrier_wait(&p_barrier);
+    */
+    //}while(not converged);
 
 //    if(converged)
   //      return;
@@ -2113,13 +2123,18 @@ bool Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
         }
     }
     */
-    if(std::accumulate(convergence_vec.begin(), convergence_vec.end(), 0) == Env::nthreads)
-        c_sum_local = 1;
-    else 
-        c_sum_local = 0;
-    MPI_Allreduce(&c_sum_local, &c_sum_gloabl, 1, MPI_UNSIGNED_LONG, MPI_SUM, Env::MPI_WORLD);
-    if(c_sum_gloabl == (uint64_t) Env::nranks)
-        converged = true;
+    if(check_for_convergence) {
+        if(std::accumulate(convergence_vec.begin(), convergence_vec.end(), 0) == Env::nthreads)
+            c_sum_local = 1;
+        else 
+            c_sum_local = 0;
+        MPI_Allreduce(&c_sum_local, &c_sum_gloabl, 1, MPI_UNSIGNED_LONG, MPI_SUM, Env::MPI_WORLD);
+        if(c_sum_gloabl == (uint64_t) Env::nranks)
+            converged = true;
+    } 
+    else {
+        converged = (iteration >= num_iterations) ? true : false;
+    }
       
     //MPI_Allreduce(&c_sum_local, &c_sum_gloabl, 1, MPI_UNSIGNED_LONG, MPI_SUM, Env::MPI_WORLD);
     //if(c_sum_gloabl == (uint64_t) Env::nranks)
