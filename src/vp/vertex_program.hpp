@@ -168,7 +168,7 @@ class Vertex_Program
         Integer_Type nnz_cols_size;
         //std::vector<Integer_Type> nnz_cols_size_local;
         std::vector<int32_t> accu_segment_rows, accu_segment_cols;
-
+        std::vector<int32_t> convergence_vec;
         
         
         std::vector<std::vector<Fractional_Type>> X;               // Messages 
@@ -254,6 +254,7 @@ Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_Metho
     leader_ranks = A->leader_ranks;
     owned_segments = Graph.A->owned_segments;
     owned_segments_all = Graph.A->owned_segments_all;
+    convergence_vec.resize(Env::nthreads);
 
     if(ordering_type == _ROW_)
     {
@@ -1152,6 +1153,17 @@ void   Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Verte
     }
     #endif
     
+    convergence_vec[tid] = 0; 
+    uint64_t c_sum_local = 0, c_sum_gloabl = 0;
+    c_data = Ct[tid];
+    Integer_Type c_nitems = c_data.size();   
+    for(uint32_t i = 0; i < c_nitems; i++) {
+        if(not c_data[i]) 
+            c_sum_local++;
+    }
+    if(c_sum_local == c_nitems)
+        convergence_vec[tid] = 1;
+    
 }
 
 
@@ -1373,10 +1385,14 @@ void   Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Verte
 
     std::fill(accus_activity_statuses[tid].begin(), accus_activity_statuses[tid].end(), 0);
     
-    int32_t start = tid * (rank_ncolgrps / Env::nthreads);
-    int32_t end = start + (rank_ncolgrps / Env::nthreads);
-    end = (tid != Env::nthreads - 1) ? end : rank_ncolgrps;
-    std::fill(msgs_activity_statuses.begin() + start, msgs_activity_statuses.begin() + end, 0);
+    
+    /*
+    int32_t chunk_size = rank_ncolgrps / Env::nthreads;
+    int32_t start = tid * chunk_size;
+    int32_t end = (tid != Env::nthreads - 1) ? start + chunk_size : rank_ncolgrps;
+    for(int32_t i = start; i < end; i++) 
+        msgs_activity_statuses[i] = 0;
+    */
 
     #ifdef TIMING    
     t2 = Env::clock();
@@ -1395,7 +1411,7 @@ void   Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Verte
         {
             //for(int32_t k = 0; k < num_owned_segments; k++) {
                 yi  = accu_segment_rows[tid];
-                uint32_t yo = accu_segment_rg;
+                yo = accu_segment_rg;
                 std::vector<Fractional_Type>& y_data = Y[yi][yo];
                 auto& i_data = (*I)[yi];
                 auto& iv_data = (*IV)[yi];
@@ -1419,7 +1435,7 @@ void   Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Verte
                 yi  = accu_segment_rows[tid];
                 yo = accu_segment_rg;
                 std::vector<Fractional_Type>& y_data = Y[yi][yo];
-                Integer_Type j = 0;
+                //Integer_Type j = 0;
                 auto& iv_data = (*IV)[yi];
                 auto& IR = rowgrp_nnz_rows_t[tid];
                 Integer_Type IR_nitems = IR.size();
@@ -1428,7 +1444,7 @@ void   Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Verte
                 //#pragma omp parallel for schedule(static)
                 for(Integer_Type j = 0; j < IR_nitems; j++) {
                     Integer_Type i = IR[j];
-                    Vertex_State &state = v_data[i];
+                    Vertex_State& state = v_data[i];
                     Integer_Type l = iv_data[i];    
                     c_data[i] = Vertex_Methods.applicator(state, y_data[l], iteration);
                 }
@@ -1450,7 +1466,7 @@ void   Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Verte
                 //#pragma omp parallel for schedule(static)
                 for(uint32_t i = 0; i < v_nitems; i++)
                 {
-                    Vertex_State &state = v_data[i];
+                    Vertex_State& state = v_data[i];
                     if(i_data[i])
                         c_data[i] = Vertex_Methods.applicator(state, y_data[iv_data[i]]);
                     else
@@ -1482,8 +1498,8 @@ void   Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Verte
     }
 
             
-    start = tid * (rank_nrowgrps / Env::nthreads);
-    end = start + (rank_nrowgrps / Env::nthreads);
+    int32_t start = tid * (rank_nrowgrps / Env::nthreads);
+    int32_t end = start + (rank_nrowgrps / Env::nthreads);
     end = (tid != Env::nthreads - 1) ? end : rank_nrowgrps;
     if(not gather_depends_on_apply and not apply_depends_on_iter) {
         for(int32_t i = start; i < end; i++) {
@@ -1502,6 +1518,8 @@ void   Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Verte
             std::fill(t_data.begin(), t_data.end(), 0);
         }
     }
+    
+    
     #ifdef TIMING
     t2 = Env::clock();
     elapsed_time = t2 - t1;
@@ -1510,6 +1528,43 @@ void   Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Verte
         apply_time.push_back(elapsed_time);
     }
     #endif
+    
+    //has_converged()
+    /*
+    auto chunk_size = msgs_activity_statuses.size() / Env::nthreads;
+    auto start = msgs_activity_statuses.begin() + (tid * chunk_size);
+    auto end = (tid != Env::nthreads - 1) ? start + chunk_size : msgs_activity_statuses.end();
+    std::fill(start, end, 0);
+    */
+    
+    
+    
+    
+    convergence_vec[tid] = 0; 
+    uint64_t c_sum_local = 0, c_sum_gloabl = 0;
+    auto& c_data = Ct[tid];
+    Integer_Type c_nitems = c_data.size();   
+    for(uint32_t i = 0; i < c_nitems; i++) {
+        if(not c_data[i]) 
+            c_sum_local++;
+    }
+    if(c_sum_local == c_nitems)
+        convergence_vec[tid] = 1;
+    /*
+    if(tid == 0) {
+        if(std::sum(convergence_vec.begin(), convergence_vec.end(), 0) == Env::nthreads)
+            c_sum_local = 1;
+        else 
+            c_sum_local = 0;
+        MPI_Allreduce(&c_sum_local, &c_sum_gloabl, 1, MPI_UNSIGNED_LONG, MPI_SUM, Env::MPI_WORLD);
+        if(c_sum_gloabl == (uint64_t) Env::nranks)
+            converged = true;
+    }
+    convergence_vec[tid] = 0;     
+    */    
+    //return(converged); 
+    
+    
     
 }
 
@@ -1526,7 +1581,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
         th.join();
     }
     
-    //std::fill(msgs_activity_statuses.begin(), msgs_activity_statuses.end(), 0);
+    std::fill(msgs_activity_statuses.begin(), msgs_activity_statuses.end(), 0);
     
 }
 
@@ -1919,28 +1974,15 @@ MPI_Comm Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Ver
 
 template<typename Weight, typename Integer_Type, typename Fractional_Type, typename Vertex_State, typename Vertex_Methods_Impl>
 bool Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_Methods_Impl>::has_converged() {
+    
     bool converged = false;
+    
     uint64_t c_sum_local = 0, c_sum_gloabl = 0;
     //if(stationary) {
-        for(int32_t k = 0; k < num_owned_segments; k++) {
-            c_sum_local = 0;
-            auto& c_data = Ct[k];
-            Integer_Type c_nitems = c_data.size();   
-            for(uint32_t i = 0; i < c_nitems; i++) {
-                if(not c_data[i]) 
-                    c_sum_local++;
-            }
-            if(c_sum_local == c_nitems)
-                c_sum_local = 1;
-            else {
-                c_sum_local = 0;
-                break;
-            }
-        }
-        /*
-    }
-    else {
-        auto& c_data = C;
+    /*
+    for(int32_t k = 0; k < num_owned_segments; k++) {
+        c_sum_local = 0;
+        auto& c_data = Ct[k];
         Integer_Type c_nitems = c_data.size();   
         for(uint32_t i = 0; i < c_nitems; i++) {
             if(not c_data[i]) 
@@ -1950,12 +1992,21 @@ bool Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
             c_sum_local = 1;
         else {
             c_sum_local = 0;
+            break;
         }
     }
     */
+    if(std::accumulate(convergence_vec.begin(), convergence_vec.end(), 0) == Env::nthreads)
+        c_sum_local = 1;
+    else 
+        c_sum_local = 0;
     MPI_Allreduce(&c_sum_local, &c_sum_gloabl, 1, MPI_UNSIGNED_LONG, MPI_SUM, Env::MPI_WORLD);
     if(c_sum_gloabl == (uint64_t) Env::nranks)
         converged = true;
+      
+    //MPI_Allreduce(&c_sum_local, &c_sum_gloabl, 1, MPI_UNSIGNED_LONG, MPI_SUM, Env::MPI_WORLD);
+    //if(c_sum_gloabl == (uint64_t) Env::nranks)
+    //    converged = true;
           
     return(converged);   
 }
