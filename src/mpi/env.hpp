@@ -66,6 +66,8 @@ class Env {
     static int nthreads_per_socket;
     static int nsegments;    // Number of segments = nranks * nthreads
     static std::vector<int> core_ids;
+    static std::vector<MPI_Comm> rowgrps_comms;
+    static std::vector<MPI_Comm> colgrps_comms; 
     
 };
 
@@ -96,7 +98,9 @@ int Env::nsockets = 1;
 int Env::nthreads_per_socket = 1;
 int Env::nsegments = 0;
 std::vector<int> Env::core_ids;
- 
+std::vector<MPI_Comm> Env::rowgrps_comms; 
+std::vector<MPI_Comm> Env::colgrps_comms; 
+
 void Env::init(bool comm_split_) {
     comm_split = comm_split_;
     int required = MPI_THREAD_MULTIPLE;
@@ -192,10 +196,18 @@ void Env::grps_init(std::vector<int32_t>& grps_ranks, int grps_nranks, int& grps
 
 void Env::rowgrps_init(std::vector<int32_t>& rowgrps_ranks, int32_t rowgrps_nranks) {
     grps_init(rowgrps_ranks, rowgrps_nranks, rank_rg, nranks_rg, rowgrps_group_, rowgrps_group, rowgrps_comm);
+    rowgrps_comms.resize(Env::nthreads);
+    for(int i = 0; i < Env::nthreads; i++) {
+        grps_init(rowgrps_ranks, rowgrps_nranks, rank_rg, nranks_rg, rowgrps_group_, rowgrps_group, rowgrps_comms[i]);
+    }
 }
 
 void Env::colgrps_init(std::vector<int32_t>& colgrps_ranks, int32_t colgrps_nranks) {
     grps_init(colgrps_ranks, colgrps_nranks, rank_cg, nranks_cg, colgrps_group_, colgrps_group, colgrps_comm);   
+    colgrps_comms.resize(Env::nthreads);
+    for(int i = 0; i < Env::nthreads; i++) {
+        grps_init(colgrps_ranks, colgrps_nranks, rank_cg, nranks_cg, colgrps_group_, colgrps_group, colgrps_comms[i]);  
+    }
 }
 
 double Env::clock() {
