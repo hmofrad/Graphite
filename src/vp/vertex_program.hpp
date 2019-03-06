@@ -1155,13 +1155,13 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
                     accu = follower_rowgrp_ranks_accu_seg_rg[j];
                     std::vector<Fractional_Type> &yj_data = Y[yi][accu];
                     Integer_Type yj_nitems = yj_data.size();
-                    MPI_Irecv(yj_data.data(), yj_nitems, TYPE_DOUBLE, follower, pair_idx, rowgrps_communicator, &request);
+                    MPI_Irecv(yj_data.data(), yj_nitems, TYPE_DOUBLE, follower, pair_idx, rowgrps_communicator[tid], &request);
                     //in_requests.push_back(request);
                     in_requests_t[tid].push_back(request);
                 }
             }
             else {
-                MPI_Isend(y_data.data(), y_nitems, TYPE_DOUBLE, leader, pair_idx, rowgrps_communicator, &request);
+                MPI_Isend(y_data.data(), y_nitems, TYPE_DOUBLE, leader, pair_idx, rowgrps_communicator[tid], &request);
                 //out_requests.push_back(request);
                 out_requests_t[tid].push_back(request);
             }
@@ -1273,6 +1273,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
             else 
                 c_sum_local = 0;
             MPI_Allreduce(&c_sum_local, &c_sum_gloabl, 1, MPI_UNSIGNED_LONG, MPI_SUM, Env::MPI_WORLD);
+            
             if(c_sum_gloabl == (uint64_t) Env::nranks)
                 converged = true;
         }
