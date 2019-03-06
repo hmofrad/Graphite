@@ -223,6 +223,9 @@ class Vertex_Program
         bool broadcast_communication = true;
         bool incremental_accumulation = false;
         
+        std::vector<MPI_Comm> rowgrps_communicators;
+        std::vector<MPI_Comm> colgrps_communicators;
+        
         pthread_barrier_t p_barrier;
         
         #ifdef TIMING
@@ -325,6 +328,9 @@ Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_Metho
         accu_segment_rows = Graph.A->accu_segment_rows;
         accu_segment_cols = Graph.A->accu_segment_cols;
         
+        rowgrps_communicators = Env::rowgrps_comms;
+        colgrps_communicators = Env::colgrps_comms;
+        
     }
     else if (ordering_type == _COL_)
     {
@@ -391,6 +397,8 @@ Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_Metho
         accu_segment_rows = Graph.A->accu_segment_cols;
         accu_segment_cols = Graph.A->accu_segment_rows;
         
+        rowgrps_communicators = Env::colgrps_comms;
+        colgrps_communicators = Env::rowgrps_comms;
 
     }   
     
@@ -495,7 +503,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
     
     if(stationary) {
         do{
-            bcast();
+            //bcast();
             std::vector<std::thread> threads;
             for(int i = 0; i < Env::nthreads; i++) {
                 threads.push_back(std::thread(&Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_Methods_Impl>::thread_function_stationary, this, i));
@@ -1013,7 +1021,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
     #endif
     
     
-    /*
+    
     //for(int32_t k = 0; k < num_owned_segments; k++) {
         uint32_t xo = accu_segment_cols[tid];    
         std::vector<Fractional_Type>& x_data = X[xo];
@@ -1040,7 +1048,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
         leader = leader_ranks_cg[col_group];
         std::vector<Fractional_Type>& xj_data = X[i];
         Integer_Type xj_nitems = xj_data.size();
-        MPI_Ibcast(xj_data.data(), xj_nitems, TYPE_DOUBLE, leader, colgrps_communicator, &request);
+        MPI_Ibcast(xj_data.data(), xj_nitems, TYPE_DOUBLE, leader, colgrps_communicators[tid], &request);
         out_requests_t[tid].push_back(request);
     }
     MPI_Waitall(out_requests_t[tid].size(), out_requests_t[tid].data(), MPI_STATUSES_IGNORE);
@@ -1059,7 +1067,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
     
     t1 = Env::clock();
     #endif
-    */
+    
     
     
     
@@ -1067,11 +1075,11 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
     
     //if(!Env::rank and tid == 10)
       //  printf("%d/%d\n", tid, sched_getcpu());
-    MPI_Request request;
+    //MPI_Request request;
     //uint32_t xi= 0, yi = 0, yo = 0, follower = 0, accu = 0, tile_th = 0, pair_idx = 0;
     //bool vec_owner = false, communication = false;
     uint32_t tile_th, pair_idx;
-    int32_t leader;
+    //int32_t leader;
     int32_t follower, my_rank, accu;
     bool vec_owner, communication;
     uint32_t xi= 0, yi = 0, yo = 0;
@@ -1197,7 +1205,8 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
         y_data = Y[yi][yo];
         auto& i_data = (*I)[yi];
         auto& iv_data = (*IV)[yi];
-        auto& v_data = Vt[tid];
+        //auto& 
+        v_data = Vt[tid];
         auto& c_data = Ct[tid];
         Integer_Type v_nitems = v_data.size();
         //#pragma omp parallel for schedule(static)
