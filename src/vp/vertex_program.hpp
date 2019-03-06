@@ -1604,7 +1604,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
     }
     MPI_Waitall(out_requests_t[tid].size(), out_requests_t[tid].data(), MPI_STATUSES_IGNORE);
     out_requests_t[tid].clear();     
-    
+    pthread_barrier_wait(&p_barrier);
     
 
     /*    
@@ -1837,7 +1837,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
         t2 = Env::clock();
         elapsed_time = t2 - t1;
         Env::print_time("Combine", elapsed_time);
-        bcast_time.push_back(elapsed_time);
+        combine_time.push_back(elapsed_time);
     }
     #endif       
 }
@@ -1971,7 +1971,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
         t2 = Env::clock();
         elapsed_time = t2 - t1;
         Env::print_time("Apply", elapsed_time);
-        bcast_time.push_back(elapsed_time);
+        apply_time.push_back(elapsed_time);
     }
     #endif   
 }
