@@ -1585,25 +1585,25 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
         int nitems = 0;
         if(Env::rank_cg == leader_cg)
             nitems = msgs_activity_statuses[i];
-        MPI_Ibcast(&nitems, 1, TYPE_INT, leader_cg, colgrps_communicator, &request);
+        MPI_Ibcast(&nitems, 1, TYPE_INT, leader_cg, colgrps_communicators[tid], &request);
         MPI_Wait(&request, MPI_STATUSES_IGNORE);
         if(Env::rank_cg != leader_cg)
             msgs_activity_statuses[i] = nitems;
         if(activity_filtering and nitems) {
             if(nitems > 1) {
                 MPI_Ibcast(xij_data.data(), nitems - 1, TYPE_INT, leader_cg, colgrps_communicators[tid], &request);
-                out_requests.push_back(request);
+                out_requests_t[tid].push_back(request);
                 MPI_Ibcast(xvj_data.data(), nitems - 1, TYPE_DOUBLE, leader_cg, colgrps_communicators[tid], &request);
-                out_requests.push_back(request);
+                out_requests_t[tid].push_back(request);
             }
         }
         else {
             MPI_Ibcast(xj_data.data(), xj_nitems, TYPE_DOUBLE, leader_cg, colgrps_communicators[tid], &request);
-            out_requests.push_back(request);
+            out_requests_t[tid].push_back(request);
         }
     }
-    MPI_Waitall(out_requests.size(), out_requests.data(), MPI_STATUSES_IGNORE);
-    out_requests.clear();     
+    MPI_Waitall(out_requests_t[tid].size(), out_requests_t[tid].data(), MPI_STATUSES_IGNORE);
+    out_requests_t[tid].clear();     
     
     
 
@@ -1733,15 +1733,15 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
                         // 0 all / 1 nothing / else nitems 
                         int nitems = 0;
                         MPI_Status status;
-                        MPI_Recv(&nitems, 1, MPI_INT, follower, pair_idx, rowgrps_communicator, &status);
+                        MPI_Recv(&nitems, 1, MPI_INT, follower, pair_idx, rowgrps_communicators[tid], &status);
                         accus_activity_statuses[tid][accu] = nitems;
                         if(accus_activity_statuses[tid][accu] > 1) {
                             std::vector<Integer_Type> &yij_data = YI[yi][accu];
                             std::vector<Fractional_Type> &yvj_data = YV[yi][accu];
-                            MPI_Irecv(yij_data.data(), accus_activity_statuses[tid][accu] - 1, TYPE_INT, follower, pair_idx, rowgrps_communicator, &request);
+                            MPI_Irecv(yij_data.data(), accus_activity_statuses[tid][accu] - 1, TYPE_INT, follower, pair_idx, rowgrps_communicators[tid], &request);
                             //in_requests.push_back(request);
                             in_requests_t[tid].push_back(request);
-                            MPI_Irecv(yvj_data.data(), accus_activity_statuses[tid][accu] - 1, TYPE_DOUBLE, follower, pair_idx, rowgrps_communicator, &request);
+                            MPI_Irecv(yvj_data.data(), accus_activity_statuses[tid][accu] - 1, TYPE_DOUBLE, follower, pair_idx, rowgrps_communicators[tid], &request);
                             //in_requests_.push_back(request);
                             in_requests_t[tid].push_back(request);
                         }
@@ -1749,7 +1749,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
                     else {                                
                         std::vector<Fractional_Type> &yj_data = Y[yi][accu];
                         Integer_Type yj_nitems = yj_data.size();
-                        MPI_Irecv(yj_data.data(), yj_nitems, TYPE_DOUBLE, follower, pair_idx, rowgrps_communicator, &request);
+                        MPI_Irecv(yj_data.data(), yj_nitems, TYPE_DOUBLE, follower, pair_idx, rowgrps_communicators[tid], &request);
                         //in_requests.push_back(request);
                         in_requests_t[tid].push_back(request);
                     }       
@@ -1772,18 +1772,18 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
                     }
                     nitems = j;
                     nitems++;
-                    MPI_Send(&nitems, 1, TYPE_INT, leader, pair_idx, rowgrps_communicator);
+                    MPI_Send(&nitems, 1, TYPE_INT, leader, pair_idx, rowgrps_communicators[tid]);
                     if(nitems > 1) {
-                        MPI_Isend(yi_data.data(), nitems - 1, TYPE_INT, leader, pair_idx, rowgrps_communicator, &request);
+                        MPI_Isend(yi_data.data(), nitems - 1, TYPE_INT, leader, pair_idx, rowgrps_communicators[tid], &request);
                         //out_requests.push_back(request);
                         out_requests_t[tid].push_back(request);
-                        MPI_Isend(yv_data.data(), nitems - 1, TYPE_DOUBLE, leader, pair_idx, rowgrps_communicator, &request);
+                        MPI_Isend(yv_data.data(), nitems - 1, TYPE_DOUBLE, leader, pair_idx, rowgrps_communicators[tid], &request);
                         //out_requests_.push_back(request);
                         out_requests_t[tid].push_back(request);
                     }
                 }
                 else {
-                    MPI_Isend(y_data.data(), y_nitems, TYPE_DOUBLE, leader, pair_idx, rowgrps_communicator, &request);
+                    MPI_Isend(y_data.data(), y_nitems, TYPE_DOUBLE, leader, pair_idx, rowgrps_communicators[tid], &request);
                     //out_requests.push_back(request);
                     out_requests_t[tid].push_back(request);
                 }
