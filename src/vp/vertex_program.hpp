@@ -71,10 +71,12 @@ class Vertex_Program
         void bcast_stationary();
         void bcast_stationary(int tid);
         void bcast_nonstationary();
+        void bcast_nonstationary(int tid);
         void combine();
         void combine_2d_stationary();
         void combine_2d_stationary(int tid);
         void combine_2d_nonstationary();
+        void combine_2d_nonstationary(int tid);
         void combine_postprocess();
         void combine_postprocess_stationary_for_all();
         void combine_postprocess_nonstationary_for_all();
@@ -82,6 +84,7 @@ class Vertex_Program
         void apply_stationary();
         void apply_stationary(int tid);
         void apply_nonstationary();
+        void apply_nonstationary(int tid);
 
         
         void spmv_stationary(struct Tile2D<Weight, Integer_Type, Fractional_Type>& tile,
@@ -524,6 +527,15 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
         
     }
     else {
+        std::vector<std::thread> threads;
+        for(int i = 0; i < Env::nthreads; i++) {
+            threads.push_back(std::thread(&Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_Methods_Impl>::thread_function_nonstationary, this, i));
+        }
+        
+        for(std::thread& th: threads) {
+            th.join();
+        }
+        /*
         while(true) {
             //bcast();
             combine();
@@ -540,6 +552,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
                 break;
             }
         }
+        */
     }
     t2 = Env::clock();
     elapsed_time = t2 - t1;
@@ -1063,7 +1076,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
 template<typename Weight, typename Integer_Type, typename Fractional_Type, typename Vertex_State, typename Vertex_Methods_Impl>
 void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_Methods_Impl>::thread_function_stationary(int tid) {
     int ret = Env::set_thread_affinity(tid);
-    bool converged = false;
+    //bool converged = false;
     
     do {
         
@@ -1482,15 +1495,410 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
     for(std::thread& th: threads) {
         th.join();
     }
+
 }
 
 template<typename Weight, typename Integer_Type, typename Fractional_Type, typename Vertex_State, typename Vertex_Methods_Impl>
+void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_Methods_Impl>::bcast_nonstationary(int tid) {
+    #ifdef TIMING
+    double t1, t2, elapsed_time;
+    if(tid == 0) {
+        t1 = Env::clock();
+    }
+    #endif
+    
+    
+    Env::barrier();
+    Env::exit(0);
+    /*    
+    std::fill(accus_activity_statuses[tid].begin(), accus_activity_statuses[tid].end(), 0);
+    
+   std::fill(msgs_activity_statuses.begin(), msgs_activity_statuses.end(), 0);
+    int32_t chunk_size = rank_ncolgrps / Env::nthreads;
+    int32_t start = tid * chunk_size;
+    int32_t end = (tid != Env::nthreads - 1) ? start + chunk_size : rank_ncolgrps;
+    for(int32_t i = start; i < end; i++) 
+        msgs_activity_statuses[i] = 0;   
+    */
+    
+    #ifdef TIMING    
+    if(tid == 0) {
+        t2 = Env::clock();
+        elapsed_time = t2 - t1;
+        Env::print_time("Bcast", elapsed_time);
+        bcast_time.push_back(elapsed_time);
+    }
+    #endif   
+}
+
+template<typename Weight, typename Integer_Type, typename Fractional_Type, typename Vertex_State, typename Vertex_Methods_Impl>
+void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_Methods_Impl>::combine_2d_nonstationary(int tid) {
+    #ifdef TIMING
+    double t1, t2, elapsed_time;
+    if(tid == 0) {
+        t1 = Env::clock();
+    }
+    #endif
+    
+    MPI_Request request;
+    uint32_t tile_th, pair_idx;
+    int32_t leader, follower, my_rank, accu;
+    bool vec_owner, communication;
+    uint32_t xi= 0, yi = 0, yo = 0;
+    for(uint32_t t: local_tiles_row_order_t[tid]) {
+    //for(uint32_t t: local_tiles_row_order) {
+        auto pair = A->tile_of_local_tile(t);
+        auto &tile = A->tiles[pair.row][pair.col];
+        auto pair1 = tile_info(tile, pair); 
+        tile_th = pair1.row;
+        pair_idx = pair1.col;
+        
+        if(ordering_type == _ROW_)
+            yi = tile.ith;
+        else 
+            yi = tile.jth;
+        
+        vec_owner = leader_ranks[pair_idx] == Env::rank;
+        if(vec_owner)
+            yo = accu_segment_rg;
+        else
+            yo = 0;
+        std::vector<Fractional_Type>& y_data = Y[yi][yo];
+        Integer_Type y_nitems = y_data.size();
+        std::vector<Fractional_Type>& x_data = X[xi];
+        std::vector<Fractional_Type>& xv_data = XV[xi];
+        std::vector<Integer_Type>& xi_data = XI[xi];
+        std::vector<char>& t_data = T[yi];
+        
+        const uint64_t nnz = static_cast<TCSC_BASE<Weight, Integer_Type>*>(tile.compressor)->nnz;
+        if(nnz) {
+            #ifdef HAS_WEIGHT
+            const Integer_Type* A = static_cast<TCSC_BASE<Weight, Integer_Type>*>(tile.compressor)->A;
+            #endif
+
+            const Integer_Type* IA   = static_cast<TCSC_BASE<Weight, Integer_Type>*>(tile.compressor)->IA;
+            const Integer_Type* JA   = static_cast<TCSC_BASE<Weight, Integer_Type>*>(tile.compressor)->JA;    
+            const Integer_Type ncols = static_cast<TCSC_BASE<Weight, Integer_Type>*>(tile.compressor)->nnzcols;  
+
+            if(activity_filtering and activity_statuses[tile.cg]) {
+                Integer_Type s_nitems = msgs_activity_statuses[tile.jth] - 1;
+                Integer_Type j = 0;
+                for(Integer_Type k = 0; k < s_nitems; k++) {
+                    j = xi_data[k];
+                    for(uint32_t i = JA[j]; i < JA[j + 1]; i++) {
+                        #ifdef HAS_WEIGHT
+                        Vertex_Methods.combiner(y_data[IA[i]], xv_data[k], A[i]);
+                        #else
+                        Vertex_Methods.combiner(y_data[IA[i]], xv_data[k]);
+                        #endif
+                        t_data[IA[i]] = 1;
+                    }
+                }
+            }
+            else {
+                for(uint32_t j = 0; j < ncols; j++) {
+                    if(x_data[j] != Vertex_Methods.infinity()) {
+                        for(uint32_t i = JA[j]; i < JA[j + 1]; i++) {
+                            #ifdef HAS_WEIGHT
+                            Vertex_Methods.combiner(y_data[IA[i]], x_data[j], A[i]);
+                            #else
+                            Vertex_Methods.combiner(y_data[IA[i]], x_data[j]);
+                            #endif
+                            t_data[IA[i]] = 1;
+                        }
+                    }
+                }
+            }
+        }
+        
+
+        //if(tile.nedges)
+        //    spmv_nonstationary(tile, y_data, x_data, xv_data, xi_data, t_data);
+        
+        xi++;
+        communication = (((tile_th + 1) % rank_ncolgrps) == 0);
+        if(communication) {
+            //MPI_Comm communicator = communicator_info();
+            auto pair2 = leader_info(tile);
+            leader = pair2.row;
+            my_rank = pair2.col;
+            if(leader == my_rank) {
+                for(uint32_t j = 0; j < rowgrp_nranks - 1; j++) {
+                    //if(Env::comm_split) {   
+                        follower = follower_rowgrp_ranks_rg[j];
+                        accu = follower_rowgrp_ranks_accu_seg_rg[j];
+                    //}
+                    //else {
+                      //  follower = follower_rowgrp_ranks[j];
+                        //accu = follower_rowgrp_ranks_accu_seg[j];
+                    //}
+                    if(activity_filtering and activity_statuses[tile.rg]) {
+                        // 0 all / 1 nothing / else nitems 
+                        int nitems = 0;
+                        MPI_Status status;
+                        MPI_Recv(&nitems, 1, MPI_INT, follower, pair_idx, rowgrps_communicator, &status);
+                        accus_activity_statuses[tid][accu] = nitems;
+                        if(accus_activity_statuses[tid][accu] > 1) {
+                            std::vector<Integer_Type> &yij_data = YI[yi][accu];
+                            std::vector<Fractional_Type> &yvj_data = YV[yi][accu];
+                            MPI_Irecv(yij_data.data(), accus_activity_statuses[tid][accu] - 1, TYPE_INT, follower, pair_idx, rowgrps_communicator, &request);
+                            //in_requests.push_back(request);
+                            in_requests_t[tid].push_back(request);
+                            MPI_Irecv(yvj_data.data(), accus_activity_statuses[tid][accu] - 1, TYPE_DOUBLE, follower, pair_idx, rowgrps_communicator, &request);
+                            //in_requests_.push_back(request);
+                            in_requests_t[tid].push_back(request);
+                        }
+                    }
+                    else {                                
+                        std::vector<Fractional_Type> &yj_data = Y[yi][accu];
+                        Integer_Type yj_nitems = yj_data.size();
+                        MPI_Irecv(yj_data.data(), yj_nitems, TYPE_DOUBLE, follower, pair_idx, rowgrps_communicator, &request);
+                        //in_requests.push_back(request);
+                        in_requests_t[tid].push_back(request);
+                    }       
+                }   
+            }
+            else
+            {
+                std::vector<Integer_Type> &yi_data = YI[yi][yo];
+                std::vector<Fractional_Type> &yv_data = YV[yi][yo];
+                int nitems = 0;
+                if(activity_filtering and activity_statuses[tile.rg]) {
+                    std::vector<char> &t_data = T[yi];
+                    Integer_Type j = 0;
+                    for(uint32_t i = 0; i < y_nitems; i++) {
+                        if(t_data[i]) {
+                            yi_data[j] = i;
+                            yv_data[j] = y_data[i];
+                            j++;
+                        }
+                    }
+                    nitems = j;
+                    nitems++;
+                    MPI_Send(&nitems, 1, TYPE_INT, leader, pair_idx, rowgrps_communicator);
+                    if(nitems > 1) {
+                        MPI_Isend(yi_data.data(), nitems - 1, TYPE_INT, leader, pair_idx, rowgrps_communicator, &request);
+                        //out_requests.push_back(request);
+                        out_requests_t[tid].push_back(request);
+                        MPI_Isend(yv_data.data(), nitems - 1, TYPE_DOUBLE, leader, pair_idx, rowgrps_communicator, &request);
+                        //out_requests_.push_back(request);
+                        out_requests_t[tid].push_back(request);
+                    }
+                }
+                else {
+                    MPI_Isend(y_data.data(), y_nitems, TYPE_DOUBLE, leader, pair_idx, rowgrps_communicator, &request);
+                    //out_requests.push_back(request);
+                    out_requests_t[tid].push_back(request);
+                }
+            }
+            xi = 0;
+            //yi++;
+        }
+    }
+    
+    
+    MPI_Waitall(in_requests_t[tid].size(), in_requests_t[tid].data(), MPI_STATUSES_IGNORE);
+    in_requests_t[tid].clear();
+    
+
+    
+    
+    //uint32_t accu = 0;
+    yi = accu_segment_rows[tid];
+    yo = accu_segment_rg;
+    std::vector<Fractional_Type>& y_data = Y[yi][yo];
+    for(uint32_t j = 0; j < rowgrp_nranks - 1; j++) {
+        //if(Env::comm_split)
+            accu = follower_rowgrp_ranks_accu_seg_rg[j];
+        //else
+          //  accu = follower_rowgrp_ranks_accu_seg[j];
+        if(activity_filtering and accus_activity_statuses[tid][accu]) {
+            if(accus_activity_statuses[tid][accu] > 1) {
+                std::vector<Integer_Type>& yij_data = YI[yi][accu];
+                std::vector<Fractional_Type>& yvj_data = YV[yi][accu];
+                //#pragma omp parallel for schedule(static)
+                for(uint32_t i = 0; i < accus_activity_statuses[tid][accu] - 1; i++) {
+                    Integer_Type k = yij_data[i];
+                    Vertex_Methods.combiner(y_data[k], yvj_data[i]);
+                }
+            }
+        }
+        else {
+            std::vector<Fractional_Type>& yj_data = Y[yi][accu];
+            Integer_Type yj_nitems = yj_data.size();
+            //#pragma omp parallel for schedule(static)
+            for(uint32_t i = 0; i < yj_nitems; i++)
+                Vertex_Methods.combiner(y_data[i], yj_data[i]);
+        }
+    }
+    
+    MPI_Waitall(out_requests_t[tid].size(), out_requests_t[tid].data(), MPI_STATUSES_IGNORE);
+    out_requests_t[tid].clear();
+    
+    #ifdef TIMING    
+    if(tid == 0) {
+        t2 = Env::clock();
+        elapsed_time = t2 - t1;
+        Env::print_time("Combine", elapsed_time);
+        bcast_time.push_back(elapsed_time);
+    }
+    #endif       
+}
+
+template<typename Weight, typename Integer_Type, typename Fractional_Type, typename Vertex_State, typename Vertex_Methods_Impl>
+void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_Methods_Impl>::apply_nonstationary(int tid) {
+    #ifdef TIMING
+    double t1, t2, elapsed_time;
+    if(tid == 0) {
+        t1 = Env::clock();
+    }
+    #endif
+    
+    uint32_t yi = 0, y = 0;
+     if(apply_depends_on_iter)
+    {
+        if(iteration == 0)
+        {
+            //for(int32_t k = 0; k < num_owned_segments; k++) {
+                yi  = accu_segment_rows[tid];
+                yo = accu_segment_rg;
+                std::vector<Fractional_Type>& y_data = Y[yi][yo];
+                auto& i_data = (*I)[yi];
+                auto& iv_data = (*IV)[yi];
+                auto& v_data = Vt[tid];
+                auto& c_data = Ct[tid];
+                Integer_Type v_nitems = v_data.size();
+                //#pragma omp parallel for schedule(static)
+                for(uint32_t i = 0; i < v_nitems; i++)
+                {
+                    Vertex_State &state = v_data[i];
+                    if(i_data[i])
+                        c_data[i] = Vertex_Methods.applicator(state, y_data[iv_data[i]], iteration);
+                    else
+                        c_data[i] = Vertex_Methods.applicator(state);    
+                }
+            //}
+        }
+        else
+        {
+          //  for(int32_t k = 0; k < num_owned_segments; k++) {
+                yi  = accu_segment_rows[tid];
+                yo = accu_segment_rg;
+                std::vector<Fractional_Type>& y_data = Y[yi][yo];
+                //Integer_Type j = 0;
+                auto& iv_data = (*IV)[yi];
+                auto& IR = rowgrp_nnz_rows_t[tid];
+                Integer_Type IR_nitems = IR.size();
+                auto& v_data = Vt[tid];
+                auto& c_data = Ct[tid];
+                //#pragma omp parallel for schedule(static)
+                for(Integer_Type j = 0; j < IR_nitems; j++) {
+                    Integer_Type i = IR[j];
+                    Vertex_State& state = v_data[i];
+                    Integer_Type l = iv_data[i];    
+                    c_data[i] = Vertex_Methods.applicator(state, y_data[l], iteration);
+                }
+         //   }
+        }
+    }
+    else {
+        if(iteration == 0)
+        {
+            //for(int32_t k = 0; k < num_owned_segments; k++) {
+                yi  = accu_segment_rows[tid];
+                yo = accu_segment_rg;
+                std::vector<Fractional_Type>& y_data = Y[yi][yo];
+                auto& i_data = (*I)[yi];
+                auto& iv_data = (*IV)[yi];
+                auto& v_data = Vt[tid];
+                auto& c_data = Ct[tid];
+                Integer_Type v_nitems = v_data.size();
+                //#pragma omp parallel for schedule(static)
+                for(uint32_t i = 0; i < v_nitems; i++)
+                {
+                    Vertex_State& state = v_data[i];
+                    if(i_data[i])
+                        c_data[i] = Vertex_Methods.applicator(state, y_data[iv_data[i]]);
+                    else
+                        c_data[i] = Vertex_Methods.applicator(state);    
+                }
+            //}
+        }
+        else
+        {
+            //for(int32_t k = 0; k < num_owned_segments; k++) {
+                yi  = accu_segment_rows[tid];
+                yo = accu_segment_rg;
+                std::vector<Fractional_Type>& y_data = Y[yi][yo];
+                Integer_Type j = 0;
+                auto& iv_data = (*IV)[yi];
+                auto& IR = rowgrp_nnz_rows_t[tid];
+                Integer_Type IR_nitems = IR.size();
+                auto& v_data = Vt[tid];
+                auto& c_data = Ct[tid];
+                //#pragma omp parallel for schedule(static)
+                for(Integer_Type j = 0; j < IR_nitems; j++) {
+                    Integer_Type i = IR[j];
+                    Vertex_State &state = v_data[i];
+                    Integer_Type l = iv_data[i];    
+                    c_data[i] = Vertex_Methods.applicator(state, y_data[l]);
+                }
+            //}
+        }
+    }
+
+            
+    int32_t start = tid * (rank_nrowgrps / Env::nthreads);
+    int32_t end = start + (rank_nrowgrps / Env::nthreads);
+    end = (tid != Env::nthreads - 1) ? end : rank_nrowgrps;
+    if(not gather_depends_on_apply and not apply_depends_on_iter) {
+        for(int32_t i = start; i < end; i++) {
+            for(uint32_t j = 0; j < Y[i].size(); j++) {
+                std::vector<Fractional_Type> &y_data = Y[i][j];
+                Integer_Type y_nitems = y_data.size();
+                std::fill(y_data.begin(), y_data.end(), 0);
+            }
+        }
+    }
+
+    if(activity_filtering) {
+        for(int32_t i = start; i < end; i++) {
+            std::vector<char> &t_data = T[i];
+            Integer_Type t_nitems = t_data.size();
+            std::fill(t_data.begin(), t_data.end(), 0);
+        }
+    }
+    
+    #ifdef TIMING    
+    if(tid == 0) {
+        t2 = Env::clock();
+        elapsed_time = t2 - t1;
+        Env::print_time("Apply", elapsed_time);
+        bcast_time.push_back(elapsed_time);
+    }
+    #endif   
+}
+
+
+
+template<typename Weight, typename Integer_Type, typename Fractional_Type, typename Vertex_State, typename Vertex_Methods_Impl>
 void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_Methods_Impl>::thread_function_nonstationary(int tid) {
+    int ret = Env::set_thread_affinity(tid);
+    do {
+        bcast_nonstationary(tid);
+        combine_2d_nonstationary(tid);
+        apply_nonstationary(tid);
+        
+        
+    }while(not has_converged());
+    
+    /*
     #ifdef TIMING
     double t1, t2, elapsed_time;
     t1 = Env::clock();
     #endif
     int ret = Env::set_thread_affinity(tid);
+    
     MPI_Request request;
     uint32_t tile_th, pair_idx;
     int32_t leader, follower, my_rank, accu;
@@ -1688,7 +2096,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
     
 
     std::fill(accus_activity_statuses[tid].begin(), accus_activity_statuses[tid].end(), 0);
-    
+    */
     
     /*
     int32_t chunk_size = rank_ncolgrps / Env::nthreads;
@@ -1698,6 +2106,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
         msgs_activity_statuses[i] = 0;
     */
 
+    /*
     #ifdef TIMING    
     t2 = Env::clock();
     elapsed_time = t2 - t1;
@@ -1832,7 +2241,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
         apply_time.push_back(elapsed_time);
     }
     #endif
-    
+    */
     //has_converged()
     /*
     auto chunk_size = msgs_activity_statuses.size() / Env::nthreads;
@@ -1843,7 +2252,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
     
     
     
-    
+    /*
     convergence_vec[tid] = 0; 
     uint64_t c_sum_local = 0, c_sum_gloabl = 0;
     auto& c_data = Ct[tid];
@@ -1854,6 +2263,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
     }
     if(c_sum_local == c_nitems)
         convergence_vec[tid] = 1;
+    */
     /*
     if(tid == 0) {
         if(std::sum(convergence_vec.begin(), convergence_vec.end(), 0) == Env::nthreads)
@@ -2027,33 +2437,25 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
 
 template<typename Weight, typename Integer_Type, typename Fractional_Type, typename Vertex_State, typename Vertex_Methods_Impl>
 void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_Methods_Impl>::apply_stationary(int tid) {
-    uint32_t yi = 0, yo = 0;
-    yi  = accu_segment_rows[tid];
-    yo = accu_segment_rg;
-    //std::vector<Fractional_Type>& 
+    uint32_t yi  = accu_segment_rows[tid];
+    uint32_t yo = accu_segment_rg;
     auto& y_data = Y[yi][yo];
     auto& i_data = (*I)[yi];
     auto& iv_data = (*IV)[yi];
     auto& v_data = Vt[tid];
     auto& c_data = Ct[tid];
     Integer_Type v_nitems = v_data.size();
-    //#pragma omp parallel for schedule(static)
-    for(uint32_t i = 0; i < v_nitems; i++)
-    {
+    for(uint32_t i = 0; i < v_nitems; i++) {
         Vertex_State &state = v_data[i];
         if(i_data[i]) {
             c_data[i] = Vertex_Methods.applicator(state, y_data[iv_data[i]]);
         }
         else
             c_data[i] = Vertex_Methods.applicator(state);
-        
     }   
-//}
-    
-    
+
     int32_t start_row = tid * (rank_nrowgrps / Env::nthreads);
     int32_t end_row = (tid != Env::nthreads - 1) ? start_row + (rank_nrowgrps / Env::nthreads) : rank_nrowgrps;
-    //end = (tid != Env::nthreads - 1) ? end : rank_nrowgrps;
     for(int32_t i = start_row; i < end_row; i++) {
         for(uint32_t j = 0; j < Y[i].size(); j++) {
             std::vector<Fractional_Type> &y_data = Y[i][j];
@@ -2317,6 +2719,7 @@ MPI_Comm Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Ver
 
 template<typename Weight, typename Integer_Type, typename Fractional_Type, typename Vertex_State, typename Vertex_Methods_Impl>
 bool Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_Methods_Impl>::has_converged() {
+    
     return(false);
 }
     
