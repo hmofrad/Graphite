@@ -496,6 +496,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
 
 template<typename Weight, typename Integer_Type, typename Fractional_Type, typename Vertex_State, typename Vertex_Methods_Impl>
 void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_Methods_Impl>::execute(Integer_Type num_iterations_) {
+    
     num_iterations = num_iterations_;
     if(!num_iterations)
         check_for_convergence = true; 
@@ -1507,9 +1508,105 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
     }
     #endif
     
+    //for(int32_t k = 0; k < num_owned_segments; k++) {
+        uint32_t xo = accu_segment_cols[tid];
+        std::vector<Fractional_Type> &x_data = X[xo];
+        Integer_Type x_nitems = x_data.size();
+        std::vector<Fractional_Type> &xv_data = XV[xo];
+        std::vector<Integer_Type> &xi_data = XI[xo];
+        auto& JC = colgrp_nnz_cols_t[tid];
+        Integer_Type JC_nitems = JC.size();
+        auto& v_data = Vt[tid];
+        auto& c_data = Ct[tid];
+        Integer_Type i = 0;
+        Integer_Type l = 0;
+        ////#pragma omp parallel for schedule(static) Don't because of l
+        for(Integer_Type j = 0; j < JC_nitems; j++) {
+            i = JC[j];
+            Vertex_State& state = v_data[i];
+            if(c_data[i]) {
+                //x_data[j] = messenger(state); 
+                x_data[j] = Vertex_Methods.messenger(state); 
+                xv_data[l] = x_data[j];
+                xi_data[l] = j;
+                l++;
+            }
+            else
+                x_data[j] = Vertex_Methods.infinity();
+        }
+        
+        
+        //uint32_t xo = accu_segment_col;
+        //std::vector<Fractional_Type>& x_data = X[xo];
+        
+        if(activity_filtering) {
+            msgs_activity_statuses[xo] = l;
+            int nitems = msgs_activity_statuses[xo];
+            // 0 all, 1 nothing, else nitems
+            double ratio = (double) nitems/x_nitems;
+            if(ratio <= activity_filtering_ratio)
+                nitems++;
+            else
+                nitems = 0;
+            msgs_activity_statuses[xo] = nitems;
+            activity_statuses[owned_segments[tid]] = msgs_activity_statuses[xo];
+            
+            //Env::barrier();
+            for(int32_t r = 0; r < Env::nranks; r++) {
+                //int32_t r = leader_ranks[i];
+                
+                if(r != Env::rank) {
+                    int32_t j = tid + (r * num_owned_segments);
+                    int32_t m = owned_segments_all[j];
+                    MPI_Sendrecv(&activity_statuses[owned_segments[tid]], 1, TYPE_INT, r, tid, 
+                                 &activity_statuses[m], 1, TYPE_INT, r, tid, Env::MPI_WORLD, MPI_STATUS_IGNORE);
+                }
+            }
+            //Env::barrier();
+            
+        }
+
+        
+    //}
     
-    Env::barrier();
-    Env::exit(0);
+    
+    const int32_t col_chunk_size = rank_ncolgrps / Env::nthreads;
+    const int32_t col_start = tid * col_chunk_size;
+    const int32_t col_end = (tid != Env::nthreads - 1) ? col_start + col_chunk_size : rank_ncolgrps;
+        
+    MPI_Request request;
+    int32_t leader_cg;
+    for(int32_t i = col_start; i < col_end; i++) {
+        leader_cg = leader_ranks_cg[local_col_segments[i]]; 
+        std::vector<Fractional_Type>& xj_data = X[i];
+        Integer_Type xj_nitems = xj_data.size();
+        std::vector<Integer_Type>& xij_data = XI[i];
+        std::vector<Fractional_Type>& xvj_data = XV[i];
+        int nitems = 0;
+        if(Env::rank_cg == leader_cg)
+            nitems = msgs_activity_statuses[i];
+        MPI_Ibcast(&nitems, 1, TYPE_INT, leader_cg, colgrps_communicator, &request);
+        MPI_Wait(&request, MPI_STATUSES_IGNORE);
+        if(Env::rank_cg != leader_cg)
+            msgs_activity_statuses[i] = nitems;
+        if(activity_filtering and nitems) {
+            if(nitems > 1) {
+                MPI_Ibcast(xij_data.data(), nitems - 1, TYPE_INT, leader_cg, colgrps_communicators[tid], &request);
+                out_requests.push_back(request);
+                MPI_Ibcast(xvj_data.data(), nitems - 1, TYPE_DOUBLE, leader_cg, colgrps_communicators[tid], &request);
+                out_requests.push_back(request);
+            }
+        }
+        else {
+            MPI_Ibcast(xj_data.data(), xj_nitems, TYPE_DOUBLE, leader_cg, colgrps_communicators[tid], &request);
+            out_requests.push_back(request);
+        }
+    }
+    MPI_Waitall(out_requests.size(), out_requests.data(), MPI_STATUSES_IGNORE);
+    out_requests.clear();     
+    
+    
+
     /*    
     std::fill(accus_activity_statuses[tid].begin(), accus_activity_statuses[tid].end(), 0);
     
@@ -1754,7 +1851,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
     }
     #endif
     
-    uint32_t yi = 0, y = 0;
+    uint32_t yi = 0, yo = 0;
      if(apply_depends_on_iter)
     {
         if(iteration == 0)
@@ -1888,9 +1985,10 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
         bcast_nonstationary(tid);
         combine_2d_nonstationary(tid);
         apply_nonstationary(tid);
+
         
         
-    }while(not has_converged());
+    }while(not has_converged(tid));
     
     /*
     #ifdef TIMING
@@ -2758,9 +2856,29 @@ bool Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
         else if(iteration >= num_iterations)
                 converged = true;
     }
+    
+    if(not stationary) {
+            
+        std::fill(accus_activity_statuses[tid].begin(), accus_activity_statuses[tid].end(), 0);
+        
+        auto col_chunk_size = msgs_activity_statuses.size() / Env::nthreads;
+        auto col_start = msgs_activity_statuses.begin() + (tid * col_chunk_size);
+        auto col_end = (tid != Env::nthreads - 1) ? col_start + col_chunk_size : msgs_activity_statuses.end();
+        std::fill(col_start, col_end, 0);
+    
+        /*
+        int32_t col_chunk_size = rank_ncolgrps / Env::nthreads;
+        int32_t col_start = tid * chunk_size;
+        int32_t col_end = (tid != Env::nthreads - 1) ? col_start + col_chunk_size : rank_ncolgrps;
+        for(int32_t i = start; i < end; i++) 
+            msgs_activity_statuses[i] = 0;   
+        }
+        */
+    }        
     pthread_barrier_wait(&p_barrier);
     
-    
+    //Env::barrier();
+    //Env::exit(0);
     
     //uint64_t c_sum_local = 0, c_sum_gloabl = 0;
     //if(stationary) {
