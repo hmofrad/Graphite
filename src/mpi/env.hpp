@@ -19,9 +19,9 @@
 
 #include <mpi.h>
 #include <omp.h>
-#include <numa.h>
+//#include <numa.h>
 #include <thread>
-//#include </ihome/rmelhem/moh18/numactl/libnuma/usr/local/include/numa.h>
+#include </ihome/rmelhem/moh18/numactl/libnuma/usr/local/include/numa.h>
 
 class Env {
     public:
@@ -362,11 +362,11 @@ void Env::affinity()
     }  
     
     machine_nranks = nranks / nmachines;
-    /*
+    
     for(int i = 0; i < nmachines; i++) {
         assert(machine_nranks == machines_nranks[i]/nranks);
     }
-    */
+    
     
 
     //
@@ -411,7 +411,7 @@ void Env::affinity()
     
     for(int i = 0; i < nmachines; i++) {
         for(int j = 0; j < machine_nranks; j++) {
-            /////assert(socket_nranks == std::accumulate(machines_sockets_per_rank[i][j].begin(), machines_sockets_per_rank[i][j].end(), 0));
+            assert(socket_nranks == std::accumulate(machines_sockets_per_rank[i][j].begin(), machines_sockets_per_rank[i][j].end(), 0));
             //printf("%d %d: ", i, ranks[j+(i*machine_nranks)]);
             //for(int k = 0; k < nsockets; k++) {
             //    printf(" %d ", machines_sockets_per_rank[i][j][k]  );
