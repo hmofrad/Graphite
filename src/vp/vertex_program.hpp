@@ -1084,6 +1084,8 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
         bcast_stationary(tid);
         combine_2d_stationary(tid);
         apply_stationary(tid);
+    }while(not has_converged(tid));      
+    
     /* 
     #ifdef TIMING
     double t1, t2, elapsed_time;
@@ -1348,7 +1350,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
     pthread_barrier_wait(&p_barrier);
     */
 
-    }while(not has_converged(tid));   
+
 }
 
 template<typename Weight, typename Integer_Type, typename Fractional_Type, typename Vertex_State, typename Vertex_Methods_Impl>
@@ -1604,7 +1606,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
     }
     MPI_Waitall(out_requests_t[tid].size(), out_requests_t[tid].data(), MPI_STATUSES_IGNORE);
     out_requests_t[tid].clear();     
-    //pthread_barrier_wait(&p_barrier);
+    pthread_barrier_wait(&p_barrier);
     
 
     /*    
@@ -2535,6 +2537,12 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
 
 template<typename Weight, typename Integer_Type, typename Fractional_Type, typename Vertex_State, typename Vertex_Methods_Impl>
 void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_Methods_Impl>::apply_stationary(int tid) {
+    #ifdef TIMING
+    double t1, t2, elapsed_time;
+    if(tid == 0) {
+        t1 = Env::clock();
+    }
+    #endif
     uint32_t yi  = accu_segment_rows[tid];
     uint32_t yo = accu_segment_rg;
     auto& y_data = Y[yi][yo];
@@ -2561,7 +2569,14 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
             std::fill(y_data.begin(), y_data.end(), 0);
         }
     }
-    
+    #ifdef TIMING
+    if(tid == 0) {
+        t2 = Env::clock();
+        elapsed_time = t2 - t1;
+        Env::print_time("Apply", elapsed_time);
+        apply_time.push_back(elapsed_time);
+    }
+    #endif
 }
 
 template<typename Weight, typename Integer_Type, typename Fractional_Type, typename Vertex_State, typename Vertex_Methods_Impl>
@@ -2836,6 +2851,7 @@ bool Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
         }
         if(c_sum_local == c_nitems)
             convergence_vec[tid] = 1;
+        
     }
     
     pthread_barrier_wait(&p_barrier);
