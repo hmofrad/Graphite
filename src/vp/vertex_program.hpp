@@ -1604,7 +1604,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
     }
     MPI_Waitall(out_requests_t[tid].size(), out_requests_t[tid].data(), MPI_STATUSES_IGNORE);
     out_requests_t[tid].clear();     
-    pthread_barrier_wait(&p_barrier);
+    //pthread_barrier_wait(&p_barrier);
     
 
     /*    
