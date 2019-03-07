@@ -257,7 +257,7 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_matrix() {
             auto& tile = tiles[i][j];
             tile.rg = i;
             tile.cg = j;
-            if(tiling->tiling_type == Tiling_type::_2D_) {
+            if((tiling->tiling_type == Tiling_type::_2D_) or (tiling->tiling_type == Tiling_type::_NUMA_)) {
                 
                 tile.rank = (i % tiling->colgrp_nranks) * tiling->rowgrp_nranks
                                                         + (j % tiling->rowgrp_nranks);
@@ -1103,7 +1103,7 @@ template<typename Weight, typename Integer_Type, typename Fractional_Type>
 void Matrix<Weight, Integer_Type, Fractional_Type>::init_tcsc_threaded(int tid) {
     int ret = Env::set_thread_affinity(tid);
     int cid = sched_getcpu();
-    int sid =  cid / Env::nthreads_per_socket;
+    int sid =  Env::get_socket_id(cid);
     uint32_t yi = 0, xi = 0, next_row = 0;
     for(uint32_t t: local_tiles_row_order_t[tid]) {
         auto pair = tile_of_local_tile(t);
