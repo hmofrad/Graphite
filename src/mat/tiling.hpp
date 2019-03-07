@@ -11,7 +11,8 @@
 #include <cmath>
  
 enum Tiling_type {
-    _2D_
+    _2D_,
+    _NUMA_
 };
 
 class Tiling {    
@@ -46,6 +47,16 @@ Tiling::Tiling(uint32_t nranks_, uint32_t ntiles_, uint32_t nrowgrps_, uint32_t 
     
     if (tiling_type == Tiling_type::_2D_) {
         integer_factorize(nranks, rowgrp_nranks, colgrp_nranks);
+        assert(rowgrp_nranks * colgrp_nranks == nranks);
+        rank_nrowgrps = nrowgrps / colgrp_nranks;
+        rank_ncolgrps = ncolgrps / rowgrp_nranks;        
+        assert(rank_nrowgrps * rank_ncolgrps == rank_ntiles);
+    }
+    else if (tiling_type == Tiling_type::_NUMA_) {
+        //rowgrp_nranks = Env::socket_nranks;
+        //colgrp_nranks = Env::nmachines * Env::nsockets;
+        rowgrp_nranks = Env::machine_nranks;
+        colgrp_nranks = Env::nmachines;
         assert(rowgrp_nranks * colgrp_nranks == nranks);
         rank_nrowgrps = nrowgrps / colgrp_nranks;
         rank_ncolgrps = ncolgrps / rowgrp_nranks;        
