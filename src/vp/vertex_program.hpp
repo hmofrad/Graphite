@@ -981,8 +981,8 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
     int32_t leader, col_group;
     for(int32_t i = col_start; i < col_end; i++) {
         col_group = local_col_segments[i];
-        //leader = leader_ranks_cg[col_group];
-        leader = leader_ranks[col_group];
+        leader = leader_ranks_cg[col_group];
+        //leader = leader_ranks[col_group];
         std::vector<Fractional_Type>& xj_data = X[i];
         Integer_Type xj_nitems = xj_data.size();
         MPI_Ibcast(xj_data.data(), xj_nitems, TYPE_DOUBLE, leader, colgrps_communicators[tid], &request);
@@ -1004,6 +1004,21 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
 
 template<typename Weight, typename Integer_Type, typename Fractional_Type, typename Vertex_State, typename Vertex_Methods_Impl>
 void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_Methods_Impl>::bcast_stationary() {    
+    for(int32_t k = 0; k < num_owned_segments; k++) {
+        uint32_t xo = accu_segment_cols[k];    
+        std::vector<Fractional_Type>& x_data = X[xo];
+        auto& JC = colgrp_nnz_cols_t[k];
+        Integer_Type JC_nitems = JC.size();
+        auto& v_data = Vt[k];
+        //#pragma omp parallel for schedule(static)
+        for(uint32_t j = 0; j < JC_nitems; j++) {
+            Vertex_State& state = v_data[JC[j]];
+            //x_data[j] = messenger(state);
+            x_data[j] = Vertex_Methods.messenger(state);
+        }
+    }
+    
+    
     MPI_Request request;
     int32_t leader;
     for(uint32_t i = 0; i < rank_ncolgrps; i++) {
@@ -1082,9 +1097,14 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
     //bool converged = false;
     
     do {
-        
-        bcast_stationary(tid);
-        combine_2d_stationary(tid);
+        if(tid == 0) {
+            bcast_stationary();
+            pthread_barrier_wait(&p_barrier);
+            combine_2d_stationary();
+            pthread_barrier_wait(&p_barrier);
+        }
+        //combine_2d_stationary(tid);
+        //bcast_stationary(tid);
         apply_stationary(tid);
     }while(not has_converged(tid));      
     
@@ -1365,7 +1385,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
     #endif
 
     
-    Env::barrier();
+    //Env::barrier();
     
     MPI_Request request;
     //uint32_t xi= 0, yi = 0, yo = 0, follower = 0, accu = 0, tile_th = 0, pair_idx = 0;
@@ -1435,18 +1455,21 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
         xi++;
         communication = (((tile_th + 1) % rank_ncolgrps) == 0);
         if(communication) {
-            //MPI_Comm communicator = communicator_info();
-            //auto pair2 = leader_info(tile);
-            //leader = pair2.row;
-            //my_rank = pair2.col;
+            auto pair2 = leader_info(tile);
+            leader = pair2.row;
+            my_rank = pair2.col;
+            /*
             leader = leader_ranks[pair_idx];
             my_rank = Env::rank;
+            */
             if(leader == my_rank) {
                 for(uint32_t j = 0; j < rowgrp_nranks - 1; j++) {                        
-                    //follower = follower_rowgrp_ranks_rg[j];
-                    //accu = follower_rowgrp_ranks_accu_seg_rg[j];
+                    follower = follower_rowgrp_ranks_rg[j];
+                    accu = follower_rowgrp_ranks_accu_seg_rg[j];
+                    /*
                     follower = follower_rowgrp_ranks[j];
                     accu = follower_rowgrp_ranks_accu_seg[j];
+                    */
                     std::vector<Fractional_Type> &yj_data = Y[yi][accu];
                     Integer_Type yj_nitems = yj_data.size();
                   //  printf("leader=%d <-- follower=%d tag=%d\n", leader, follower, pair_idx);
@@ -1465,7 +1488,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
             xi = 0;
         }
     }
-    Env::barrier();
+    //Env::barrier();
     
     MPI_Waitall(in_requests_t[tid].size(), in_requests_t[tid].data(), MPI_STATUSES_IGNORE);
     in_requests_t[tid].clear();
@@ -1497,17 +1520,141 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
 
 template<typename Weight, typename Integer_Type, typename Fractional_Type, typename Vertex_State, typename Vertex_Methods_Impl>
 void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_Methods_Impl>::combine_2d_stationary() {
+    #ifdef TIMING
+    double t1, t2, elapsed_time;
+    t1 = Env::clock();
+    #endif
 
-    int nthreads = Env::nthreads;
-    std::vector<std::thread> threads;
-    for(int i = 0; i < nthreads; i++) {
-        threads.push_back(std::thread(&Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_Methods_Impl>::thread_function_stationary, this, i));
-    }
     
-    for(std::thread& th: threads) {
-        th.join();
-    }
+    //Env::barrier();
+    
+    MPI_Request request;
+    //uint32_t xi= 0, yi = 0, yo = 0, follower = 0, accu = 0, tile_th = 0, pair_idx = 0;
+    //bool vec_owner = false, communication = false;
+    uint32_t tile_th, pair_idx;
+    int32_t leader;
+    int32_t follower, my_rank, accu;
+    bool vec_owner, communication;
+    uint32_t xi= 0, yi = 0, yo = 0;
+    for(uint32_t t: local_tiles_row_order) {
+    //for(uint32_t t: local_tiles_row_order) {
+        auto pair = A->tile_of_local_tile(t);
+        auto &tile = A->tiles[pair.row][pair.col];
+        auto pair1 = tile_info(tile, pair); 
+        tile_th = pair1.row;
+        pair_idx = pair1.col;
+        if(ordering_type == _ROW_)
+            yi = tile.ith;
+        else 
+            yi = tile.jth;
+        vec_owner = leader_ranks[pair_idx] == Env::rank;
+        if(vec_owner)
+            yo = accu_segment_rg;
+        else
+            yo = 0;
+        std::vector<Fractional_Type> &y_data = Y[yi][yo];
+        Integer_Type y_nitems = y_data.size();
+        
+        std::vector<Fractional_Type> &x_data = X[xi];
+        
+        const uint64_t nnz = static_cast<TCSC_BASE<Weight, Integer_Type>*>(tile.compressor)->nnz;
+        if(nnz) {
+            #ifdef HAS_WEIGHT
+            const Integer_Type* A = static_cast<TCSC_BASE<Weight, Integer_Type>*>(tile.compressor)->A;
+            #endif
 
+            const Integer_Type* IA   = static_cast<TCSC_BASE<Weight, Integer_Type>*>(tile.compressor)->IA;
+            const Integer_Type* JA   = static_cast<TCSC_BASE<Weight, Integer_Type>*>(tile.compressor)->JA;    
+            const Integer_Type ncols = static_cast<TCSC_BASE<Weight, Integer_Type>*>(tile.compressor)->nnzcols;  
+            
+            if(ordering_type == _ROW_) {
+                for(uint32_t j = 0; j < ncols; j++) {
+                    for(uint32_t i = JA[j]; i < JA[j + 1]; i++) {
+                        
+                        #ifdef HAS_WEIGHT
+                        Vertex_Methods.combiner(y_data[IA[i]], x_data[j], A[i]);
+                        #else
+                        Vertex_Methods.combiner(y_data[IA[i]], x_data[j]);
+                        #endif
+                    }
+                }
+            }
+            else {
+                for(uint32_t j = 0; j < ncols; j++) {
+                    for(uint32_t i = JA[j]; i < JA[j + 1]; i++) {
+                        
+                        #ifdef HAS_WEIGHT
+                        Vertex_Methods.combiner(y_data[j], x_data[IA[i]], A[i]);   
+                        #else
+                        Vertex_Methods.combiner(y_data[j], x_data[IA[i]]);
+                        #endif
+                    }
+                } 
+            }
+        }
+        
+        xi++;
+        communication = (((tile_th + 1) % rank_ncolgrps) == 0);
+        if(communication) {
+            auto pair2 = leader_info(tile);
+            leader = pair2.row;
+            my_rank = pair2.col;
+            /*
+            leader = leader_ranks[pair_idx];
+            my_rank = Env::rank;
+            */
+            if(leader == my_rank) {
+                for(uint32_t j = 0; j < rowgrp_nranks - 1; j++) {                        
+                    follower = follower_rowgrp_ranks_rg[j];
+                    accu = follower_rowgrp_ranks_accu_seg_rg[j];
+                    /*
+                    follower = follower_rowgrp_ranks[j];
+                    accu = follower_rowgrp_ranks_accu_seg[j];
+                    */
+                    std::vector<Fractional_Type> &yj_data = Y[yi][accu];
+                    Integer_Type yj_nitems = yj_data.size();
+                  //  printf("leader=%d <-- follower=%d tag=%d\n", leader, follower, pair_idx);
+                    MPI_Irecv(yj_data.data(), yj_nitems, TYPE_DOUBLE, follower, pair_idx, rowgrps_communicator, &request);
+                    in_requests.push_back(request);
+                    
+                    
+                }
+            }
+            else {
+                //printf("follower=%d --> leader=%d tag=%d\n", my_rank, leader, pair_idx);
+                MPI_Isend(y_data.data(), y_nitems, TYPE_DOUBLE, leader, pair_idx, rowgrps_communicator, &request);
+                out_requests.push_back(request);
+            }
+            xi = 0;
+        }
+    }
+    //Env::barrier();
+    
+    MPI_Waitall(in_requests.size(), in_requests.data(), MPI_STATUSES_IGNORE);
+    in_requests.clear();
+    
+    for(int i = 0; i < num_owned_segments; i++) {
+        yi  = accu_segment_rows[i];
+        yo = accu_segment_rg;
+        std::vector<Fractional_Type>& y_data = Y[yi][yo];
+        for(uint32_t j = 0; j < rowgrp_nranks - 1; j++) {
+            accu = follower_rowgrp_ranks_accu_seg_rg[j];
+            std::vector<Fractional_Type>& yj_data = Y[yi][accu];
+            Integer_Type yj_nitems = yj_data.size();
+            for(uint32_t i = 0; i < yj_nitems; i++)
+                Vertex_Methods.combiner(y_data[i], yj_data[i]);
+        }
+    }
+   
+    MPI_Waitall(out_requests.size(), out_requests.data(), MPI_STATUSES_IGNORE);
+    out_requests.clear();    
+    
+    #ifdef TIMING
+    t2 = Env::clock();
+    elapsed_time = t2 - t1;
+    Env::print_time("Combine", elapsed_time);
+    combine_time.push_back(elapsed_time);
+    #endif
 }
 
 template<typename Weight, typename Integer_Type, typename Fractional_Type, typename Vertex_State, typename Vertex_Methods_Impl>
