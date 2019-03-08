@@ -2104,6 +2104,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
         }
     }
 
+    /*
     pthread_barrier_wait(&p_barrier);        
     int32_t start = tid * (rank_nrowgrps / Env::nthreads);
     int32_t end = start + (rank_nrowgrps / Env::nthreads);
@@ -2125,6 +2126,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
             std::fill(t_data.begin(), t_data.end(), 0);
         }
     }
+    */
     
     #ifdef TIMING    
     if(tid == 0) {
@@ -2717,7 +2719,8 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
         else
             c_data[i] = Vertex_Methods.applicator(state);
     }   
-    pthread_barrier_wait(&p_barrier);    
+    //pthread_barrier_wait(&p_barrier);    
+    /*
     int32_t start_row = tid * (rank_nrowgrps / Env::nthreads);
     int32_t end_row = (tid != Env::nthreads - 1) ? start_row + (rank_nrowgrps / Env::nthreads) : rank_nrowgrps;
     for(int32_t i = start_row; i < end_row; i++) {
@@ -2727,6 +2730,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
             std::fill(y_data.begin(), y_data.end(), 0);
         }
     }
+    */
     #ifdef TIMING
     if(tid == 0) {
         t2 = Env::clock();
@@ -3030,9 +3034,41 @@ bool Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
         else if(iteration >= num_iterations)
                 converged = true;
     }
-    
-    if(not stationary) {
-            
+
+    int32_t row_chunk_size = rank_nrowgrps / Env::nthreads;
+    int32_t row_start = tid * row_chunk_size;
+    int32_t row_end = (tid != Env::nthreads - 1) ? row_start + row_chunk_size : rank_nrowgrps;    
+    if(stationary) {
+        for(int32_t i = row_start; i < row_end; i++) {
+            for(Integer_Type j = 0; j < Y[i].size(); j++) {
+                std::vector<Fractional_Type> &y_data = Y[i][j];
+                Integer_Type y_nitems = y_data.size();
+                std::fill(y_data.begin(), y_data.end(), 0);
+            }
+        }
+    }
+    else {
+        //int32_t start_row = tid * (rank_nrowgrps / Env::nthreads);
+        //int32_t end_row = start_row + (rank_nrowgrps / Env::nthreads);
+        //end_row = (tid != Env::nthreads - 1) ? end_row : rank_nrowgrps;
+        if(not gather_depends_on_apply and not apply_depends_on_iter) {
+            for(int32_t i = row_start; i < row_end; i++) {
+                for(Integer_Type j = 0; j < Y[i].size(); j++) {
+                    std::vector<Fractional_Type> &y_data = Y[i][j];
+                    Integer_Type y_nitems = y_data.size();
+                    std::fill(y_data.begin(), y_data.end(), 0);
+                }
+            }
+        }
+
+        if(activity_filtering) {
+            for(int32_t i = row_start; i < row_end; i++) {
+                std::vector<char> &t_data = T[i];
+                Integer_Type t_nitems = t_data.size();
+                std::fill(t_data.begin(), t_data.end(), 0);
+            }
+        }
+        
         std::fill(accus_activity_statuses[tid].begin(), accus_activity_statuses[tid].end(), 0);
         
         auto col_chunk_size = msgs_activity_statuses.size() / Env::nthreads;
