@@ -1097,14 +1097,16 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
     //bool converged = false;
     
     do {
+        /*
         if(tid == 0) {
             bcast_stationary();
             pthread_barrier_wait(&p_barrier);
             combine_2d_stationary();
             pthread_barrier_wait(&p_barrier);
         }
-        //combine_2d_stationary(tid);
-        //bcast_stationary(tid);
+        */
+        bcast_stationary(tid);
+        combine_2d_stationary(tid);
         apply_stationary(tid);
     }while(not has_converged(tid));      
     
@@ -2102,7 +2104,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
         }
     }
 
-            
+    pthread_barrier_wait(&p_barrier);        
     int32_t start = tid * (rank_nrowgrps / Env::nthreads);
     int32_t end = start + (rank_nrowgrps / Env::nthreads);
     end = (tid != Env::nthreads - 1) ? end : rank_nrowgrps;
@@ -2759,7 +2761,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
             
         }   
     }
-    
+    pthread_barrier_wait(&p_barrier);
     for(uint32_t i = 0; i < rank_nrowgrps; i++) {
         for(uint32_t j = 0; j < Y[i].size(); j++) {
             std::vector<Fractional_Type> &y_data = Y[i][j];
