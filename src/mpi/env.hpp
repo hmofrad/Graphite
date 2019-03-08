@@ -177,7 +177,7 @@ void Env::init(bool comm_split_) {
     printf("INFO(rank=%d): Hostname=%s, core_id=%d, nthreads=%d\n", rank, core_name, core_id, nthreads);
     
     // Affinity 
-    affinity();
+    //affinity();
 }
 
 void Env::init_threads() {
@@ -509,22 +509,41 @@ void Env::grps_init(std::vector<int32_t>& grps_ranks, int grps_nranks, int& grps
 
 void Env::rowgrps_init(std::vector<int32_t>& rowgrps_ranks, int32_t rowgrps_nranks) {
     grps_init(rowgrps_ranks, rowgrps_nranks, rank_rg, nranks_rg, rowgrps_group_, rowgrps_group, rowgrps_comm);
+    /*
     rowgrps_groups_.resize(Env::nthreads);
     rowgrps_groups.resize(Env::nthreads);
     rowgrps_comms.resize(Env::nthreads);
     for(int i = 0; i < Env::nthreads; i++) {
         grps_init(rowgrps_ranks, rowgrps_nranks, rank_rg, nranks_rg, rowgrps_groups_[i], rowgrps_groups[i], rowgrps_comms[i]);
     }
+    */
+    
+    rowgrps_comms.resize(Env::nthreads);
+    for(int i = 0; i < Env::nthreads; i++) {
+        MPI_Comm_split(MPI_COMM_WORLD, i, rank, &rowgrps_comms[i]);
+        MPI_Comm_rank(rowgrps_comms[i], &rank_rg);
+        MPI_Comm_size(rowgrps_comms[i], &nranks_rg);        
+    }
 }
 
 void Env::colgrps_init(std::vector<int32_t>& colgrps_ranks, int32_t colgrps_nranks) {
     grps_init(colgrps_ranks, colgrps_nranks, rank_cg, nranks_cg, colgrps_group_, colgrps_group, colgrps_comm);   
+    /*
     colgrps_groups_.resize(Env::nthreads);
     colgrps_groups.resize(Env::nthreads);
     colgrps_comms.resize(Env::nthreads);
     for(int i = 0; i < Env::nthreads; i++) {
         grps_init(colgrps_ranks, colgrps_nranks, rank_cg, nranks_cg, colgrps_groups_[i], colgrps_groups[i], colgrps_comms[i]);  
     }
+    */
+    colgrps_comms.resize(Env::nthreads);
+    for(int i = 0; i < Env::nthreads; i++) {
+        MPI_Comm_split(MPI_COMM_WORLD, i, rank, &colgrps_comms[i]);
+        MPI_Comm_rank(colgrps_comms[i], &rank_cg);
+        MPI_Comm_size(colgrps_comms[i], &nranks_cg);        
+    }
+    
+    printf("%d %d\n", rank, rank_cg);
 }
 
 double Env::clock() {
