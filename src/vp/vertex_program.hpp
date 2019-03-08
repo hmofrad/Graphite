@@ -972,6 +972,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
         x_data[j] = Vertex_Methods.messenger(state);
     }
     
+    pthread_barrier_wait(&p_barrier);
     const int32_t col_chunk_size = rank_ncolgrps / Env::nthreads;
     const int32_t col_start = tid * col_chunk_size;
     const int32_t col_end = (tid != Env::nthreads - 1) ? col_start + col_chunk_size : rank_ncolgrps;
@@ -980,7 +981,8 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
     int32_t leader, col_group;
     for(int32_t i = col_start; i < col_end; i++) {
         col_group = local_col_segments[i];
-        leader = leader_ranks_cg[col_group];
+        //leader = leader_ranks_cg[col_group];
+        leader = leader_ranks[col_group];
         std::vector<Fractional_Type>& xj_data = X[i];
         Integer_Type xj_nitems = xj_data.size();
         MPI_Ibcast(xj_data.data(), xj_nitems, TYPE_DOUBLE, leader, colgrps_communicators[tid], &request);
@@ -988,7 +990,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
     }
     MPI_Waitall(out_requests_t[tid].size(), out_requests_t[tid].data(), MPI_STATUSES_IGNORE);
     out_requests_t[tid].clear();
-     
+    pthread_barrier_wait(&p_barrier);
     #ifdef TIMING
     if(tid == 0) {
         t2 = Env::clock();
@@ -1363,7 +1365,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
     #endif
 
     
-    
+    Env::barrier();
     
     MPI_Request request;
     //uint32_t xi= 0, yi = 0, yo = 0, follower = 0, accu = 0, tile_th = 0, pair_idx = 0;
@@ -1434,21 +1436,28 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
         communication = (((tile_th + 1) % rank_ncolgrps) == 0);
         if(communication) {
             //MPI_Comm communicator = communicator_info();
-            auto pair2 = leader_info(tile);
-            leader = pair2.row;
-            my_rank = pair2.col;
+            //auto pair2 = leader_info(tile);
+            //leader = pair2.row;
+            //my_rank = pair2.col;
+            leader = leader_ranks[pair_idx];
+            my_rank = Env::rank;
             if(leader == my_rank) {
                 for(uint32_t j = 0; j < rowgrp_nranks - 1; j++) {                        
-                    follower = follower_rowgrp_ranks_rg[j];
-                    accu = follower_rowgrp_ranks_accu_seg_rg[j];
+                    //follower = follower_rowgrp_ranks_rg[j];
+                    //accu = follower_rowgrp_ranks_accu_seg_rg[j];
+                    follower = follower_rowgrp_ranks[j];
+                    accu = follower_rowgrp_ranks_accu_seg[j];
                     std::vector<Fractional_Type> &yj_data = Y[yi][accu];
                     Integer_Type yj_nitems = yj_data.size();
+                  //  printf("leader=%d <-- follower=%d tag=%d\n", leader, follower, pair_idx);
                     MPI_Irecv(yj_data.data(), yj_nitems, TYPE_DOUBLE, follower, pair_idx, rowgrps_communicators[tid], &request);
                     //in_requests.push_back(request);
                     in_requests_t[tid].push_back(request);
+                    
                 }
             }
             else {
+                //printf("follower=%d --> leader=%d tag=%d\n", my_rank, leader, pair_idx);
                 MPI_Isend(y_data.data(), y_nitems, TYPE_DOUBLE, leader, pair_idx, rowgrps_communicators[tid], &request);
                 //out_requests.push_back(request);
                 out_requests_t[tid].push_back(request);
@@ -1456,7 +1465,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
             xi = 0;
         }
     }
-    
+    Env::barrier();
     
     MPI_Waitall(in_requests_t[tid].size(), in_requests_t[tid].data(), MPI_STATUSES_IGNORE);
     in_requests_t[tid].clear();
