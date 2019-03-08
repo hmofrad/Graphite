@@ -229,7 +229,7 @@ template<typename Weight, typename Integer_Type, typename Fractional_Type>
 void Matrix<Weight, Integer_Type, Fractional_Type>::test(const struct Triple<Weight, Integer_Type>& triple) {        
     struct Triple<Weight, Integer_Type> pair = tile_of_triple(triple);
     if(tiles[pair.row][pair.col].rank != Env::rank) {
-        printf("Rank=%d: Invalid entry for tile[%d][%d]=[%d %d]\n", Env::rank, pair.row, pair.col, triple.row, triple.col);
+        printf("rank=%d: Invalid entry for tile[%d][%d]=[%d %d]\n", Env::rank, pair.row, pair.col, triple.row, triple.col);
         Env::exit(0);
     }
 }
@@ -238,7 +238,7 @@ template<typename Weight, typename Integer_Type, typename Fractional_Type>
 void Matrix<Weight, Integer_Type, Fractional_Type>::insert(const struct Triple<Weight, Integer_Type>& triple) {
     struct Triple<Weight, Integer_Type> pair = tile_of_triple(triple);
     if(pair.row > tiling->nrowgrps or pair.col > tiling->ncolgrps) {
-        printf("Rank=%d: Invalid entry for tile[%d][%d]=[%d %d]\n", Env::rank, pair.row, pair.col, triple.row, triple.col);
+        printf("rank=%d: Invalid entry for tile[%d][%d]=[%d %d]\n", Env::rank, pair.row, pair.col, triple.row, triple.col);
         Env::exit(0);
     }
     tiles[pair.row][pair.col].triples->push_back(triple);
