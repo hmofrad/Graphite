@@ -2717,7 +2717,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
         else
             c_data[i] = Vertex_Methods.applicator(state);
     }   
-
+    pthread_barrier_wait(&p_barrier);    
     int32_t start_row = tid * (rank_nrowgrps / Env::nthreads);
     int32_t end_row = (tid != Env::nthreads - 1) ? start_row + (rank_nrowgrps / Env::nthreads) : rank_nrowgrps;
     for(int32_t i = start_row; i < end_row; i++) {
