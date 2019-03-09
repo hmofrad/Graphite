@@ -16,12 +16,13 @@
 #include <cstring>
 #include <numeric>
 #include <algorithm>
+#include <sys/time.h>
 
 #include <mpi.h>
 #include <omp.h>
-//#include <numa.h>
+#include <numa.h>
 #include <thread>
-#include </ihome/rmelhem/moh18/numactl/libnuma/usr/local/include/numa.h>
+//#include </ihome/rmelhem/moh18/numactl/libnuma/usr/local/include/numa.h>
 
 class Env {
     public:
@@ -61,6 +62,9 @@ class Env {
     static bool   get_comm_split();
     static int set_thread_affinity(int thread_id);
     static int get_socket_id(int cpu_id);
+    
+    static void shuffle_ranks();
+    static double now();
     
     static char core_name[]; // Core name = hostname of MPI rank
     static int core_id;      // Core id of MPI rank
@@ -166,7 +170,6 @@ void Env::init(bool comm_split_) {
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     assert(rank >= 0);
     is_master = rank == 0;
-    MPI_WORLD = MPI_COMM_WORLD;
     
     init_threads();
     
@@ -176,8 +179,13 @@ void Env::init(bool comm_split_) {
     }
     printf("INFO(rank=%d): Hostname=%s, core_id=%d, nthreads=%d\n", rank, core_name, core_id, nthreads);
     
+
     // Affinity 
     //affinity();
+
+    MPI_WORLD = MPI_COMM_WORLD;
+    shuffle_ranks();
+        
 }
 
 void Env::init_threads() {
@@ -496,9 +504,9 @@ void Env::set_comm_split() {
 void Env::grps_init(std::vector<int32_t>& grps_ranks, int grps_nranks, int& grps_rank_, int& grps_nranks_,
                     MPI_Group& grps_group_, MPI_Group& grps_group, MPI_Comm& grps_comm) {
     
-    MPI_Comm_group(MPI_COMM_WORLD, &grps_group_);
+    MPI_Comm_group(MPI_WORLD, &grps_group_);
     MPI_Group_incl(grps_group_, grps_nranks, grps_ranks.data(), &grps_group);
-    MPI_Comm_create(MPI_COMM_WORLD, grps_group, &grps_comm);
+    MPI_Comm_create(MPI_WORLD, grps_group, &grps_comm);
     
     if (MPI_COMM_NULL != grps_comm) 
     {
@@ -549,6 +557,43 @@ void Env::colgrps_init(std::vector<int32_t>& colgrps_ranks, int32_t colgrps_nran
     
 }
 
+void Env::shuffle_ranks()
+{
+  std::vector<int> ranks(nranks);
+  if (is_master)
+  {
+    int seed = now();
+    srand(seed);
+    std::iota(ranks.begin(), ranks.end(), 0);  // ranks = range(len(ranks))
+    std::random_shuffle(ranks.begin() + 1, ranks.end());
+
+    assert(ranks[0] == 0);
+  }
+
+  MPI_Bcast(ranks.data(), nranks, MPI_INT, 0, MPI_COMM_WORLD);
+
+  MPI_Group world_group, reordered_group;
+  MPI_Comm_group(MPI_COMM_WORLD, &world_group);
+  MPI_Group_incl(world_group, nranks, ranks.data(), &reordered_group);
+  MPI_Comm_create(MPI_COMM_WORLD, reordered_group, &MPI_WORLD);
+
+  MPI_Comm_rank(MPI_WORLD, &rank);
+  MPI_Comm_size(MPI_WORLD, &nranks);
+  
+  
+}
+
+double Env::now()
+{
+  struct timeval tv;
+  auto retval = gettimeofday(&tv, nullptr);
+  assert(retval == 0);
+  return (double) tv.tv_sec + (double) tv.tv_usec / 1e6;
+}
+
+
+
+
 double Env::clock() {
     return(MPI_Wtime());
 }
@@ -590,4 +635,6 @@ void Env::exit(int code) {
 void Env::barrier() {
     MPI_Barrier(MPI_WORLD);
 }
+
+
 #endif
