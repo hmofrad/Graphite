@@ -24,6 +24,28 @@
 #include <thread>
 #include </ihome/rmelhem/moh18/numactl/libnuma/usr/local/include/numa.h>
 
+struct topology {
+    //public:
+        //topology(){};
+        //~topology(){};
+    int nmachines;
+    int machine_nranks;
+    std::vector<struct machine> machines;
+};
+
+struct machine {
+    std::vector<int> ranks;
+    int nsockets;
+    int socket_nranks;
+    std::string name;
+    std::vector<int> ranks_per_machine;
+    std::vector<std::vector<int>> ranks_per_socket;
+    
+};
+//struct socket {
+//    std::vector<int> ranks;
+//};
+
 class Env {
     public:
     Env();
@@ -64,7 +86,6 @@ class Env {
     static int get_socket_id(int cpu_id);
     
     static void shuffle_ranks();
-    static double now();
     
     static char core_name[]; // Core name = hostname of MPI rank
     static int core_id;      // Core id of MPI rank
@@ -95,10 +116,8 @@ class Env {
     static std::vector<std::unordered_set<int>> machines_cores_uniq;
     static std::vector<int> machines_ncores; // Number of cores per machine
     static std::vector<int> machines_nsockets; // Number of sockets available per machine
+    static struct topology network;
     
-    
-    
-
     private:
         static void affinity(); // Affinity    
 };
@@ -157,7 +176,7 @@ std::vector<std::vector<std::vector<int>>> Env::machines_sockets_per_rank;
 std::vector<std::unordered_set<int>> Env::machines_cores_uniq;
 std::vector<int> Env::machines_ncores;
 std::vector<int> Env::machines_nsockets;
-
+struct topology Env::network;
 
 void Env::init(bool comm_split_) {
     comm_split = comm_split_;
@@ -180,12 +199,15 @@ void Env::init(bool comm_split_) {
     printf("INFO(rank=%d): Hostname=%s, core_id=%d, nthreads=%d\n", rank, core_name, core_id, nthreads);
     
 
-    // Affinity 
-    //affinity();
 
     MPI_WORLD = MPI_COMM_WORLD;
     shuffle_ranks();
-        
+       
+    Env::barrier();       
+    // Affinity 
+    affinity();
+    Env::barrier();
+    std::exit(0);
 }
 
 void Env::init_threads() {
@@ -255,35 +277,20 @@ int Env::get_socket_id(int cpu_id) {
 
 
 void Env::affinity()
-{
-    
-    
-    
+{    
+    // Get information on all cores a rank owns
     std::vector<int> core_ids_all = std::vector<int>(nranks * nthreads);
-    MPI_Gather(core_ids.data(), nthreads, MPI_INT, core_ids_all.data(), nthreads, MPI_INT, 0, MPI_COMM_WORLD); 
-    
-    //std::vector<int> core_ids_all = std::vector<int>(nranks);
-    //MPI_Gather(&core_id, 1, MPI_INT, core_ids_all.data(), 1, MPI_INT, 0, MPI_COMM_WORLD); 
-    
-    /*
-    if(is_master) {
-        for(int i: core_ids_all)
-            printf("%d ", i);
-        printf("\n");
-    }
-    */
+    MPI_Gather(core_ids.data(), nthreads, MPI_INT, core_ids_all.data(), nthreads, MPI_INT, 0, MPI_WORLD); 
+    // Get all machine names in machines_all
     int core_name_len = strlen(core_name);
     int max_length = 0;
-    MPI_Allreduce(&core_name_len, &max_length, 1, MPI_INT, MPI_MAX, MPI_COMM_WORLD);
-  
+    MPI_Allreduce(&core_name_len, &max_length, 1, MPI_INT, MPI_MAX, MPI_WORLD);
     char* str_padded[max_length + 1]; // + 1 for '\0'
     memset(str_padded, '\0', max_length + 1);
     memcpy(str_padded, &core_name, max_length + 1);
-  
     int total_length = (max_length + 1) * Env::nranks; 
     std::string total_string(total_length, '\0');
-    MPI_Allgather(str_padded, max_length + 1, MPI_CHAR, (void*) total_string.data(), max_length + 1, MPI_CHAR, MPI_COMM_WORLD);
-  
+    MPI_Allgather(str_padded, max_length + 1, MPI_CHAR, (void*) total_string.data(), max_length + 1, MPI_CHAR, MPI_WORLD);
     // Tokenizing the string!
     int offset = 0;
     std::vector<std::string> machines_all;
@@ -293,22 +300,7 @@ void Env::affinity()
         machines_all.push_back(total_string.substr(offset, max_length + 1));
         offset += max_length + 1;
     }
-  
-    Env::barrier();
-    /*
-    if(is_master)
-    {
-        for(int i = 0; i < nranks; i++) {
-            //printf("rank=%d, core_id=%d, cpu_name=%s\n", i, core_ids_all[i], machines_all[i].c_str());
-            
-            for(int j = 0; j < nthreads; j++) {
-                printf("rank=%d, core_id=%d, cpu_name=%s\n", i, core_ids_all[j+(i*nthreads)], machines_all[i].c_str());
-            }
-        }
-    }
-    */
-    
-    
+    // Find unique machines
     nmachines = std::set<std::string>(machines_all.begin(), machines_all.end()).size();
     machines = machines_all; 
     std::vector<std::string>::iterator it;
@@ -321,6 +313,22 @@ void Env::affinity()
     machines_sockets.resize(nmachines, std::vector<int>(nsockets));
     machines_sockets_per_rank.resize(nmachines);
     std::vector<std::unordered_set<int>> machines_cores_uniq(nmachines);
+    
+    
+
+  
+    network.nmachines = nmachines;
+    network.machines.resize(nmachines);
+    for(int i = 0; i < nmachines; i++) {
+        auto& machine = network.machines[i];
+        machine.name = machines[i];
+    }
+
+    
+
+    
+    //network = new struct topology);
+    
     
     //printf("%d\n", nmachines);
     
@@ -340,6 +348,7 @@ void Env::affinity()
         int idx1 = it - machines_all.begin();
 
         machines_ranks[idx].push_back(idx1);
+        network.machines[idx].ranks.push_back(idx1);
         //if(!Env::rank)
             //printf("%d\n", ii);
         //ii++;c
@@ -369,19 +378,25 @@ void Env::affinity()
         //machines_cores_uniq[idx].insert(core_ids_all[idx1]);
     }  
     
-    machine_nranks = nranks / nmachines;
+   
+
+
     
+    machine_nranks = nranks / nmachines; 
     for(int i = 0; i < nmachines; i++) {
-        assert(machine_nranks == machines_nranks[i]/nranks);
+        assert(machine_nranks == machines_nranks[i]);
     }
+    network.machine_nranks = machine_nranks;
     
     
 
-    //
-    Env::barrier();
-    //if(is_master) {
+    
+   // Env::barrier();
+    
         for(int i = 0; i < nmachines; i++) {
             machines_sockets_per_rank[i].resize(machines_nranks[i]);
+            auto& machine = network.machines[i];
+            machine.ranks_per_socket.resize(nsockets);
             for(int j = 0; j < machines_nranks[i]; j++) {
                 ranks_to_machines[j+(i*machine_nranks)] = i;
                 machines_sockets_per_rank[i][j].resize(nsockets);
@@ -390,14 +405,41 @@ void Env::affinity()
                     int idx = (i * machines_nranks[i] * nthreads) + (j * nthreads) + k;
                     int cid = core_ids_all[idx];
                     int sid = get_socket_id(cid);
-                  //  printf("(%d %d) ", cid, sid);
+                    //printf("(%d %d) ", cid, sid);
                     machines_sockets[i][sid]++;
                     machines_sockets_per_rank[i][j][sid] = 1;
+                    machine.ranks_per_socket[sid].push_back(machine.ranks[j]);
                 }
-              //  printf("\n");
+               // printf("\n");
             }
             
         }
+        
+   
+Env::barrier();   
+   if(is_master) {
+        for(int i = 0; i < nmachines; i++) {
+            auto& machine = network.machines[i];
+            printf("%d %s\n", i, machine.name.c_str());
+            for(uint32_t j = 0; j < machine.ranks.size(); j++) {
+                printf("%d ", machine.ranks[j]);
+            }
+            printf("\n");
+            
+            for(int32_t j = 0; j < nsockets; j++) {
+                for(uint32_t k = 0; k < machine.ranks_per_socket[j].size(); k++) {
+                    printf("%d ", machine.ranks_per_socket[j][k]);
+                }
+                printf("\n");
+            }
+            
+        }
+    }
+    
+    //printf("Rank = %d\n", Env::rank);   
+    Env::barrier();
+    Env::exit(0);
+    
         
         
         
@@ -416,7 +458,7 @@ void Env::affinity()
     
     socket_nranks = machine_nranks / nsockets;
     //printf("socket_nranks=%d\n", socket_nranks);
-    
+    /*
     for(int i = 0; i < nmachines; i++) {
         for(int j = 0; j < machine_nranks; j++) {
             assert(socket_nranks == std::accumulate(machines_sockets_per_rank[i][j].begin(), machines_sockets_per_rank[i][j].end(), 0));
@@ -428,66 +470,68 @@ void Env::affinity()
         }
             
     }
-        
-    printf("rank=%d nmachines=%d machine_nranks=%d socket_nranks=%d\n", rank, nmachines, machine_nranks, socket_nranks);
+    */    
+    //printf("rank=%d machine=%s nmachines=%d machine_nranks=%d socket_nranks=%d\n", rank, core_name, nmachines, machine_nranks, socket_nranks);
     
-    //Env::barrier();
-    //Env::exit(0);
-
-    
-    //printf("ns=%d", nsockets);
     /*
-    
-    machines_ncores.resize(nmachines, 0);
-    machines_nsockets.resize(nmachines, 0);
-    std::vector<int> sockets_per_machine(nsockets, 0);
-    for(int i = 0; i < nmachines; i++)
-    {
-        std::unordered_set<int>::iterator it1;
-		for(it1 = machines_cores_uniq[i].begin(); it1 != machines_cores_uniq[i].end(); it1++)
-		{
-			int socket_id = *it1 / nsockets;
-			sockets_per_machine[socket_id] = 1;
-			//if(!rank)
-			//    std::cout << i << " " << *it1 << " " << socket_id << ", ";
-		}
-		//if(!rank)
-		// std::cout << "\n";
-		machines_ncores[i] = machines_cores_uniq[i].size();
-		machines_nsockets[i] = std::accumulate(sockets_per_machine.begin(), sockets_per_machine.end(), 0);
-    }
-    
-    machine_ncores = machines_cores[0].size();
-    machine_nsocks = nsockets;
-    
-    if(is_master) 
-    {
-        std::vector<int>::iterator it1;
-        std::vector<int>::iterator it2;
-        for(int i = 0; i < nmachines; i++)
-        {
-            std::cout << "Machine " << i << "=[" << machines[i] << "]";
-            std::cout << "| machine_nranks=" << machines_nranks[i];
-            std::cout << "| machine_ncores=" << machines_ncores[i];
-            std::cout << "| machine_nsockets=" << machines_nsockets[i] << "\n";
-            std::cout << "Machine " << i << "=[rank,core,socket]: " ;
-            int sz = machines_ranks[i].size();
-            for(int j= 0; j < sz; j++) 
-            {
-                std::cout << "[" << machines_ranks[i][j] <<  "," << machines_cores[i][j] << "," << machines_sockets[i][j] << "]";
+    Env::barrier();
+    if(is_master) {
+        for(int i = 0; i < nmachines; i++) {
+            printf("%s= ", machines[i].c_str());
+            for(int j = 0; j < machine_nranks; j++) {
+                printf("%d ", machines_ranks[i][j]);
             }
-            std::cout << "\nMachine " << i << "=unique_core(s)[core]:";
-            std::unordered_set<int>::iterator iter;
-            for(iter=machines_cores_uniq[i].begin(); iter!=machines_cores_uniq[i].end();++iter)
-            {
-                std::cout << "[" << *iter << "]";
-            }
-            std::cout << "\n";
+            printf("\n");
         }
+        
+        
+        
+        for(int i = 0; i < nmachines; i++) {
+            printf("%s= ", machines[i].c_str());
+            for(int j = 0; j < machine_nranks; j++) {
+                printf("[%d ", machines_ranks[i][j]);
+                for(int k = 0; k < nsockets; k++) {
+                    printf("%d ", machines_sockets_per_rank[i][j][k]);
+                }
+                printf("]" );
+            }
+            printf("\n");
+        }
+        
+        
+        for(int i = 0; i < 1; i++) {
+            //printf("%s= ", machines[i].c_str());
+            for(int l = 0; l < nsockets; l++) {
+                for(int j = 0; j < machine_nranks - 1; j++) {
+                    //printf("[%d ", machines_ranks[i][j]);
+                    for(int k = j + 1; k < machine_nranks; k++) {
+                        //if(machines_sockets_per_rank[i][j][l] > machines_sockets_per_rank[i][k][l]) {
+                            printf("swapping %d %d\n", j, k);
+                            //std::swap(machines_ranks[i][j], machines_ranks[i][k]);
+                            //std::swap(machines_sockets_per_rank[i][j], machines_sockets_per_rank[i][k]);
+                           // break;
+
+                        //}
+                    }
+                        
+                }
+            }
+        }
+        
+        
+    
+    
+    
+
+        
+        
     }
+    
+    MPI_Barrier(MPI_COMM_WORLD);
+    std::exit(0);
     
     */
-   
+
 }
 
 
@@ -562,12 +606,21 @@ void Env::shuffle_ranks()
   std::vector<int> ranks(nranks);
   if (is_master)
   {
-    int seed = now();
-    srand(seed);
+    srand(time(NULL));
+/*
+    struct timeval tv;
+    gettimeofday(&tv,NULL);
+    int seed =  (double) tv.tv_sec + (double) tv.tv_usec / 1e6;
+    //srand(seed);
+    */
+
     std::iota(ranks.begin(), ranks.end(), 0);  // ranks = range(len(ranks))
     std::random_shuffle(ranks.begin() + 1, ranks.end());
 
     assert(ranks[0] == 0);
+    //for(int i: ranks) 
+        //printf("%d ", i);
+    //printf(">>\n");
   }
 
   MPI_Bcast(ranks.data(), nranks, MPI_INT, 0, MPI_COMM_WORLD);
@@ -582,15 +635,6 @@ void Env::shuffle_ranks()
   
   
 }
-
-double Env::now()
-{
-  struct timeval tv;
-  auto retval = gettimeofday(&tv, nullptr);
-  assert(retval == 0);
-  return (double) tv.tv_sec + (double) tv.tv_usec / 1e6;
-}
-
 
 
 
