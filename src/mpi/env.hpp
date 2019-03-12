@@ -328,14 +328,14 @@ bool Env::affinity()
     for(int i = 0; i < nmachines; i++) {
         auto& machine = network.machines[i];
         //assert(network.machine_nranks == (int) machine.ranks.size());
-        if(network.machine_nranks == (int) machine.ranks.size()) {
+        if(network.machine_nranks != (int) machine.ranks.size()) {
             enabled = false;
             break;
         }
         for(int j = 0; j < nsockets; j++) {
             int uniq = std::set<int>(machine.socket_ranks[j].begin(), machine.socket_ranks[j].end()).size();
             //assert(machine.socket_nranks == uniq);
-            if(machine.socket_nranks == uniq) {
+            if(machine.socket_nranks != uniq) {
                 enabled = false;
                 break;
             }
