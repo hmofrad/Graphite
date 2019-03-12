@@ -349,8 +349,6 @@ bool Env::affinity()
     }
     
     
-    
-    /*
     Env::barrier();
     if(!Env::rank) {
         for(auto& machine: network.machines) {
@@ -363,22 +361,22 @@ bool Env::affinity()
             for(int socket_: machine.sockets)
                 printf("%d ", socket_);
             printf("\n");
-            printf("   Sockets ranks: ");
             for(std::vector<int>& socket_ranks_: machine.socket_ranks) {
+                printf("   Sockets ranks: ");
                 for(int rank_: socket_ranks_)
                     printf("%d ", rank_);
                 printf("\n");
             }
             
         }
-        printf("Shuffled ranks: ");
+        printf("NUMA ranks order: ");
         for(int i = 0; i < nranks; i++) {
             printf("%d ", ranks[i]);
         }
         printf("\n");
     }
     Env::barrier();
-    */
+    
     return(enabled);
 }
 
