@@ -55,8 +55,11 @@ Tiling::Tiling(uint32_t nranks_, uint32_t ntiles_, uint32_t nrowgrps_, uint32_t 
     else if (tiling_type == Tiling_type::_NUMA_) {
         //rowgrp_nranks = Env::socket_nranks;
         //colgrp_nranks = Env::nmachines * Env::nsockets;
-        rowgrp_nranks = Env::machine_nranks;
-        colgrp_nranks = Env::nmachines;
+        //rowgrp_nranks = Env::machine_nranks;
+        //colgrp_nranks = Env::nmachines;
+        // Affinity 
+        bool ret = Env::affinity(); 
+        integer_factorize(nranks, rowgrp_nranks, colgrp_nranks);
         assert(rowgrp_nranks * colgrp_nranks == nranks);
         rank_nrowgrps = nrowgrps / colgrp_nranks;
         rank_ncolgrps = ncolgrps / rowgrp_nranks;        
