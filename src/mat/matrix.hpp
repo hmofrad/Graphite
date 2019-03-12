@@ -441,6 +441,7 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_matrix() {
 
     /* Spilitting communicator among row/col groups and creating
        the methadata required for processing them in vertex program */
+    /*
     indexed_sort<int32_t, int32_t>(all_rowgrp_ranks, all_rowgrp_ranks_accu_seg);
     indexed_sort<int32_t, int32_t>(all_rowgrp_ranks_rg, all_rowgrp_ranks_accu_seg_rg);
     // Make sure there is at least one follower
@@ -455,6 +456,7 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_matrix() {
         indexed_sort<int32_t, int32_t>(follower_colgrp_ranks, follower_colgrp_ranks_accu_seg);
         indexed_sort<int32_t, int32_t>(follower_colgrp_ranks_cg, follower_colgrp_ranks_accu_seg_cg);
     }
+    */
     if(Env::comm_split and not Env::get_comm_split()) {
         Env::rowgrps_init(all_rowgrp_ranks, tiling->rowgrp_nranks);
         Env::colgrps_init(all_colgrp_ranks, tiling->colgrp_nranks);
