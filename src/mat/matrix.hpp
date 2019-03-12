@@ -257,32 +257,35 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_matrix() {
             auto& tile = tiles[i][j];
             tile.rg = i;
             tile.cg = j;
-            if((tiling->tiling_type == Tiling_type::_2D_) or (tiling->tiling_type == Tiling_type::_NUMA_)) {
-                
-                tile.rank = (i % tiling->colgrp_nranks) * tiling->rowgrp_nranks
-                                                        + (j % tiling->rowgrp_nranks);
-                
-                tile.thread = (i / tiling->colgrp_nranks) % Env::nthreads;
-                
-                tile.ith = tile.rg / tiling->colgrp_nranks; 
-                tile.jth = tile.cg / tiling->rowgrp_nranks;
-                
-                tile.rank_rg = j % tiling->rowgrp_nranks;
-                tile.rank_cg = i % tiling->colgrp_nranks;
-                
-                tile.leader_rank_rg = i;
-                tile.leader_rank_cg = j;
-                
-                tile.leader_rank_rg_rg = i;
-                tile.leader_rank_cg_cg = j;
-                
-                tile.nth = (tile.ith * tiling->rank_ncolgrps) + tile.jth;
-                tile.mth = (tile.jth * tiling->rank_nrowgrps) + tile.ith;
+            if(tiling->tiling_type == Tiling_type::_2D_) {
+                tile.rank = (i % tiling->colgrp_nranks) * tiling->rowgrp_nranks + (j % tiling->rowgrp_nranks);
+            }
+            else if(tiling->tiling_type == Tiling_type::_NUMA_) {
+                tile.rank = (i % tiling->colgrp_nranks) * tiling->rowgrp_nranks + (j % tiling->rowgrp_nranks);
+                tile.rank = Env::ranks[tile.rank];
             }
             else {
                 fprintf(stderr, "ERROR(rank=%d): Invalid tiling type\n", Env::rank);
                 Env::exit(1);
             }
+                            
+            tile.thread = (i / tiling->colgrp_nranks) % Env::nthreads;
+            
+            tile.ith = tile.rg / tiling->colgrp_nranks; 
+            tile.jth = tile.cg / tiling->rowgrp_nranks;
+            
+            tile.rank_rg = j % tiling->rowgrp_nranks;
+            tile.rank_cg = i % tiling->colgrp_nranks;
+            
+            tile.leader_rank_rg = i;
+            tile.leader_rank_cg = j;
+            
+            tile.leader_rank_rg_rg = i;
+            tile.leader_rank_cg_cg = j;
+            
+            tile.nth = (tile.ith * tiling->rank_ncolgrps) + tile.jth;
+            tile.mth = (tile.jth * tiling->rank_nrowgrps) + tile.ith;
+                        
             tile.allocate_triples();
         }
     }
