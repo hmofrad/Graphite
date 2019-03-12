@@ -58,7 +58,8 @@ Tiling::Tiling(uint32_t nranks_, uint32_t ntiles_, uint32_t nrowgrps_, uint32_t 
         //rowgrp_nranks = Env::machine_nranks;
         //colgrp_nranks = Env::nmachines;
         // Affinity 
-        bool ret = Env::affinity(); 
+        if(not Env::get_comm_split)
+            bool ret = Env::affinity(); 
         integer_factorize(nranks, rowgrp_nranks, colgrp_nranks);
         assert(rowgrp_nranks * colgrp_nranks == nranks);
         rank_nrowgrps = nrowgrps / colgrp_nranks;
