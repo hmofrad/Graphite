@@ -20,9 +20,9 @@
 
 #include <mpi.h>
 #include <omp.h>
-#include <numa.h>
+//#include <numa.h>
 #include <thread>
-//#include </ihome/rmelhem/moh18/numactl/libnuma/usr/local/include/numa.h>
+#include </ihome/rmelhem/moh18/numactl/libnuma/usr/local/include/numa.h>
 
 struct topology {
     int nmachines;
@@ -345,12 +345,12 @@ bool Env::affinity()
     }  
     if(not enabled) {
         if(is_master)
-            printf("WARN(rank=%d): NUMA tiling is disabled\n", rank);
+            printf("WARN(rank=%d): Failure to enable 2D NUMA tiling. Falling back to 2D machine level tiling\n", rank);
     }
     
     
     
-    
+    /*
     Env::barrier();
     if(!Env::rank) {
         for(auto& machine: network.machines) {
@@ -378,7 +378,7 @@ bool Env::affinity()
         printf("\n");
     }
     Env::barrier();
-    
+    */
     return(enabled);
 }
 
