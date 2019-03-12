@@ -20,9 +20,9 @@
 
 #include <mpi.h>
 #include <omp.h>
-//#include <numa.h>
+#include <numa.h>
 #include <thread>
-#include </ihome/rmelhem/moh18/numactl/libnuma/usr/local/include/numa.h>
+//#include </ihome/rmelhem/moh18/numactl/libnuma/usr/local/include/numa.h>
 
 struct topology {
     int nmachines;
@@ -94,8 +94,8 @@ class Env {
     static std::vector<int> ranks; 
     static struct topology network;
     
-    private:
-        static void affinity(); // Affinity    
+    //private:
+        static bool affinity(); // Affinity    
 };
 
 MPI_Comm Env::MPI_WORLD;
@@ -162,15 +162,13 @@ void Env::init(bool comm_split_) {
 
 
     MPI_WORLD = MPI_COMM_WORLD;
-    shuffle_ranks();
+    
     
     printf("INFO(rank=%d): Hostname=%s, core_id=%d, nthreads=%d\n", rank, core_name, core_id, nthreads);
     MPI_Barrier(MPI_COMM_WORLD);   
     //Env::barrier();       
     // Affinity 
-    affinity();
-    Env::barrier();
-    std::exit(0);
+    //affinity();
 }
 
 void Env::init_threads() {
@@ -238,8 +236,10 @@ int Env::get_socket_id(int cpu_id) {
     return(cpu_id / ncores_per_socket);
 }
 
-void Env::affinity()
+bool Env::affinity()
 {   
+    bool enabled = true;
+    shuffle_ranks();
     // Get information about cores a rank owns
     std::vector<int> core_ids_all = std::vector<int>(nranks * nthreads);
     MPI_Allgather(core_ids.data(), nthreads, MPI_INT, core_ids_all.data(), nthreads, MPI_INT, MPI_WORLD); 
@@ -308,14 +308,8 @@ void Env::affinity()
         network.machines[idx].sockets.push_back(sid); 
     }  
     
-    for(int i = 0; i < nmachines; i++) {
-        auto& machine = network.machines[i];
-        assert(network.machine_nranks == (int) machine.ranks.size());
-        for(int j = 0; j < nsockets; j++) {
-            int uniq = std::set<int>(machine.socket_ranks[j].begin(), machine.socket_ranks[j].end()).size();
-            assert(machine.socket_nranks == uniq);
-        }
-    }
+
+        
     
     
     i = 0;
@@ -329,21 +323,47 @@ void Env::affinity()
                 i++;
             }
         }
-    }    
+    }   
+
+    for(int i = 0; i < nmachines; i++) {
+        auto& machine = network.machines[i];
+        //assert(network.machine_nranks == (int) machine.ranks.size());
+        if(network.machine_nranks == (int) machine.ranks.size()) {
+            enabled = false;
+            break;
+        }
+        for(int j = 0; j < nsockets; j++) {
+            int uniq = std::set<int>(machine.socket_ranks[j].begin(), machine.socket_ranks[j].end()).size();
+            //assert(machine.socket_nranks == uniq);
+            if(machine.socket_nranks == uniq) {
+                enabled = false;
+                break;
+            }
+        }
+        if(not enabled)
+            break;
+    }  
+    if(not enabled) {
+        if(is_master)
+            printf("WARN(rank=%d): NUMA tiling is disabled\n", rank);
+    }
     
-    /*
+    
+    
+    
     Env::barrier();
     if(!Env::rank) {
         for(auto& machine: network.machines) {
             printf("%s\n", machine.name.c_str());
+            printf("   Ranks  : ");
             for(int rank_: machine.ranks)
                 printf("%d ", rank_);
             printf("\n");
-            
+            printf("   Sockets: ");
             for(int socket_: machine.sockets)
                 printf("%d ", socket_);
             printf("\n");
-            
+            printf("   Sockets ranks: ");
             for(std::vector<int>& socket_ranks_: machine.socket_ranks) {
                 for(int rank_: socket_ranks_)
                     printf("%d ", rank_);
@@ -351,13 +371,15 @@ void Env::affinity()
             }
             
         }
+        printf("Shuffled ranks: ");
         for(int i = 0; i < nranks; i++) {
             printf("%d ", ranks[i]);
         }
         printf("\n");
     }
     Env::barrier();
-    */
+    
+    return(enabled);
 }
 
 
@@ -433,12 +455,13 @@ void Env::shuffle_ranks()
   if (is_master)
   {
     srand(time(NULL));
-/*
+    /*
     struct timeval tv;
     gettimeofday(&tv,NULL);
     int seed =  (double) tv.tv_sec + (double) tv.tv_usec / 1e6;
-    //srand(seed);
+    srand(seed);
     */
+    
 
     std::iota(ranks.begin(), ranks.end(), 0);  // ranks = range(len(ranks))
     std::random_shuffle(ranks.begin() + 1, ranks.end());
