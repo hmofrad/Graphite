@@ -20,9 +20,9 @@
 
 #include <mpi.h>
 #include <omp.h>
-//#include <numa.h>
+#include <numa.h>
 #include <thread>
-#include </ihome/rmelhem/moh18/numactl/libnuma/usr/local/include/numa.h>
+//#include </ihome/rmelhem/moh18/numactl/libnuma/usr/local/include/numa.h>
 
 struct topology {
     int nmachines;
@@ -41,61 +41,60 @@ struct machine {
 
 class Env {
     public:
-    Env();
-    
-    static MPI_Comm MPI_WORLD;
-    static int rank;
-    static int nranks;
-    static bool is_master;
-    static void init(bool comm_split_ = true);
-    static void init_threads();
-    static void barrier();
-    static void finalize();
-    static void exit(int code);
-    
-    static bool comm_split, comm_created; // Splitting the world communicator
-    static MPI_Group rowgrps_group_, rowgrps_group;
-    static std::vector<MPI_Group> rowgrps_groups_, rowgrps_groups;
-    static MPI_Comm rowgrps_comm;         
-    static int rank_rg;
-    static int nranks_rg;
-    static MPI_Group colgrps_group_, colgrps_group;
-    static std::vector<MPI_Group> colgrps_groups_, colgrps_groups;
-    static MPI_Comm colgrps_comm;         
-    static int rank_cg;
-    static int nranks_cg;
-    static void grps_init(std::vector<int32_t>& grps_ranks, int32_t grps_nranks, 
-                          int& grps_rank_, int& grps_nranks_, MPI_Group& grps_group_, MPI_Group& grps_group, MPI_Comm& grps_comm);
-    static void rowgrps_init(std::vector<int32_t>& rowgrps_ranks, int32_t rowgrps_nranks);
-    static void colgrps_init(std::vector<int32_t>& colgrps_ranks, int32_t colgrps_nranks);               
-
-    static double clock();
-    static void   print_time(std::string preamble, double time);
-    static void   print_num(std::string preamble, uint32_t num);
-    static void   set_comm_split();
-    static bool   get_comm_split();
-    static int set_thread_affinity(int thread_id);
-    static int get_socket_id(int cpu_id);
-    
-    static void shuffle_ranks();
-    
-    static char core_name[]; // Core name = hostname of MPI rank
-    static int core_id;      // Core id of MPI rank
-    static int nthreads;     // Number of threads
-    static int ncores;     // Number of cores
-    static int nsockets;     // Number of sockets
-    static int ncores_per_socket;
-    static int nsegments;    // Number of segments = nranks * nthreads
-    static std::vector<int> core_ids;
-    static std::vector<int> core_ids_unique;
-    static std::vector<MPI_Comm> rowgrps_comms;
-    static std::vector<MPI_Comm> colgrps_comms; 
-    
-    static std::vector<int> ranks; 
-    static struct topology network;
-    
-    //private:
+        Env();
+        
+        static MPI_Comm MPI_WORLD;
+        static int rank;
+        static int nranks;
+        static bool is_master;
+        static void init();
+        static void init_threads();
+        static void barrier();
+        static void finalize();
+        static void exit(int code);
         static bool affinity(); // Affinity    
+        
+        static bool initialized;//, already_initialized;
+        static MPI_Group rowgrps_group_, rowgrps_group;
+        static std::vector<MPI_Group> rowgrps_groups_, rowgrps_groups;
+        static MPI_Comm rowgrps_comm;         
+        static int rank_rg;
+        static int nranks_rg;
+        static MPI_Group colgrps_group_, colgrps_group;
+        static std::vector<MPI_Group> colgrps_groups_, colgrps_groups;
+        static MPI_Comm colgrps_comm;         
+        static int rank_cg;
+        static int nranks_cg;
+        static void grps_init(std::vector<int32_t>& grps_ranks, int32_t grps_nranks, 
+                              int& grps_rank_, int& grps_nranks_, MPI_Group& grps_group_, MPI_Group& grps_group, MPI_Comm& grps_comm);
+        static void rowgrps_init(std::vector<int32_t>& rowgrps_ranks, int32_t rowgrps_nranks);
+        static void colgrps_init(std::vector<int32_t>& colgrps_ranks, int32_t colgrps_nranks);               
+
+        static double clock();
+        static void   print_time(std::string preamble, double time);
+        static void   print_num(std::string preamble, uint32_t num);
+        static bool   get_init_status();
+        static void   set_init_status();
+        static int set_thread_affinity(int thread_id);
+        static int get_socket_id(int cpu_id);
+        
+        static void shuffle_ranks();
+        
+        static char core_name[]; // Core name = hostname of MPI rank
+        static int core_id;      // Core id of MPI rank
+        static int nthreads;     // Number of threads
+        static int ncores;     // Number of cores
+        static int nsockets;     // Number of sockets
+        static int ncores_per_socket;
+        static int nsegments;    // Number of segments = nranks * nthreads
+        static std::vector<int> core_ids;
+        static std::vector<int> core_ids_unique;
+        static std::vector<MPI_Comm> rowgrps_comms;
+        static std::vector<MPI_Comm> colgrps_comms; 
+        
+        static std::vector<int> ranks; 
+        static struct topology network;
+
 };
 
 MPI_Comm Env::MPI_WORLD;
@@ -103,8 +102,8 @@ int  Env::rank = -1;
 int  Env::nranks = -1;
 bool Env::is_master = false;
 
-bool Env::comm_split = true;
-bool Env::comm_created = false;
+bool Env::initialized = false;
+//bool Env::already_initialized = false;
 
 MPI_Group Env::rowgrps_group_;
 MPI_Group Env::rowgrps_group;
@@ -139,8 +138,7 @@ std::vector<int> Env::ranks;
 
 struct topology Env::network;
 
-void Env::init(bool comm_split_) {
-    comm_split = comm_split_;
+void Env::init() {
     int required = MPI_THREAD_MULTIPLE;
     int provided = -1;
     MPI_Init_thread(nullptr, nullptr, required, &provided);
@@ -157,31 +155,25 @@ void Env::init(bool comm_split_) {
         printf("WARN(rank=%d): Failure to enable MPI_THREAD_MULTIPLE(%d) for multithreading\n", rank, provided); 
         nthreads = 1;
     }
-
     
-
-
     MPI_WORLD = MPI_COMM_WORLD;
-    
     
     printf("INFO(rank=%d): Hostname=%s, core_id=%d, nthreads=%d\n", rank, core_name, core_id, nthreads);
     MPI_Barrier(MPI_COMM_WORLD);   
-    //Env::barrier();       
-    // Affinity 
-    //affinity();
 }
 
 void Env::init_threads() {
     int cpu_name_len;
     MPI_Get_processor_name(core_name, &cpu_name_len);
     core_id = sched_getcpu();
-    if(core_id == -1)
-	{
+    if(core_id == -1) {
 		fprintf(stderr, "sched_getcpu() returns a negative CPU number\n");
 		core_id = 0;
 	}
-    nthreads = omp_get_max_threads();
+    
     if(numa_available() != -1) {
+        omp_set_dynamic(0);
+        nthreads = omp_get_max_threads();
         ncores = numa_num_configured_cpus();
         nsockets = numa_num_configured_nodes();
         nsockets = (nsockets) ? nsockets : 1;
@@ -192,8 +184,11 @@ void Env::init_threads() {
             printf("INFO(rank=%d): nsockets = %d, and nthreads per socket= %d\n", rank, nsockets, ncores_per_socket);
     }
     else {
-        ncores = nthreads;
+        nthreads = 1;
+        ncores = 1;
         nsockets = 1;
+        omp_set_dynamic(0);
+        omp_set_num_threads(nthreads);
         ncores_per_socket = nthreads / nsockets;
         nsegments = nranks * nthreads;
         printf("WARN(rank=%d): Failure to enable NUMA-aware memory allocation\n", rank);
@@ -215,11 +210,6 @@ void Env::init_threads() {
     std::sort(core_ids.begin(), core_ids.end());
     std::sort(core_ids_unique.begin(), core_ids_unique.end());
     core_ids_unique.erase(std::unique(core_ids_unique.begin(), core_ids_unique.end()), core_ids_unique.end());
-    //if(!Env::rank) {
-    //    for(int i: core_ids)
-    //        printf("%d ", i);
-    //    printf("\n");
-    //}
 }
 
 int Env::set_thread_affinity(int thread_id) {
@@ -236,8 +226,7 @@ int Env::get_socket_id(int cpu_id) {
     return(cpu_id / ncores_per_socket);
 }
 
-bool Env::affinity()
-{   
+bool Env::affinity() {   
     bool enabled = true;
     shuffle_ranks();
     // Get information about cores a rank owns
@@ -274,7 +263,6 @@ bool Env::affinity()
     }
     Env::barrier();
     */
-    
     // Find unique machines
     std::vector<std::string> machines = machines_all; 
     sort(machines.begin(), machines.end());
@@ -307,10 +295,6 @@ bool Env::affinity()
         }
         network.machines[idx].sockets.push_back(sid); 
     }  
-    
-
-        
-    
     
     i = 0;
     ranks.resize(nranks);
@@ -347,8 +331,7 @@ bool Env::affinity()
         if(is_master)
             printf("WARN(rank=%d): Failure to enable 2D NUMA tiling. Falling back to 2D machine level tiling\n", rank);
     }
-    
-    
+    /*
     Env::barrier();
     if(!Env::rank) {
         for(auto& machine: network.machines) {
@@ -376,20 +359,21 @@ bool Env::affinity()
         printf("\n");
     }
     Env::barrier();
-    
+    */
     return(enabled);
 }
 
 
 
-bool Env::get_comm_split() {
-    return(comm_created);
+bool Env::get_init_status() {
+    return(initialized);
 }
 
-void Env::set_comm_split() {
-    if(comm_split)
-        comm_created = true;
+void Env::set_init_status() {
+    if(not initialized)
+        initialized = true;
 }
+
 
 void Env::grps_init(std::vector<int32_t>& grps_ranks, int grps_nranks, int& grps_rank_, int& grps_nranks_,
                     MPI_Group& grps_group_, MPI_Group& grps_group, MPI_Comm& grps_comm) {
@@ -443,8 +427,6 @@ void Env::colgrps_init(std::vector<int32_t>& colgrps_ranks, int32_t colgrps_nran
         MPI_Comm_size(colgrps_comms[i], &nranks_cg);        
     }
     */
-    //printf("%d %d\n", rank, rank_cg);
-    
 }
 
 void Env::shuffle_ranks()
@@ -453,21 +435,10 @@ void Env::shuffle_ranks()
   if (is_master)
   {
     srand(time(NULL));
-    /*
-    struct timeval tv;
-    gettimeofday(&tv,NULL);
-    int seed =  (double) tv.tv_sec + (double) tv.tv_usec / 1e6;
-    srand(seed);
-    */
-    
-
     std::iota(ranks.begin(), ranks.end(), 0);  // ranks = range(len(ranks))
     std::random_shuffle(ranks.begin() + 1, ranks.end());
 
     assert(ranks[0] == 0);
-    //for(int i: ranks) 
-        //printf("%d ", i);
-    //printf(">>\n");
   }
 
   MPI_Bcast(ranks.data(), nranks, MPI_INT, 0, MPI_COMM_WORLD);
@@ -479,11 +450,7 @@ void Env::shuffle_ranks()
 
   MPI_Comm_rank(MPI_WORLD, &rank);
   MPI_Comm_size(MPI_WORLD, &nranks);
-  
-  
 }
-
-
 
 double Env::clock() {
     return(MPI_Wtime());
@@ -501,19 +468,27 @@ void Env::print_num(std::string preamble, uint32_t num) {
 
 void Env::finalize() {
     Env::barrier();
-    if(Env::comm_split)
-    {
-        if(rowgrps_group_)
-        {
-            MPI_Group_free(&rowgrps_group_);
-            MPI_Group_free(&rowgrps_group);
-            MPI_Comm_free(&rowgrps_comm);
-            
-            MPI_Group_free(&colgrps_group_);
-            MPI_Group_free(&colgrps_group);
-            MPI_Comm_free(&colgrps_comm);   
-        }
+    
+    MPI_Group_free(&rowgrps_group_);
+    MPI_Group_free(&rowgrps_group);
+    MPI_Comm_free(&rowgrps_comm);
+    
+    for(int i = 0; i < Env::nthreads; i++) {
+        MPI_Group_free(&rowgrps_groups_[i]);
+        MPI_Group_free(&rowgrps_groups[i]);
+        MPI_Comm_free(&rowgrps_comms[i]);
     }
+    
+    MPI_Group_free(&colgrps_group_);
+    MPI_Group_free(&colgrps_group);
+    MPI_Comm_free(&colgrps_comm);   
+    
+    for(int i = 0; i < Env::nthreads; i++) {
+        MPI_Group_free(&colgrps_groups_[i]);
+        MPI_Group_free(&colgrps_groups[i]);
+        MPI_Comm_free(&colgrps_comms[i]);
+    }
+    
     int ret = MPI_Finalize();
     assert(ret == MPI_SUCCESS);
 }
@@ -526,6 +501,4 @@ void Env::exit(int code) {
 void Env::barrier() {
     MPI_Barrier(MPI_WORLD);
 }
-
-
 #endif
