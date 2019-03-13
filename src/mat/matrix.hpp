@@ -1149,36 +1149,6 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_tcsc() {
     for(std::thread& th: threads) {
         th.join();
     }
-
-    
-    /*
-    uint32_t yi = 0, xi = 0, next_row = 0;
-    for(uint32_t t: local_tiles_row_order)
-    {
-        auto pair = tile_of_local_tile(t);
-        auto& tile = tiles[pair.row][pair.col];
-        Integer_Type c_nitems = nnz_col_sizes_loc[xi];
-        Integer_Type r_nitems = nnz_row_sizes_loc[yi];
-        auto& i_data = I[yi];
-        auto& iv_data = IV[yi];
-        auto& j_data = J[xi];
-        auto& jv_data = JV[xi];
-        if(tile.nedges) {
-            //int sid =  cid / Env::nthreads_per_socket;
-            tile.compressor = new TCSC_BASE<Weight, Integer_Type>(tile.triples->size(), c_nitems, r_nitems);
-            tile.compressor->populate(tile.triples, tile_height, tile_width, i_data, iv_data, j_data, jv_data);
-            Integer_Type* IA   = static_cast<TCSC_BASE<Weight, Integer_Type>*>(tile.compressor)->IA;
-            Integer_Type* JA   = static_cast<TCSC_BASE<Weight, Integer_Type>*>(tile.compressor)->JA;    
-            Integer_Type nnzcols = static_cast<TCSC_BASE<Weight, Integer_Type>*>(tile.compressor)->nnzcols;
-        }
-        xi++;
-        next_row = (((tile.nth + 1) % tiling->rank_ncolgrps) == 0);
-        if(next_row) {
-            xi = 0;
-            yi++;
-        }
-    }
-    */
 }
 
 
@@ -1189,6 +1159,7 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_tcsc_threaded(int tid) 
     int sid =  Env::get_socket_id(cid);
     uint32_t yi = 0, xi = 0, next_row = 0;
     for(uint32_t t: local_tiles_row_order_t[tid]) {
+        /*
         auto pair = tile_of_local_tile(t);
         auto& tile = tiles[pair.row][pair.col];
         yi = tile.ith;
@@ -1201,16 +1172,13 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_tcsc_threaded(int tid) 
         if(tile.nedges) {
             tile.compressor = new TCSC_BASE<Weight, Integer_Type>(tile.triples->size(), c_nitems, r_nitems, sid);
             tile.compressor->populate(tile.triples, tile_height, tile_width, i_data, iv_data, j_data, jv_data);
-            //Integer_Type* IA   = static_cast<TCSC_BASE<Weight, Integer_Type>*>(tile.compressor)->IA;
-            //Integer_Type* JA   = static_cast<TCSC_BASE<Weight, Integer_Type>*>(tile.compressor)->JA;    
-            //Integer_Type nnzcols = static_cast<TCSC_BASE<Weight, Integer_Type>*>(tile.compressor)->nnzcols;
         }
         xi++;
         next_row = (((tile.nth + 1) % tiling->rank_ncolgrps) == 0);
         if(next_row) {
             xi = 0;
-            //yi++;
         }
+        */
     }
 }
 
