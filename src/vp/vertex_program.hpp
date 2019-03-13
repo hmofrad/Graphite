@@ -764,7 +764,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
         std::vector<Fractional_Type> &y_data = Y[yi][yo];
         Integer_Type y_nitems = y_data.size();
         for(uint32_t j = 0; j < y_nitems; j++)
-                y_data[j] = Vertex_Methods.infinity();
+            y_data[j] = Vertex_Methods.infinity();
     }
 }
 
@@ -2587,10 +2587,10 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
         uint32_t yo = accu_segment_rg;
         std::vector<Fractional_Type> &y_data = Y[yi][yo];
         for(uint32_t j = 0; j < rowgrp_nranks - 1; j++) {
-            if(Env::comm_split)
+            //if(Env::comm_split)
                 accu = follower_rowgrp_ranks_accu_seg_rg[j];
-            else
-                accu = follower_rowgrp_ranks_accu_seg[j];
+            //else
+              //  accu = follower_rowgrp_ranks_accu_seg[j];
             std::vector<Fractional_Type> &yj_data = Y[yi][accu];
             Integer_Type yj_nitems = yj_data.size();
             //#pragma omp parallel for schedule(static)
@@ -2613,10 +2613,10 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
     uint32_t yo = accu_segment_rg;
     std::vector<Fractional_Type>& y_data = Y[yi][yo];
     for(uint32_t j = 0; j < rowgrp_nranks - 1; j++) {
-        if(Env::comm_split)
+        //if(Env::comm_split)
             accu = follower_rowgrp_ranks_accu_seg_rg[j];
-        else
-            accu = follower_rowgrp_ranks_accu_seg[j];
+        //else
+          //  accu = follower_rowgrp_ranks_accu_seg[j];
         if(activity_filtering and accus_activity_statuses[accu]) {
             if(accus_activity_statuses[accu] > 1) {
                 std::vector<Integer_Type> &yij_data = YI[yi][accu];
