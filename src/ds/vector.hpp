@@ -20,7 +20,7 @@ class Vector {
     
     public:
         Vector();
-        Vector(const std::vector<Integer_Type> nitems_, const std::vector<Integer_Type> socket_ids);// const std::vector<int32_t> segments
+        Vector(const std::vector<Integer_Type> nitems_, const std::vector<Integer_Type> socket_ids);
         ~Vector();
         std::vector<Integer_Type> nitems;
         Fractional_Type** data;
@@ -63,7 +63,6 @@ Vector<Weight, Integer_Type, Fractional_Type>::~Vector() {
 
 template<typename Weight, typename Integer_Type, typename Fractional_Type>
 Vector<Weight, Integer_Type, Fractional_Type>::Vector(const std::vector<Integer_Type> nitems_, const std::vector<Integer_Type> socket_ids) {
-    //assert(segments.size() == socket_ids.size());
     nitems = nitems_;
     vector_length = nitems.size();
     uint64_t nbytes = 0;
@@ -73,24 +72,10 @@ Vector<Weight, Integer_Type, Fractional_Type>::Vector(const std::vector<Integer_
         data = (Fractional_Type**) numa_alloc_onnode(nbytes, Env::socket_id);
         memset(data, 0, nbytes);
         
-        //uint32_t j = 0;
-        //bool owner = false;
         for(uint32_t i = 0; i < vector_length; i++) {
-            //owner = false;        
-            //if(j < segments.size()) {
-            //    if(i == (uint32_t) segments[j]) {
-            //        owner = true;
-            //    }
-            //}
             if(nitems[i]) {
                 nbytes = nitems[i] * sizeof(Fractional_Type);
-                //if(owner) {
-                    data[i] = (Fractional_Type*) numa_alloc_onnode(nbytes, socket_ids[i]);
-                //    j++;
-                //}
-                //else {
-                 //   data[i] = (Fractional_Type*) numa_alloc_onnode(nbytes, Env::socket_id);
-                //}
+                data[i] = (Fractional_Type*) numa_alloc_onnode(nbytes, socket_ids[i]);
                 memset(data[i], 0, nbytes);    
             }
             else {
