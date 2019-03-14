@@ -20,7 +20,7 @@ class Vector {
     
     public:
         Vector();
-        Vector(std::vector<Integer_Type> nitems_, int socket_id = 0);
+        Vector(const std::vector<Integer_Type> nitems_, const std::vector<Integer_Type> socket_ids);
         ~Vector();
         std::vector<Integer_Type> nitems;
         Fractional_Type **data;
@@ -53,7 +53,7 @@ Vector<Weight, Integer_Type, Fractional_Type>::~Vector() {
 }
 
 template<typename Weight, typename Integer_Type, typename Fractional_Type>
-Vector<Weight, Integer_Type, Fractional_Type>::Vector(std::vector<Integer_Type> nitems_, int socket_id) {
+Vector<Weight, Integer_Type, Fractional_Type>::Vector(const std::vector<Integer_Type> nitems_, const std::vector<Integer_Type> socket_ids) {
     nitems = nitems_;
     vector_length = nitems.size();
     uint64_t nbytes = vector_length * sizeof(Fractional_Type*);
