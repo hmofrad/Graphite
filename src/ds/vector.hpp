@@ -20,7 +20,7 @@ class Vector {
     
     public:
         Vector();
-        Vector(const std::vector<Integer_Type> nitems_, const std::vector<Integer_Type> socket_ids);
+        Vector(const std::vector<Integer_Type> nitems_, const std::vector<int32_t> segments, const std::vector<Integer_Type> socket_ids);
         ~Vector();
         std::vector<Integer_Type> nitems;
         Fractional_Type **data;
@@ -35,47 +35,91 @@ Vector<Weight, Integer_Type, Fractional_Type>::Vector() {};
 template<typename Weight, typename Integer_Type, typename Fractional_Type>
 Vector<Weight, Integer_Type, Fractional_Type>::~Vector() {
     uint64_t nbytes = 0;
-    for(uint32_t i = 0; i < vector_length; i++) {
-        if(nitems[i]) {
+    if(numa_available() != -1) {
+        for(uint32_t i = 0; i < vector_length; i++) {
             nbytes = nitems[i] * sizeof(Fractional_Type);
-            if(munmap(data[i], nbytes) == -1) {
-                fprintf(stderr, "Error unmapping memory\n");
-                exit(1);
-            }   
+            numa_free(data[i], nbytes);
         }
+        nbytes = vector_length * sizeof(Fractional_Type*);
+        numa_free(data, nbytes);
     }
-    nbytes = vector_length * sizeof(Fractional_Type*);
-    //printf("%d %d\n", Env::rank, nbytes);
-    if(munmap(data, nbytes) == -1) {
-        fprintf(stderr, "Error unmapping memory\n");
-        exit(1);
-    }   
+    else {
+        for(uint32_t i = 0; i < vector_length; i++) {
+            if(nitems[i]) {
+                nbytes = nitems[i] * sizeof(Fractional_Type);
+                if(munmap(data[i], nbytes) == -1) {
+                    fprintf(stderr, "Error unmapping memory\n");
+                    exit(1);
+                }   
+            }
+        }
+        nbytes = vector_length * sizeof(Fractional_Type*);
+        if(munmap(data, nbytes) == -1) {
+            fprintf(stderr, "Error unmapping memory\n");
+            exit(1);
+        }   
+    }
 }
 
 template<typename Weight, typename Integer_Type, typename Fractional_Type>
-Vector<Weight, Integer_Type, Fractional_Type>::Vector(const std::vector<Integer_Type> nitems_, const std::vector<Integer_Type> socket_ids) {
+Vector<Weight, Integer_Type, Fractional_Type>::Vector(const std::vector<Integer_Type> nitems_, const std::vector<int32_t> segments, const std::vector<Integer_Type> socket_ids) {
+    assert(segments.size() == socket_ids.size());
     nitems = nitems_;
     vector_length = nitems.size();
-    uint64_t nbytes = vector_length * sizeof(Fractional_Type*);
-    if((data = (Fractional_Type**) mmap(nullptr, vector_length * sizeof(Fractional_Type*), PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0)) == (void*) -1) {    
-        fprintf(stderr, "Error mapping memory\n");
-        exit(1);
-    }
-    memset(data, 0, nbytes);
+    uint64_t nbytes = 0;
     
-    //data = (Fractional_Type**) malloc(vector_length * sizeof(Fractional_Type *));
-    for(uint32_t i = 0; i < vector_length; i++) {
-        if(nitems[i]) {
-            nbytes = nitems[i] * sizeof(Fractional_Type);
-            if((data[i] = (Fractional_Type*) mmap(nullptr, nbytes, PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0)) == (void*) -1) {    
-                fprintf(stderr, "Error mapping memory\n");
-                exit(1);
+    if(numa_available() != -1) {
+        nbytes = vector_length * sizeof(Fractional_Type*);
+        data = (Fractional_Type**) numa_alloc_onnode(nbytes, Env::socket_id);
+        memset(data, 0, nbytes);
+        
+        uint32_t j = 0;
+        bool owner = false;
+        for(uint32_t i = 0; i < vector_length; i++) {
+            owner = false;        
+            if(j < segments.size()) {
+                if(i == (uint32_t) segments[j]) {
+                    owner = true;
+                }
             }
-            memset(data[i], 0, nbytes);
+            if(nitems[i]) {
+                nbytes = nitems[i] * sizeof(Fractional_Type);
+                if(owner) {
+                    data[i] = (Fractional_Type*) numa_alloc_onnode(nbytes, socket_ids[j]);
+                    j++;
+                }
+                else {
+                    data[i] = (Fractional_Type*) numa_alloc_onnode(nbytes, Env::socket_id);
+                }
+                memset(data[i], 0, nbytes);    
+            }
+            else {
+                data[i] = nullptr;
+            }
+        }   
+    }
+    else {        
+        nbytes = vector_length * sizeof(Fractional_Type*);
+        if((data = (Fractional_Type**) mmap(nullptr, vector_length * sizeof(Fractional_Type*), PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0)) == (void*) -1) {    
+            fprintf(stderr, "Error mapping memory\n");
+            exit(1);
         }
-        else {
-            data[i] = nullptr;
+        memset(data, 0, nbytes);
+        
+        for(uint32_t i = 0; i < vector_length; i++) {
+            if(nitems[i]) {
+                nbytes = nitems[i] * sizeof(Fractional_Type);
+                if((data[i] = (Fractional_Type*) mmap(nullptr, nbytes, PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0)) == (void*) -1) {    
+                    fprintf(stderr, "Error mapping memory\n");
+                    exit(1);
+                }
+                memset(data[i], 0, nbytes);
+            }
+            else {
+                data[i] = nullptr;
+            }
         }
     }
+    
 }
 #endif
