@@ -1215,6 +1215,8 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::del_filter() {
     delete IV;
     delete J;
     delete JV;
+    delete rowgrp_nnz_rows;
+    delete colgrp_nnz_cols;
     /*
     for(uint32_t i = 0; i < tiling->rank_nrowgrps; i++) {
         I[i].clear();
