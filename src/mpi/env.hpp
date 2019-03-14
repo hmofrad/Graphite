@@ -46,6 +46,7 @@ class Env {
         static MPI_Comm MPI_WORLD;
         static int rank;
         static int nranks;
+        static int socket_id;
         static bool is_master;
         static void init();
         static void init_threads();
@@ -127,6 +128,7 @@ int Env::ncores_per_socket = 1;
 int Env::nsegments = 0;
 std::vector<int> Env::core_ids;
 std::vector<int> Env::core_ids_unique;
+int Env::socket_id = 0;
 
 std::vector<MPI_Group> Env::rowgrps_groups_;
 std::vector<MPI_Group> Env::rowgrps_groups;
@@ -136,7 +138,6 @@ std::vector<MPI_Group> Env::colgrps_groups;
 std::vector<MPI_Comm> Env::colgrps_comms; 
 
 std::vector<int> Env::ranks;
-
 struct topology Env::network;
 
 void Env::init() {
@@ -167,6 +168,7 @@ void Env::init_threads() {
     int cpu_name_len;
     MPI_Get_processor_name(core_name, &cpu_name_len);
     core_id = sched_getcpu();
+    
     if(core_id == -1) {
 		fprintf(stderr, "sched_getcpu() returns a negative CPU number\n");
 		core_id = 0;
@@ -211,6 +213,7 @@ void Env::init_threads() {
     std::sort(core_ids.begin(), core_ids.end());
     std::sort(core_ids_unique.begin(), core_ids_unique.end());
     core_ids_unique.erase(std::unique(core_ids_unique.begin(), core_ids_unique.end()), core_ids_unique.end());
+    socket_id = socket_of_cpu(core_id);
 }
 
 int Env::set_thread_affinity(int thread_id) {
