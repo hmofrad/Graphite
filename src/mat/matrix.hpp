@@ -696,26 +696,36 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_filtering() {
     if(Env::is_master)
         printf("INFO(rank=%d): Vertex filtering: Filtering zero rows/cols\n", Env::rank);
 
-    std::vector<Integer_Type> thread_sockets(num_owned_segments);
-    for(int i = 0; i < Env::nthreads; i++) {
-        thread_sockets[i] = Env::socket_of_thread(i);
-    }
-        
-    
-    
+
+
     std::vector<Integer_Type> i_sizes(tiling->rank_nrowgrps, tile_height);
-    I = new Vector<Weight, Integer_Type, char>(i_sizes, accu_segment_rows, thread_sockets);
-    IV = new Vector<Weight, Integer_Type, Integer_Type>(i_sizes, accu_segment_rows, thread_sockets);
+    
+    int num_rowgrps_per_thread = tiling->rank_nrowgrps / num_owned_segments;
+    assert((num_rowgrps_per_thread * Env::nthreads) == (int32_t) tiling->rank_nrowgrps);
+    std::vector<Integer_Type> thread_sockets(tiling->rank_nrowgrps);    
+    for(int i = 0; i < num_rowgrps_per_thread; i++) {
+        for(int j = 0; j < Env::nthreads; j++) {
+            thread_sockets[i] = Env::socket_of_thread(j);
+        }
+    }
+    
+    I = new Vector<Weight, Integer_Type, char>(i_sizes, thread_sockets);
+    IV = new Vector<Weight, Integer_Type, Integer_Type>(i_sizes, thread_sockets);
     filter_vertices(_ROWS_);
     
+    std::vector<Integer_Type> rowgrp_thread_sockets(num_owned_segments);    
+    for(int i = 0; i < Env::nthreads; i++) {
+        rowgrp_thread_sockets[i] = Env::socket_of_thread(i);
+    }
     std::vector<Integer_Type> rowgrp_nnz_rows_sizes(num_owned_segments);
-    std::vector<int32_t> rowgrp_nnz_rows_segments(num_owned_segments);
-    std::iota(rowgrp_nnz_rows_segments.begin(), rowgrp_nnz_rows_segments.end(), 0);
+    //std::vector<int32_t> rowgrp_nnz_rows_segments(num_owned_segments);
+    //std::iota(rowgrp_nnz_rows_segments.begin(), rowgrp_nnz_rows_segments.end(), 0);
     for(int32_t j = 0; j < num_owned_segments; j++) {  
         uint32_t io = accu_segment_rows[j];
         rowgrp_nnz_rows_sizes[j] = nnz_row_sizes_loc[io];
     }
-    rowgrp_nnz_rows = new Vector<Weight, Integer_Type, Integer_Type>(rowgrp_nnz_rows_sizes, rowgrp_nnz_rows_segments, thread_sockets);
+    
+    rowgrp_nnz_rows = new Vector<Weight, Integer_Type, Integer_Type>(rowgrp_nnz_rows_sizes, rowgrp_thread_sockets);
     for(int32_t j = 0; j < num_owned_segments; j++) {            
         uint32_t io = accu_segment_rows[j];
         auto* i_data = (char*) I->data[io];
@@ -730,17 +740,17 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_filtering() {
     }
     
     std::vector<Integer_Type> j_sizes(tiling->rank_nrowgrps, tile_width);
-    J = new Vector<Weight, Integer_Type, char>(j_sizes, accu_segment_cols, thread_sockets);
-    JV = new Vector<Weight, Integer_Type, Integer_Type>(j_sizes, accu_segment_cols, thread_sockets);
+    J = new Vector<Weight, Integer_Type, char>(j_sizes, thread_sockets);
+    JV = new Vector<Weight, Integer_Type, Integer_Type>(j_sizes, thread_sockets);
     filter_vertices(_COLS_);
     std::vector<Integer_Type> colgrp_nnz_cols_sizes(num_owned_segments);
-    std::vector<int32_t> colgrp_nnz_cols_segments(num_owned_segments);
-    std::iota(colgrp_nnz_cols_segments.begin(), colgrp_nnz_cols_segments.end(), 0);
+    //std::vector<int32_t> colgrp_nnz_cols_segments(num_owned_segments);
+    //std::iota(colgrp_nnz_cols_segments.begin(), colgrp_nnz_cols_segments.end(), 0);
     for(int32_t j = 0; j < num_owned_segments; j++) {  
         uint32_t io = accu_segment_cols[j];
         colgrp_nnz_cols_sizes[j] = nnz_col_sizes_loc[io];
     }
-    colgrp_nnz_cols = new Vector<Weight, Integer_Type, Integer_Type>(colgrp_nnz_cols_sizes, colgrp_nnz_cols_segments, thread_sockets);
+    colgrp_nnz_cols = new Vector<Weight, Integer_Type, Integer_Type>(colgrp_nnz_cols_sizes, rowgrp_thread_sockets);
     for(int32_t j = 0; j < num_owned_segments; j++) {            
         uint32_t jo = accu_segment_cols[j];
         auto* j_data = (char*) J->data[jo];
