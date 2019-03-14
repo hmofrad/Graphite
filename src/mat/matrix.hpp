@@ -702,15 +702,16 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_filtering() {
     
     int num_rowgrps_per_thread = tiling->rank_nrowgrps / num_owned_segments;
     assert((num_rowgrps_per_thread * Env::nthreads) == (int32_t) tiling->rank_nrowgrps);
-    std::vector<Integer_Type> thread_sockets(tiling->rank_nrowgrps);    
+    std::vector<Integer_Type> all_rowgrps_thread_sockets(tiling->rank_nrowgrps);    
     for(int i = 0; i < num_rowgrps_per_thread; i++) {
         for(int j = 0; j < Env::nthreads; j++) {
-            thread_sockets[i] = Env::socket_of_thread(j);
+            int k = j + (i * Env::nthreads);
+            all_rowgrps_thread_sockets[k] = Env::socket_of_thread(j);
         }
     }
     
-    I = new Vector<Weight, Integer_Type, char>(i_sizes, thread_sockets);
-    IV = new Vector<Weight, Integer_Type, Integer_Type>(i_sizes, thread_sockets);
+    I = new Vector<Weight, Integer_Type, char>(i_sizes, all_rowgrps_thread_sockets);
+    IV = new Vector<Weight, Integer_Type, Integer_Type>(i_sizes, all_rowgrps_thread_sockets);
     filter_vertices(_ROWS_);
     
     std::vector<Integer_Type> rowgrp_thread_sockets(num_owned_segments);    
@@ -740,8 +741,17 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_filtering() {
     }
     
     std::vector<Integer_Type> j_sizes(tiling->rank_nrowgrps, tile_width);
-    J = new Vector<Weight, Integer_Type, char>(j_sizes, thread_sockets);
-    JV = new Vector<Weight, Integer_Type, Integer_Type>(j_sizes, thread_sockets);
+    int num_colgrps_per_thread = tiling->rank_ncolgrps / num_owned_segments;
+    assert((num_colgrps_per_thread * Env::nthreads) == (int32_t) tiling->rank_ncolgrps);
+    std::vector<Integer_Type> all_colgrps_thread_sockets(tiling->rank_ncolgrps);    
+    for(int i = 0; i < num_colgrps_per_thread; i++) {
+        for(int j = 0; j < Env::nthreads; j++) {
+            int k = j + (i * Env::nthreads);
+            all_colgrps_thread_sockets[k] = Env::socket_of_thread(j);
+        }
+    }
+    J = new Vector<Weight, Integer_Type, char>(j_sizes, all_colgrps_thread_sockets);
+    JV = new Vector<Weight, Integer_Type, Integer_Type>(j_sizes, all_colgrps_thread_sockets);
     filter_vertices(_COLS_);
     std::vector<Integer_Type> colgrp_nnz_cols_sizes(num_owned_segments);
     //std::vector<int32_t> colgrp_nnz_cols_segments(num_owned_segments);
