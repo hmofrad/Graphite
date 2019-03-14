@@ -140,12 +140,13 @@ class Vertex_Program
         std::vector<int32_t> convergence_vec;
         
         
-        std::vector<std::vector<Fractional_Type>> X;               // Messages 
+        //std::vector<std::vector<Fractional_Type>> X;               // Messages 
         std::vector<std::vector<std::vector<Fractional_Type>>> Y;  // Accumulators
         //std::vector<std::vector<Fractional_Type>> Y1;  // Accumulators
         //std::vector<std::vector<Fractional_Type>> Yt;  // Accumulators
         //std::vector<char> C;                                       // Convergence vector
         //std::vector<std::vector<char>> C;
+        Vector<Weight, Integer_Type, Fractional_Type>* X = nullptr;
         Vector<Weight, Integer_Type, char>* C = nullptr;
         
         /* Nonstationary */
@@ -522,23 +523,46 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
     
     if(tid == 0) {
         std::vector<Integer_Type> c_v_sizes(num_owned_segments, tile_height);
-        std::vector<Integer_Type> thread_sockets(num_owned_segments);
+        std::vector<Integer_Type> c_v_thread_sockets(num_owned_segments);
         for(int i = 0; i < Env::nthreads; i++) {
-            thread_sockets[i] = Env::socket_of_thread(i);
+            c_v_thread_sockets[i] = Env::socket_of_thread(i);
         }
-        std::vector<int32_t> thread_segments(num_owned_segments);
-        std::iota(thread_segments.begin(), thread_segments.end(), 0);
+        //std::vector<int32_t> c_v_thread_segments(num_owned_segments);
+        //std::iota(c_v_thread_segments.begin(), c_v_thread_segments.end(), 0);
         
         V.resize(num_owned_segments, std::vector<Vertex_State>(tile_height));
         //C.resize(num_owned_segments, std::vector<char>(tile_width));
-        C = new Vector<Weight, Integer_Type, char>(c_v_sizes, thread_segments, thread_sockets);
+        C = new Vector<Weight, Integer_Type, char>(c_v_sizes, c_v_thread_sockets);
         
         // Initialize messages
+        int num_colgrps_per_thread = rank_ncolgrps / num_owned_segments;
+        assert((num_colgrps_per_thread * Env::nthreads) == (int32_t) rank_ncolgrps);
+        std::vector<Integer_Type> x_thread_sockets(rank_ncolgrps);    
+        for(int i = 0; i < num_colgrps_per_thread; i++) {
+            for(int j = 0; j < Env::nthreads; j++) {
+                x_thread_sockets[i] = Env::socket_of_thread(j);
+            }
+        }
+        std::vector<Integer_Type> x_sizes = nnz_col_sizes_loc;
+        
+        /*
+        std::vector<int32_t> x_thread_segments(num_owned_segments);
+        for(int32_t j = 0; j < num_owned_segments; j++) {  
+            uint32_t io = accu_segment_cols[j];
+            x_thread_segments[j] = nnz_col_sizes_loc[io];
+        }
+        */
+        
+        X = new Vector<Weight, Integer_Type, Fractional_Type>(x_sizes, x_thread_sockets);
+        
+        
+        /*
         std::vector<Integer_Type> x_sizes;   
         x_sizes = nnz_col_sizes_loc;
         X.resize(rank_ncolgrps);
         for(uint32_t i = 0; i < rank_ncolgrps; i++)
             X[i].resize(x_sizes[i]);
+        */
 
         // Initialiaze accumulators
         std::vector<Integer_Type> y_sizes;   
@@ -587,54 +611,6 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
         init_time.push_back(elapsed_time);
     }
     #endif
-}
-
-template<typename Weight, typename Integer_Type, typename Fractional_Type, typename Vertex_State, typename Vertex_Methods_Impl>
-void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_Methods_Impl>::init_stationary() {
-    // Initialize Values
-    //if(stationary) {
-        
-    
-
-    V.resize(num_owned_segments, std::vector<Vertex_State>(tile_width));
-    C.resize(num_owned_segments, std::vector<char>(tile_width));
-    for(int32_t k = 0; k < num_owned_segments; k++) {
-        auto& v_data = V[k];
-        //auto& c_data = C[k];
-        auto* c_data = (char*) C->data[k];
-        Integer_Type v_nitems = v_data.size();
-        //#pragma omp parallel for schedule(static)
-        for(uint32_t i = 0; i < v_nitems; i++) {
-            Vertex_State &state = v_data[i]; 
-            c_data[i] = Vertex_Methods.initializer(get_vid(i, owned_segments[k]), state);
-            //c_data[i] = initializer(get_vid(i, owned_segments[k]), state);
-        }
-    }
-    // Initialize messages
-    std::vector<Integer_Type> x_sizes;   
-    x_sizes = nnz_col_sizes_loc;
-    X.resize(rank_ncolgrps);
-    for(uint32_t i = 0; i < rank_ncolgrps; i++)
-        X[i].resize(x_sizes[i]);
-
-    // Initialiaze accumulators
-    std::vector<Integer_Type> y_sizes;   
-    y_sizes = nnz_row_sizes_loc;
-    Y.resize(rank_nrowgrps);
-    int32_t k = 0;
-    for(uint32_t i = 0; i < rank_nrowgrps; i++) {
-        if(leader_ranks[local_row_segments[i]] == Env::rank) {    
-            Y[i].resize(rowgrp_nranks);
-            for(uint32_t j = 0; j < rowgrp_nranks; j++)
-                Y[i][j].resize(y_sizes[i]);
-            k++;
-        }
-        else {
-            Y[i].resize(1);
-            Y[i][0].resize(y_sizes[i]);
-        }
-    }
-    assert(k == num_owned_segments);
 }
 
 template<typename Weight, typename Integer_Type, typename Fractional_Type, typename Vertex_State, typename Vertex_Methods_Impl>
@@ -738,7 +714,8 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
     #endif
 
     uint32_t xo = accu_segment_cols[tid];    
-    std::vector<Fractional_Type>& x_data = X[xo];
+    //std::vector<Fractional_Type>& x_data = X[xo];
+    auto* x_data = (Fractional_Type*) X->data[xo];
     //auto& JC = colgrp_nnz_cols_t[tid];
     //Integer_Type JC_nitems = JC.size();
     auto* JC = (Integer_Type*) colgrp_nnz_cols->data[tid];
@@ -760,9 +737,11 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
         col_group = local_col_segments[i];
         leader = leader_ranks_cg[col_group];
         //leader = leader_ranks[col_group];
-        std::vector<Fractional_Type>& xj_data = X[i];
-        Integer_Type xj_nitems = xj_data.size();
-        MPI_Ibcast(xj_data.data(), xj_nitems, TYPE_DOUBLE, leader, colgrps_communicators[tid], &request);
+        //std::vector<Fractional_Type>& xj_data = X[i];
+        //Integer_Type xj_nitems = xj_data.size();
+        auto* xj_data = (Fractional_Type*) X->data[i];
+        Integer_Type xj_nitems = X->nitems[i];
+        MPI_Ibcast(xj_data, xj_nitems, TYPE_DOUBLE, leader, colgrps_communicators[tid], &request);
         out_requests_t[tid].push_back(request);
     }
     MPI_Waitall(out_requests_t[tid].size(), out_requests_t[tid].data(), MPI_STATUSES_IGNORE);
@@ -817,7 +796,8 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
         std::vector<Fractional_Type> &y_data = Y[yi][yo];
         Integer_Type y_nitems = y_data.size();
         
-        std::vector<Fractional_Type> &x_data = X[xi];
+        //std::vector<Fractional_Type> &x_data = X[xi];
+        auto* x_data = (Fractional_Type*) X->data[xi];
         
         const uint64_t nnz = static_cast<TCSC_BASE<Weight, Integer_Type>*>(tile.compressor)->nnz;
         if(nnz) {
