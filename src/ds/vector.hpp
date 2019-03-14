@@ -23,7 +23,7 @@ class Vector {
         Vector(const std::vector<Integer_Type> nitems_, const std::vector<Integer_Type> socket_ids);// const std::vector<int32_t> segments
         ~Vector();
         std::vector<Integer_Type> nitems;
-        Fractional_Type **data;
+        Fractional_Type** data;
         std::vector<bool> allocated;
         Integer_Type vector_length;
 };
