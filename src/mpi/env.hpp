@@ -76,7 +76,8 @@ class Env {
         static bool   get_init_status();
         static void   set_init_status();
         static int set_thread_affinity(int thread_id);
-        static int get_socket_id(int cpu_id);
+        static int socket_of_cpu(int cpu_id);
+        static int socket_of_thread(int thread_id);
         
         static void shuffle_ranks();
         
@@ -222,8 +223,14 @@ int Env::set_thread_affinity(int thread_id) {
    return pthread_setaffinity_np(current_thread, sizeof(cpu_set_t), &cpuset);
 }
 
-int Env::get_socket_id(int cpu_id) {
+int Env::socket_of_cpu(int cpu_id) {
     return(cpu_id / ncores_per_socket);
+}
+
+int Env::socket_of_thread(int thread_id) {
+    int num_unique_cores = core_ids_unique.size();
+    int cid = core_ids_unique[thread_id % num_unique_cores];
+    return(socket_of_cpu(cid));
 }
 
 bool Env::affinity() {   
@@ -289,7 +296,7 @@ bool Env::affinity() {
         network.machines[idx].ranks.push_back(idx1);
         for(j = 0; j < nthreads; j++) {
             cid = core_ids_all[i];
-            sid = get_socket_id(cid);
+            sid = socket_of_cpu(cid);
             network.machines[idx].socket_ranks[sid].push_back(idx1);
             i++;
         }
