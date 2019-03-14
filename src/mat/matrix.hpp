@@ -87,10 +87,10 @@ class Matrix {
         Integer_Type nnz_cols_size_loc;
 
         
-        Vector<Weight, Integer_Type, char>* I = nullptr; // Row indices
-        Vector<Weight, Integer_Type, Integer_Type>* IV = nullptr; // Row indices values
-        Vector<Weight, Integer_Type, char>* J = nullptr; // Column indices
-        Vector<Weight, Integer_Type, Integer_Type>* JV = nullptr; // Column indices values
+        Vector<Weight, Integer_Type, char>* I = nullptr;
+        Vector<Weight, Integer_Type, Integer_Type>* IV = nullptr;
+        Vector<Weight, Integer_Type, char>* J = nullptr;
+        Vector<Weight, Integer_Type, Integer_Type>* JV = nullptr;
         Vector<Weight, Integer_Type, Integer_Type>* rowgrp_nnz_rows;
         Vector<Weight, Integer_Type, Integer_Type>* colgrp_nnz_cols;
         
@@ -1134,9 +1134,9 @@ template<typename Weight, typename Integer_Type, typename Fractional_Type>
 void Matrix<Weight, Integer_Type, Fractional_Type>::init_tcsc() {
     //Env::barrier();
     //Env::exit(0);
-    int nthreads = Env::nthreads;
+    //int nthreads = Env::nthreads;
     std::vector<std::thread> threads;
-    for(int i = 0; i < nthreads; i++) {
+    for(int i = 0; i < Env::nthreads; i++) {
         threads.push_back(std::thread(&Matrix<Weight, Integer_Type, Fractional_Type>::init_tcsc_threaded, this, i));
     }
     
