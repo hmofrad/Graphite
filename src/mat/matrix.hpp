@@ -740,7 +740,7 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_filtering() {
         }    
     }
     
-    std::vector<Integer_Type> j_sizes(tiling->rank_nrowgrps, tile_width);
+    std::vector<Integer_Type> j_sizes(tiling->rank_ncolgrps, tile_width);
     int num_colgrps_per_thread = tiling->rank_ncolgrps / num_owned_segments;
     assert((num_colgrps_per_thread * Env::nthreads) == (int32_t) tiling->rank_ncolgrps);
     std::vector<Integer_Type> all_colgrps_thread_sockets(tiling->rank_ncolgrps);    
