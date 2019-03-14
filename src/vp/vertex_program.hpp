@@ -252,8 +252,8 @@ Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_Metho
     convergence_vec.resize(Env::nthreads);
     pthread_barrier_init(&p_barrier, NULL, Env::nthreads);
 
-    //if(ordering_type == _ROW_)
-    //{
+    if(ordering_type == _ROW_)
+    {
         nrows = A->nrows;
         ncols = A->ncols;
         nrowgrps = A->nrowgrps;
@@ -331,7 +331,7 @@ Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_Metho
         rowgrps_communicators = Env::rowgrps_comms;
         colgrps_communicators = Env::colgrps_comms;
         
-    /*    
+       
     }
     else if (ordering_type == _COL_)
     {
@@ -368,6 +368,15 @@ Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_Metho
         nnz_col_sizes_loc = A->nnz_row_sizes_loc;
         nnz_row_sizes_all = A->nnz_col_sizes_all;
         nnz_col_sizes_all = A->nnz_row_sizes_all;
+        
+        I = Graph.A->J;
+        IV = Graph.A->JV;
+        J = Graph.A->I;
+        JV = Graph.A->IV;
+        rowgrp_nnz_rows = Graph.A->colgrp_nnz_cols;
+        colgrp_nnz_cols = Graph.A->rowgrp_nnz_rows;
+        
+        /*
         I = &(Graph.A->J);
         IV= &(Graph.A->JV);
         J = &(Graph.A->I);
@@ -382,6 +391,7 @@ Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_Metho
         nnz_cols_sizes = Graph.A->nnz_rows_sizes;
         nnz_rows_size = Graph.A->nnz_cols_size;
         nnz_cols_size = Graph.A->nnz_rows_size;
+        */
 
 
         out_requests_t.resize(Env::nthreads);
@@ -392,8 +402,8 @@ Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_Metho
         local_tiles_row_order_t = Graph.A->local_tiles_col_order_t;
         local_tiles_col_order_t = Graph.A->local_tiles_row_order_t;
         
-        rowgrp_nnz_rows_t = Graph.A->colgrp_nnz_cols_t;
-        colgrp_nnz_cols_t = Graph.A->rowgrp_nnz_rows_t;
+        //rowgrp_nnz_rows_t = Graph.A->colgrp_nnz_cols_t;
+        //colgrp_nnz_cols_t = Graph.A->rowgrp_nnz_rows_t;
         
         accu_segment_rows = Graph.A->accu_segment_cols;
         accu_segment_cols = Graph.A->accu_segment_rows;
@@ -402,7 +412,7 @@ Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_Metho
         colgrps_communicators = Env::rowgrps_comms;
 
     }   
-    */
+    
     TYPE_DOUBLE = Types<Weight, Integer_Type, Fractional_Type>::get_data_type();
     TYPE_INT = Types<Weight, Integer_Type, Integer_Type>::get_data_type();
     TYPE_CHAR = Types<Weight, Integer_Type, char>::get_data_type();
@@ -1641,8 +1651,8 @@ bool Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
     
     pthread_barrier_wait(&p_barrier);
     if(tid == 0) {
-        iteration++;
-        Env::print_num("Iteration", iteration);
+        //iteration++;
+        //Env::print_num("Iteration", iteration);
         converged = false;
         if(check_for_convergence) {
             if(std::accumulate(convergence_vec.begin(), convergence_vec.end(), 0) == Env::nthreads)
@@ -1741,6 +1751,10 @@ bool Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
         std::fill(col_start, col_end, 0);
     }        
     pthread_barrier_wait(&p_barrier);
+    if(tid == 0) {
+        iteration++;
+        Env::print_num("Iteration", iteration);
+    }
     
     #ifdef TIMING    
     if(tid == 0) {
