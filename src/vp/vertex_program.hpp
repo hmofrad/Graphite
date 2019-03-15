@@ -607,6 +607,9 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
             std::vector<Integer_Type> row_socket((rowgrp_nranks - 1), thread_sockets[j]);
             Yt[j] = new Vector<Weight, Integer_Type, Fractional_Type>(row_size, row_socket);
         }
+        
+
+            
 
     
     
@@ -723,8 +726,14 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
             Yt[j] = new Vector<Weight, Integer_Type, Fractional_Type>(row_size, row_socket);
         }
         
+        for(uint32_t i = 0; i < rank_nrowgrps; i++) {
+            if(leader_ranks[local_row_segments[i]] == Env::rank) {  
+                if(!Env::rank)
+                    printf("%d\n", local_row_segments[i]);
+            
+            }
+        }
 
-        
         
         
         /*
