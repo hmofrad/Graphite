@@ -38,15 +38,18 @@ Vector<Weight, Integer_Type, Fractional_Type>::~Vector() {
     if(numa_available() != -1) {
         for(uint32_t i = 0; i < vector_length; i++) {
             nbytes = nitems[i] * sizeof(Fractional_Type);
+            memset(data[i], 0, nbytes);    
             numa_free(data[i], nbytes);
         }
         nbytes = vector_length * sizeof(Fractional_Type*);
+        memset(data, 0, nbytes);    
         numa_free(data, nbytes);
     }
     else {
         for(uint32_t i = 0; i < vector_length; i++) {
             if(nitems[i]) {
                 nbytes = nitems[i] * sizeof(Fractional_Type);
+                memset(data[i], 0, nbytes);    
                 if(munmap(data[i], nbytes) == -1) {
                     fprintf(stderr, "Error unmapping memory\n");
                     exit(1);
@@ -54,6 +57,7 @@ Vector<Weight, Integer_Type, Fractional_Type>::~Vector() {
             }
         }
         nbytes = vector_length * sizeof(Fractional_Type*);
+        memset(data, 0, nbytes);    
         if(munmap(data, nbytes) == -1) {
             fprintf(stderr, "Error unmapping memory\n");
             exit(1);
