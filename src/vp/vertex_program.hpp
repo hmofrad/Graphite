@@ -726,15 +726,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
             Yt[j] = new Vector<Weight, Integer_Type, Fractional_Type>(row_size, row_socket);
         }
         
-        for(uint32_t i = 0; i < rank_nrowgrps; i++) {
-            if(leader_ranks[local_row_segments[i]] == Env::rank) {  
-                if(!Env::rank)
-                    printf("%d\n", local_row_segments[i]);
-            
-            }
-        }
 
-        
         
         /*
         std::vector<Integer_Type> y_sizes;   
@@ -1660,7 +1652,7 @@ bool Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
     
     pthread_barrier_wait(&p_barrier);
     if(tid == 0) {
-        //iteration++;
+        iteration++;
         //Env::print_num("Iteration", iteration);
         converged = false;
         if(check_for_convergence) {
@@ -1760,10 +1752,7 @@ bool Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
         std::fill(col_start, col_end, 0);
     }        
     pthread_barrier_wait(&p_barrier);
-    if(tid == 0) {
-        iteration++;
-        Env::print_num("Iteration", iteration);
-    }
+
     
     #ifdef TIMING    
     if(tid == 0) {
@@ -1773,6 +1762,10 @@ bool Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
         convergence_time.push_back(elapsed_time);
     }
     #endif   
+    
+    if(tid == 0) {
+        Env::print_num("Iteration", iteration);
+    }
     
     return(converged);   
 }
