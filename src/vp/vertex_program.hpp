@@ -174,6 +174,14 @@ class Vertex_Program
         Vector<Weight, Integer_Type, Integer_Type>* rowgrp_nnz_rows;
         Vector<Weight, Integer_Type, Integer_Type>* colgrp_nnz_cols;
         
+        
+        std::vector<Segment<Weight, Integer_Type, char>*> I1;
+        std::vector<Segment<Weight, Integer_Type, Integer_Type>*> IV1;
+        std::vector<Segment<Weight, Integer_Type, char>*> J1;
+        std::vector<Segment<Weight, Integer_Type, Integer_Type>*> JV1;
+        std::vector<Segment<Weight, Integer_Type, Integer_Type>*> rowgrp_nnz_rows1;
+        std::vector<Segment<Weight, Integer_Type, Integer_Type>*> colgrp_nnz_cols1;
+        
         /*
         // Row/col filtering indices 
         std::vector<std::vector<char>>* I;
@@ -288,12 +296,21 @@ Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_Metho
         nnz_row_sizes_all = A->nnz_row_sizes_all;
         nnz_col_sizes_all = A->nnz_col_sizes_all;
         
+        I1 = Graph.A->I1;
+        IV1 = Graph.A->IV1;
+        J1 = Graph.A->J1;
+        JV1 = Graph.A->JV1;
+        rowgrp_nnz_rows1 = Graph.A->rowgrp_nnz_rows1;
+        colgrp_nnz_cols1 = Graph.A->colgrp_nnz_cols1;
+        
+        /*
         I = Graph.A->I;
         IV = Graph.A->IV;
         J = Graph.A->J;
         JV = Graph.A->JV;
         rowgrp_nnz_rows = Graph.A->rowgrp_nnz_rows;
         colgrp_nnz_cols = Graph.A->colgrp_nnz_cols;
+        */
         
         
         /*
@@ -369,13 +386,21 @@ Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_Metho
         nnz_row_sizes_all = A->nnz_col_sizes_all;
         nnz_col_sizes_all = A->nnz_row_sizes_all;
         
+        I1 = Graph.A->J1;
+        IV1 = Graph.A->JV1;
+        J1 = Graph.A->I1;
+        JV1 = Graph.A->IV1;
+        rowgrp_nnz_rows1 = Graph.A->colgrp_nnz_cols1;
+        colgrp_nnz_cols1 = Graph.A->rowgrp_nnz_rows1;
+        
+        /*
         I = Graph.A->J;
         IV = Graph.A->JV;
         J = Graph.A->I;
         JV = Graph.A->IV;
         rowgrp_nnz_rows = Graph.A->colgrp_nnz_cols;
         colgrp_nnz_cols = Graph.A->rowgrp_nnz_rows;
-        
+        */
         /*
         I = &(Graph.A->J);
         IV= &(Graph.A->JV);
@@ -500,7 +525,8 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
     if(stationary) {
         for(int32_t k = 0; k < num_owned_segments; k++) {
             uint32_t yi = accu_segment_rows[k];
-            auto* i_data = (char*) I->data[yi];
+            //auto* i_data = (char*) I->data[yi];
+            auto* i_data = (char*) I1[yi]->data;
             //auto &i_data = (*I)[yi];             
             //auto& v_data = V[k];
             //Integer_Type v_nitems = v_data.size();
@@ -886,8 +912,12 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
     auto* x_data = (Fractional_Type*) X->data[xo];
     //auto& JC = colgrp_nnz_cols_t[tid];
     //Integer_Type JC_nitems = JC.size();
-    auto* JC = (Integer_Type*) colgrp_nnz_cols->data[tid];
-    Integer_Type JC_nitems = colgrp_nnz_cols->nitems[tid];
+    //auto* JC = (Integer_Type*) colgrp_nnz_cols->data[tid];
+    //Integer_Type JC_nitems = colgrp_nnz_cols->nitems[tid];
+    
+    auto* JC = (Integer_Type*) colgrp_nnz_cols1[tid]->data;
+    Integer_Type JC_nitems = colgrp_nnz_cols1[tid]->nitems;
+    
     //auto& v_data = V[tid];
     auto* v_data = (Vertex_State*) V->data[tid];
     for(uint32_t j = 0; j < JC_nitems; j++) {
@@ -1091,8 +1121,11 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
     auto* y_data = (Fractional_Type*) Y->data[yi];
     //auto& i_data = (*I)[yi];
     //auto& iv_data = (*IV)[yi];
-    auto* i_data = (char*) I->data[yi];
-    auto* iv_data = (Integer_Type*) IV->data[yi];
+    //auto* i_data = (char*) I->data[yi];
+    //auto* iv_data = (Integer_Type*) IV->data[yi];
+    auto* i_data = (char*) I1[yi]->data;
+    auto* iv_data = (Integer_Type*) IV1[yi]->data;
+    
     //auto& v_data = V[tid];
     //Integer_Type v_nitems = v_data.size();
     auto* v_data = (Vertex_State*) V->data[tid];
