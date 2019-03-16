@@ -104,6 +104,13 @@ class Matrix {
         Vector<Weight, Integer_Type, Integer_Type>* rowgrp_nnz_rows;
         Vector<Weight, Integer_Type, Integer_Type>* colgrp_nnz_cols;
         
+        struct Segment<Weight, Integer_Type, char>** I2;
+        struct Segment<Weight, Integer_Type, Integer_Type>** IV2;
+        struct Segment<Weight, Integer_Type, char>** J2;
+        struct Segment<Weight, Integer_Type, Integer_Type>** JV2;
+        struct Segment<Weight, Integer_Type, Integer_Type>** rowgrp_nnz_rows2;
+        struct Segment<Weight, Integer_Type, Integer_Type>** colgrp_nnz_cols2;
+        
         /*
         std::vector<std::vector<char>> I;           // Nonzero rows bitvectors (from tile width)
         std::vector<std::vector<Integer_Type>> IV;  // Nonzero rows indices    (from tile width)
@@ -705,7 +712,225 @@ template<typename Weight, typename Integer_Type, typename Fractional_Type>
 void Matrix<Weight, Integer_Type, Fractional_Type>::init_filtering() {
     if(Env::is_master)
         printf("INFO(rank=%d): Vertex filtering: Filtering zero rows/cols\n", Env::rank);
+    
+    
+    std::vector<Integer_Type> i_sizes(tiling->rank_nrowgrps, tile_height);
+    int num_rowgrps_per_thread = tiling->rank_nrowgrps / num_owned_segments;
+    assert((num_rowgrps_per_thread * Env::nthreads) == (int32_t) tiling->rank_nrowgrps);
+    std::vector<Integer_Type> all_rowgrps_thread_sockets(tiling->rank_nrowgrps);    
+    for(int i = 0; i < num_rowgrps_per_thread; i++) {
+        for(int j = 0; j < Env::nthreads; j++) {
+            int k = j + (i * Env::nthreads);
+            all_rowgrps_thread_sockets[k] = Env::socket_of_thread(j);
+        }
+    }
+    
+        
+    I2 = (struct Segment<Weight, Integer_Type, char>**) mmap(nullptr, (tiling->rank_nrowgrps * sizeof(struct Segment<Weight, Integer_Type, char>*)), PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0);
+    IV2 = (struct Segment<Weight, Integer_Type, Integer_Type>**) mmap(nullptr, (tiling->rank_nrowgrps * sizeof(struct Segment<Weight, Integer_Type, Integer_Type>*)), PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0);
+    for(uint32_t i = 0; i < tiling->rank_nrowgrps; i++) {
+        
+        struct Segment<Weight, Integer_Type, char>* s_i = new struct Segment<Weight, Integer_Type, char>(i_sizes[i], all_rowgrps_thread_sockets[i]);
+        I2[i] = s_i;
+        struct Segment<Weight, Integer_Type, Integer_Type>* s_iv = new struct Segment<Weight, Integer_Type, Integer_Type>(i_sizes[i], all_rowgrps_thread_sockets[i]);
+        IV2[i] = s_iv;
+    }
+    
 
+    filter_vertices(_ROWS_);
+        
+    std::vector<Integer_Type> thread_sockets(num_owned_segments);    
+    for(int i = 0; i < Env::nthreads; i++) {
+        thread_sockets[i] = Env::socket_of_thread(i);
+    }
+    std::vector<Integer_Type> rowgrp_nnz_rows_sizes(num_owned_segments);
+    for(int32_t j = 0; j < num_owned_segments; j++) {  
+        uint32_t io = accu_segment_rows[j];
+        rowgrp_nnz_rows_sizes[j] = nnz_row_sizes_loc[io];
+    }
+    
+    
+    
+    rowgrp_nnz_rows2 = (struct Segment<Weight, Integer_Type, Integer_Type>**) mmap(nullptr, (num_owned_segments * sizeof(struct  Segment<Weight, Integer_Type, Integer_Type>*)), PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0);
+    for(int32_t i = 0; i < num_owned_segments; i++) {
+        struct Segment<Weight, Integer_Type, Integer_Type>* r_i = new struct Segment<Weight, Integer_Type, Integer_Type>(rowgrp_nnz_rows_sizes[i], thread_sockets[i]);
+        rowgrp_nnz_rows2[i] = r_i;
+    }
+    for(int32_t j = 0; j < num_owned_segments; j++) {      
+        uint32_t io = accu_segment_rows[j];
+        auto* i_data = (char*) I2[io]->data;
+        auto* rgj_data = (Integer_Type*) rowgrp_nnz_rows2[j]->data;
+        Integer_Type k = 0;
+        for(Integer_Type i = 0; i < tile_height; i++) {
+            if(i_data[i]) {
+                rgj_data[k] = i;
+                k++;
+            }
+        }    
+    }
+
+    
+            
+    std::vector<Integer_Type> j_sizes(tiling->rank_ncolgrps, tile_width);
+    int num_colgrps_per_thread = tiling->rank_ncolgrps / num_owned_segments;
+    assert((num_colgrps_per_thread * Env::nthreads) == (int32_t) tiling->rank_ncolgrps);
+    std::vector<Integer_Type> all_colgrps_thread_sockets(tiling->rank_ncolgrps);    
+    for(int i = 0; i < num_colgrps_per_thread; i++) {
+        for(int j = 0; j < Env::nthreads; j++) {
+            int k = j + (i * Env::nthreads);
+            all_colgrps_thread_sockets[k] = Env::socket_of_thread(j);
+        }
+    }
+    
+    J2 = (struct Segment<Weight, Integer_Type, char>**) mmap(nullptr, (tiling->rank_ncolgrps * sizeof(struct Segment<Weight, Integer_Type, char>*)), PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0);
+    JV2 = (struct Segment<Weight, Integer_Type, Integer_Type>**) mmap(nullptr, (tiling->rank_ncolgrps * sizeof(struct Segment<Weight, Integer_Type, Integer_Type>*)), PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0);
+    for(uint32_t i = 0; i < tiling->rank_ncolgrps; i++) {
+        
+        struct Segment<Weight, Integer_Type, char>* s_j = new struct Segment<Weight, Integer_Type, char>(j_sizes[i], all_colgrps_thread_sockets[i]);
+        J2[i] = s_j;
+        struct Segment<Weight, Integer_Type, Integer_Type>* s_jv = new struct Segment<Weight, Integer_Type, Integer_Type>(j_sizes[i], all_colgrps_thread_sockets[i]);
+        JV2[i] = s_jv;
+    }
+         
+
+    filter_vertices(_COLS_);
+    
+    std::vector<Integer_Type> colgrp_nnz_cols_sizes(num_owned_segments);
+    for(int32_t j = 0; j < num_owned_segments; j++) {  
+        uint32_t io = accu_segment_cols[j];
+        colgrp_nnz_cols_sizes[j] = nnz_col_sizes_loc[io];
+    }
+    
+    colgrp_nnz_cols2 = (struct Segment<Weight, Integer_Type, Integer_Type>**) mmap(nullptr, (num_owned_segments * sizeof(struct Segment<Weight, Integer_Type, Integer_Type>*)), PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0);
+    for(int32_t i = 0; i < num_owned_segments; i++) {
+        struct Segment<Weight, Integer_Type, Integer_Type>* c_j = new struct Segment<Weight, Integer_Type, Integer_Type>(colgrp_nnz_cols_sizes[i], thread_sockets[i]);
+        colgrp_nnz_cols2[i] = c_j;
+    }
+    
+    for(int32_t j = 0; j < num_owned_segments; j++) { 
+        uint32_t jo = accu_segment_cols[j];    
+        auto* j_data = (char*) J2[jo]->data;
+        auto* cgj_data = (Integer_Type*) colgrp_nnz_cols2[j]->data;
+        Integer_Type k = 0;
+        for(Integer_Type i = 0; i < tile_width; i++) {
+            if(j_data[i]) {
+                cgj_data[k] = i;
+                k++;
+            }
+        }    
+    }
+    
+
+    
+
+    /*
+    std::vector<Integer_Type> i_sizes(tiling->rank_nrowgrps, tile_height);
+    int num_rowgrps_per_thread = tiling->rank_nrowgrps / num_owned_segments;
+    assert((num_rowgrps_per_thread * Env::nthreads) == (int32_t) tiling->rank_nrowgrps);
+    std::vector<Integer_Type> all_rowgrps_thread_sockets(tiling->rank_nrowgrps);    
+    for(int i = 0; i < num_rowgrps_per_thread; i++) {
+        for(int j = 0; j < Env::nthreads; j++) {
+            int k = j + (i * Env::nthreads);
+            all_rowgrps_thread_sockets[k] = Env::socket_of_thread(j);
+        }
+    }
+    
+    I1.resize(tiling->rank_nrowgrps);
+    IV1.resize(tiling->rank_nrowgrps);
+    for(uint32_t i = 0; i < tiling->rank_nrowgrps; i++) {
+        Segment<Weight, Integer_Type, char>* s_i = new Segment<Weight, Integer_Type, char>(i_sizes[i], all_rowgrps_thread_sockets[i]);
+        I1[i] = s_i;
+        Segment<Weight, Integer_Type, Integer_Type>* s_iv = new Segment<Weight, Integer_Type, Integer_Type>(i_sizes[i], all_rowgrps_thread_sockets[i]);
+        IV1[i] = s_iv;
+    }
+    filter_vertices(_ROWS_);
+    
+    
+    
+    
+    std::vector<Integer_Type> thread_sockets(num_owned_segments);    
+    for(int i = 0; i < Env::nthreads; i++) {
+        thread_sockets[i] = Env::socket_of_thread(i);
+    }
+    std::vector<Integer_Type> rowgrp_nnz_rows_sizes(num_owned_segments);
+    for(int32_t j = 0; j < num_owned_segments; j++) {  
+        uint32_t io = accu_segment_rows[j];
+        rowgrp_nnz_rows_sizes[j] = nnz_row_sizes_loc[io];
+    }
+    
+    
+    
+    rowgrp_nnz_rows1.resize(num_owned_segments);
+    for(int32_t i = 0; i < num_owned_segments; i++) {
+        Segment<Weight, Integer_Type, Integer_Type>* r_i = new Segment<Weight, Integer_Type, Integer_Type>(rowgrp_nnz_rows_sizes[i], thread_sockets[i]);
+        rowgrp_nnz_rows1[i] = r_i;
+    }
+    for(int32_t j = 0; j < num_owned_segments; j++) {      
+        uint32_t io = accu_segment_rows[j];
+        auto* i_data = (char*) I1[io]->data;
+        auto* rgj_data = (Integer_Type*) rowgrp_nnz_rows1[j]->data;
+        Integer_Type k = 0;
+        for(Integer_Type i = 0; i < tile_height; i++) {
+            if(i_data[i]) {
+                rgj_data[k] = i;
+                k++;
+            }
+        }    
+    }
+    
+    
+            
+    std::vector<Integer_Type> j_sizes(tiling->rank_ncolgrps, tile_width);
+    int num_colgrps_per_thread = tiling->rank_ncolgrps / num_owned_segments;
+    assert((num_colgrps_per_thread * Env::nthreads) == (int32_t) tiling->rank_ncolgrps);
+    std::vector<Integer_Type> all_colgrps_thread_sockets(tiling->rank_ncolgrps);    
+    for(int i = 0; i < num_colgrps_per_thread; i++) {
+        for(int j = 0; j < Env::nthreads; j++) {
+            int k = j + (i * Env::nthreads);
+            all_colgrps_thread_sockets[k] = Env::socket_of_thread(j);
+        }
+    }
+    
+    
+    J1.resize(tiling->rank_ncolgrps);
+    JV1.resize(tiling->rank_ncolgrps);
+    for(uint32_t i = 0; i < tiling->rank_ncolgrps; i++) {
+        Segment<Weight, Integer_Type, char>* s_j = new Segment<Weight, Integer_Type, char>(j_sizes[i], all_colgrps_thread_sockets[i]);
+        J1[i] = s_j;
+        Segment<Weight, Integer_Type, Integer_Type>* s_jv = new Segment<Weight, Integer_Type, Integer_Type>(j_sizes[i], all_colgrps_thread_sockets[i]);
+        JV1[i] = s_jv;
+    }
+    filter_vertices(_COLS_);
+    
+    std::vector<Integer_Type> colgrp_nnz_cols_sizes(num_owned_segments);
+    for(int32_t j = 0; j < num_owned_segments; j++) {  
+        uint32_t io = accu_segment_cols[j];
+        colgrp_nnz_cols_sizes[j] = nnz_col_sizes_loc[io];
+    }
+    
+    colgrp_nnz_cols1.resize(num_owned_segments);
+    for(int32_t i = 0; i < num_owned_segments; i++) {
+        Segment<Weight, Integer_Type, Integer_Type>* c_j = new Segment<Weight, Integer_Type, Integer_Type>(colgrp_nnz_cols_sizes[i], thread_sockets[i]);
+        colgrp_nnz_cols1[i] = c_j;
+    }
+    
+    for(int32_t j = 0; j < num_owned_segments; j++) { 
+        uint32_t jo = accu_segment_cols[j];    
+        auto* j_data = (char*) J1[jo]->data;
+        auto* cgj_data = (Integer_Type*) colgrp_nnz_cols1[j]->data;
+        Integer_Type k = 0;
+        for(Integer_Type i = 0; i < tile_width; i++) {
+            if(j_data[i]) {
+                cgj_data[k] = i;
+                k++;
+            }
+        }    
+    }
+    */    
+    
+
+    
+    
 
     /*
     std::vector<Integer_Type> i_sizes(tiling->rank_nrowgrps, tile_height);
@@ -722,6 +947,8 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_filtering() {
     
     I = new Vector<Weight, Integer_Type, char>(i_sizes, all_rowgrps_thread_sockets);
     IV = new Vector<Weight, Integer_Type, Integer_Type>(i_sizes, all_rowgrps_thread_sockets);
+    
+
     filter_vertices(_ROWS_);
     
     std::vector<Integer_Type> thread_sockets(num_owned_segments);    
@@ -783,130 +1010,8 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_filtering() {
             }
         }
     }
-    
     */
     
-    std::vector<Integer_Type> i_sizes(tiling->rank_nrowgrps, tile_height);
-    
-    int num_rowgrps_per_thread = tiling->rank_nrowgrps / num_owned_segments;
-    assert((num_rowgrps_per_thread * Env::nthreads) == (int32_t) tiling->rank_nrowgrps);
-    std::vector<Integer_Type> all_rowgrps_thread_sockets(tiling->rank_nrowgrps);    
-    for(int i = 0; i < num_rowgrps_per_thread; i++) {
-        for(int j = 0; j < Env::nthreads; j++) {
-            int k = j + (i * Env::nthreads);
-            all_rowgrps_thread_sockets[k] = Env::socket_of_thread(j);
-        }
-    }
-    
-    I1.resize(tiling->rank_nrowgrps);
-    IV1.resize(tiling->rank_nrowgrps);
-    for(uint32_t i = 0; i < tiling->rank_nrowgrps; i++) {
-        Segment<Weight, Integer_Type, char>* s_i = new Segment<Weight, Integer_Type, char>(i_sizes[i], all_rowgrps_thread_sockets[i]);
-        I1[i] = s_i;
-        //auto* i1_data = (char*) I1[i]->data;
-        //auto* i_data = (char*) I->data[i];
-        //for(uint32_t j = 0; j < i_sizes[i]; j++) {
-        //    i1_data[j] = i_data[j];
-        //}
-        
-        Segment<Weight, Integer_Type, Integer_Type>* s_iv = new Segment<Weight, Integer_Type, Integer_Type>(i_sizes[i], all_rowgrps_thread_sockets[i]);
-        IV1[i] = s_iv;
-        //auto* iv1_data = (Integer_Type*) IV1[i]->data;
-        //auto* iv_data = (Integer_Type*) IV->data[i];
-        //for(uint32_t j = 0; j < i_sizes[i]; j++) {
-        //    iv1_data[j] = iv_data[j];
-        //}
-    }
-    filter_vertices(_ROWS_);
-    
-    std::vector<Integer_Type> thread_sockets(num_owned_segments);    
-    for(int i = 0; i < Env::nthreads; i++) {
-        thread_sockets[i] = Env::socket_of_thread(i);
-    }
-    std::vector<Integer_Type> rowgrp_nnz_rows_sizes(num_owned_segments);
-    for(int32_t j = 0; j < num_owned_segments; j++) {  
-        uint32_t io = accu_segment_rows[j];
-        rowgrp_nnz_rows_sizes[j] = nnz_row_sizes_loc[io];
-    }
-    
-    
-    
-    rowgrp_nnz_rows1.resize(num_owned_segments);
-    for(int32_t i = 0; i < num_owned_segments; i++) {
-        Segment<Weight, Integer_Type, Integer_Type>* r_i = new Segment<Weight, Integer_Type, Integer_Type>(rowgrp_nnz_rows_sizes[i], thread_sockets[i]);
-        rowgrp_nnz_rows1[i] = r_i;
-    }
-    for(int32_t j = 0; j < num_owned_segments; j++) {      
-        uint32_t io = accu_segment_rows[j];
-        auto* i_data = (char*) I1[io]->data;
-        auto* rgj_data = (Integer_Type*) rowgrp_nnz_rows1[j]->data;
-        Integer_Type k = 0;
-        for(Integer_Type i = 0; i < tile_height; i++) {
-            if(i_data[i]) {
-                rgj_data[k] = i;
-                k++;
-            }
-        }    
-    }
-    
-    
-            
-    std::vector<Integer_Type> j_sizes(tiling->rank_ncolgrps, tile_width);
-    int num_colgrps_per_thread = tiling->rank_ncolgrps / num_owned_segments;
-    assert((num_colgrps_per_thread * Env::nthreads) == (int32_t) tiling->rank_ncolgrps);
-    std::vector<Integer_Type> all_colgrps_thread_sockets(tiling->rank_ncolgrps);    
-    for(int i = 0; i < num_colgrps_per_thread; i++) {
-        for(int j = 0; j < Env::nthreads; j++) {
-            int k = j + (i * Env::nthreads);
-            all_colgrps_thread_sockets[k] = Env::socket_of_thread(j);
-        }
-    }
-    
-    
-    J1.resize(tiling->rank_ncolgrps);
-    JV1.resize(tiling->rank_ncolgrps);
-    for(uint32_t i = 0; i < tiling->rank_ncolgrps; i++) {
-        Segment<Weight, Integer_Type, char>* s_j = new Segment<Weight, Integer_Type, char>(j_sizes[i], all_colgrps_thread_sockets[i]);
-        J1[i] = s_j;
-        //auto* j1_data = (char*) J1[i]->data;
-        //auto* j_data = (char*) J->data[i];
-        //for(uint32_t j = 0; j < j_sizes[i]; j++) {
-        //    j1_data[j] = j_data[j];
-        //}
-        Segment<Weight, Integer_Type, Integer_Type>* s_jv = new Segment<Weight, Integer_Type, Integer_Type>(j_sizes[i], all_colgrps_thread_sockets[i]);
-        JV1[i] = s_jv;
-        //auto* jv1_data = (Integer_Type*) JV1[i]->data;
-        //auto* jv_data = (Integer_Type*) JV->data[i];
-        //for(uint32_t j = 0; j < j_sizes[i]; j++) {
-        //    jv1_data[j] = jv_data[j];
-        //}
-    }
-    filter_vertices(_COLS_);
-    
-    std::vector<Integer_Type> colgrp_nnz_cols_sizes(num_owned_segments);
-    for(int32_t j = 0; j < num_owned_segments; j++) {  
-        uint32_t io = accu_segment_cols[j];
-        colgrp_nnz_cols_sizes[j] = nnz_col_sizes_loc[io];
-    }
-    
-    colgrp_nnz_cols1.resize(num_owned_segments);
-    for(int32_t i = 0; i < num_owned_segments; i++) {
-        Segment<Weight, Integer_Type, Integer_Type>* c_j = new Segment<Weight, Integer_Type, Integer_Type>(colgrp_nnz_cols_sizes[i], thread_sockets[i]);
-        colgrp_nnz_cols1[i] = c_j;
-    }
-    
-    for(int32_t j = 0; j < num_owned_segments; j++) { 
-        uint32_t jo = accu_segment_cols[j];    
-        auto* j_data = (char*) J1[jo]->data;
-        auto* cgj_data = (Integer_Type*) colgrp_nnz_cols1[j]->data;
-        Integer_Type k = 0;
-        for(Integer_Type i = 0; i < tile_width; i++) {
-            if(j_data[i]) {
-                cgj_data[k] = i;
-                k++;
-            }
-        }    
-    }
     
     
 
@@ -961,8 +1066,10 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::filter_vertices(Filtering_ty
     //std::vector<std::vector<Integer_Type>> *KV;
     //Vector<Weight, Integer_Type, char>* K;
     //Vector<Weight, Integer_Type, Integer_Type>* KV;
-    std::vector<Segment<Weight, Integer_Type, char>*> K;
-    std::vector<Segment<Weight, Integer_Type, Integer_Type>*> KV;
+    //std::vector<Segment<Weight, Integer_Type, char>*> K;
+    //std::vector<Segment<Weight, Integer_Type, Integer_Type>*> KV;
+    struct Segment<Weight, Integer_Type, char>** K;
+    struct Segment<Weight, Integer_Type, Integer_Type>** KV;
     uint32_t rank_nrowgrps_, rank_ncolgrps_;
     uint32_t rowgrp_nranks_;
     Integer_Type tile_length;
@@ -978,8 +1085,10 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::filter_vertices(Filtering_ty
     if(filtering_type_ == _ROWS_) {
         //K = &I;
         //KV = &IV;
-        K = I1;
-        KV = IV1;
+        //K = I1;
+        //KV = IV1;
+        K = I2;
+        KV = IV2;
         rank_nrowgrps_ = tiling->rank_nrowgrps;
         rank_ncolgrps_ = tiling->rank_ncolgrps;
         rowgrp_nranks_ = tiling->rowgrp_nranks;
@@ -998,8 +1107,10 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::filter_vertices(Filtering_ty
     else if(filtering_type_ == _COLS_) {
         //K = &J;
         //KV = &JV;
-        K = J1;
-        KV = JV1;
+        //K = J1;
+        //KV = JV1;
+        K = J2;
+        KV = JV2;
         rank_nrowgrps_ = tiling->rank_ncolgrps;
         rank_ncolgrps_ = tiling->rank_nrowgrps;
         rowgrp_nranks_ = tiling->colgrp_nranks;
@@ -1177,7 +1288,9 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::filter_vertices(Filtering_ty
             
             uint32_t ko = accu_segment_rows_[k];  
             auto* kj_data = (char*) K[ko]->data;
-            auto* kvj_data = (Integer_Type *) KV[ko]->data;
+            auto* kvj_data = (Integer_Type*) KV[ko]->data;
+            //auto* kj_data = (char*) K[ko]->data;
+            //auto* kvj_data = (Integer_Type *) KV[ko]->data;
             //auto* kj_data = (char*) K->data[ko];
             //auto* kvj_data = (Integer_Type *) KV->data[ko];
             //auto &kj_data =  (*K)[ko];
@@ -1202,6 +1315,7 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::filter_vertices(Filtering_ty
         this_segment = local_row_segments_[j];
         leader = leader_ranks[this_segment];
         auto* kj_data = (char*) K[j]->data;
+        //auto* kj_data = (char*) K[j]->data;
         //auto* kj_data = (char*) K->data[j];
         //auto &kj_data = (*K)[j];
         if(Env::rank == leader) {
@@ -1226,6 +1340,7 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::filter_vertices(Filtering_ty
         leader = leader_ranks[this_segment];
         //auto &kvj_data = (*KV)[j];
         //auto* kvj_data = (Integer_Type*) KV->data[j];
+        //auto* kvj_data = (Integer_Type*) KV[j]->data;
         auto* kvj_data = (Integer_Type*) KV[j]->data;
         if(Env::rank == leader) {
             for(uint32_t i = 0; i < rowgrp_nranks_ - 1; i++) {
@@ -1247,6 +1362,8 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::filter_vertices(Filtering_ty
     for (uint32_t j = 0; j < rank_nrowgrps_; j++) {
         auto* kj_data = (char*) K[j]->data;
         auto* kvj_data = (Integer_Type*) KV[j]->data;
+        //auto* kj_data = (char*) K[j]->data;
+        //auto* kvj_data = (Integer_Type*) KV[j]->data;
         //auto* kj_data = (char*) K->data[j];
         //auto* kvj_data = (Integer_Type*) KV->data[j];
         //auto &kj_data = (*K)[j];
@@ -1338,10 +1455,15 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_tcsc_threaded(int tid) 
         //auto* j_data = (char*) J->data[xi];
         //auto* jv_data = (Integer_Type*) JV->data[xi];
         
-        auto* i_data = (char*) I1[yi]->data;
-        auto* iv_data = (Integer_Type*) IV1[yi]->data;
-        auto* j_data = (char*) J1[xi]->data;
-        auto* jv_data = (Integer_Type*) JV1[xi]->data;
+        //auto* i_data = (char*) I1[yi]->data;
+        //auto* iv_data = (Integer_Type*) IV1[yi]->data;
+        //auto* j_data = (char*) J1[xi]->data;
+        //auto* jv_data = (Integer_Type*) JV1[xi]->data;
+        
+        auto* i_data = (char*) I2[yi]->data;
+        auto* iv_data = (Integer_Type*) IV2[yi]->data;
+        auto* j_data = (char*) J2[xi]->data;
+        auto* jv_data = (Integer_Type*) JV2[xi]->data;
         
         
         //auto& i_data = I[yi];
@@ -1371,6 +1493,7 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::del_filter() {
     delete rowgrp_nnz_rows;
     delete colgrp_nnz_cols;
     */
+    /*
     for(auto* s: I1) {
         delete s;
     }
@@ -1389,6 +1512,34 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::del_filter() {
     for(auto* s: colgrp_nnz_cols1) {
         delete s;
     }
+    */
+    
+    uint64_t nbytes = 0;
+    for(uint32_t i = 0; i < tiling->rank_nrowgrps; i++) {
+        delete I2[i];
+        delete IV2[i];
+    }
+    nbytes = tiling->rank_nrowgrps * sizeof(struct Segment<Weight, Integer_Type, char>*);
+    munmap(I2, nbytes);
+    nbytes = tiling->rank_nrowgrps * sizeof(struct Segment<Weight, Integer_Type, Integer_Type>*);
+    munmap(IV2, nbytes);
+    for(uint32_t i = 0; i < tiling->rank_ncolgrps; i++) {
+        delete J2[i];
+        delete JV2[i];
+    }
+    nbytes = tiling->rank_nrowgrps * sizeof(struct Segment<Weight, Integer_Type, char>*);
+    munmap(J2, nbytes);
+    nbytes = tiling->rank_ncolgrps * sizeof(struct Segment<Weight, Integer_Type, Integer_Type>*);
+    munmap(JV2, nbytes);
+    for(int i = 0; i < num_owned_segments; i++) {
+        delete rowgrp_nnz_rows2[i];
+        delete colgrp_nnz_cols2[i];
+    }
+    nbytes = num_owned_segments * sizeof(struct Segment<Weight, Integer_Type, Integer_Type>*);
+    munmap(rowgrp_nnz_rows2, nbytes);
+    munmap(colgrp_nnz_cols2, nbytes);
+    
+    
     /*
     for(uint32_t i = 0; i < tiling->rank_nrowgrps; i++) {
         I[i].clear();
