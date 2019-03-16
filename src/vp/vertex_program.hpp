@@ -313,22 +313,22 @@ Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_Metho
         nnz_row_sizes_all = A->nnz_row_sizes_all;
         nnz_col_sizes_all = A->nnz_col_sizes_all;
         
-        /*
+        
         I2 = Graph.A->I2;
         IV2 = Graph.A->IV2;
         J2 = Graph.A->J2;
         JV2 = Graph.A->JV2;
         rowgrp_nnz_rows2 = Graph.A->rowgrp_nnz_rows2;
         colgrp_nnz_cols2 = Graph.A->colgrp_nnz_cols2;
-        */
         
+        /*
         I1 = Graph.A->I1;
         IV1 = Graph.A->IV1;
         J1 = Graph.A->J1;
         JV1 = Graph.A->JV1;
         rowgrp_nnz_rows1 = Graph.A->rowgrp_nnz_rows1;
         colgrp_nnz_cols1 = Graph.A->colgrp_nnz_cols1;
-        
+        */
         
         /*
         I = Graph.A->I;
@@ -413,13 +413,21 @@ Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_Metho
         nnz_row_sizes_all = A->nnz_col_sizes_all;
         nnz_col_sizes_all = A->nnz_row_sizes_all;
         
+        I2 = Graph.A->J2;
+        IV2 = Graph.A->JV2;
+        J2 = Graph.A->I2;
+        JV2 = Graph.A->IV2;
+        rowgrp_nnz_rows2 = Graph.A->rowgrp_nnz_rows2;
+        colgrp_nnz_cols2 = Graph.A->colgrp_nnz_cols2;
+        
+        /*
         I1 = Graph.A->J1;
         IV1 = Graph.A->JV1;
         J1 = Graph.A->I1;
         JV1 = Graph.A->IV1;
         rowgrp_nnz_rows1 = Graph.A->colgrp_nnz_cols1;
         colgrp_nnz_cols1 = Graph.A->rowgrp_nnz_rows1;
-        
+        */
         /*
         I = Graph.A->J;
         IV = Graph.A->JV;
@@ -553,8 +561,8 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
         for(int32_t k = 0; k < num_owned_segments; k++) {
             uint32_t yi = accu_segment_rows[k];
             //auto* i_data = (char*) I->data[yi];
-            auto* i_data = (char*) I1[yi]->data;
-            //auto* i_data = (char*) I2[yi]->data;
+            //auto* i_data = (char*) I1[yi]->data;
+            auto* i_data = (char*) I2[yi]->data;
             //auto &i_data = (*I)[yi];             
             //auto& v_data = V[k];
             //Integer_Type v_nitems = v_data.size();
@@ -1015,11 +1023,11 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
     //auto* JC = (Integer_Type*) colgrp_nnz_cols->data[tid];
     //Integer_Type JC_nitems = colgrp_nnz_cols->nitems[tid];
     
-    const auto* JC = (Integer_Type*) colgrp_nnz_cols1[tid]->data;
-    const Integer_Type JC_nitems = colgrp_nnz_cols1[tid]->nitems;
+    //const auto* JC = (Integer_Type*) colgrp_nnz_cols1[tid]->data;
+    //const Integer_Type JC_nitems = colgrp_nnz_cols1[tid]->nitems;
     
-    //auto* JC = (Integer_Type*) colgrp_nnz_cols2[tid]->data;
-    //Integer_Type JC_nitems = colgrp_nnz_cols2[tid]->nitems;
+    auto* JC = (Integer_Type*) colgrp_nnz_cols2[tid]->data;
+    Integer_Type JC_nitems = colgrp_nnz_cols2[tid]->nitems;
     
     //auto& v_data = V[tid];
     auto* v_data = (Vertex_State*) V[tid]->data;
@@ -1239,10 +1247,10 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
     //auto& iv_data = (*IV)[yi];
     //auto* i_data = (char*) I->data[yi];
     //auto* iv_data = (Integer_Type*) IV->data[yi];
-    const auto* i_data = (char*) I1[yi]->data;
-    const auto* iv_data = (Integer_Type*) IV1[yi]->data;
-    //auto* i_data = (char*) I2[yi]->data;
-    //auto* iv_data = (Integer_Type*) IV2[yi]->data;
+    //const auto* i_data = (char*) I1[yi]->data;
+    //const auto* iv_data = (Integer_Type*) IV1[yi]->data;
+    auto* i_data = (char*) I2[yi]->data;
+    auto* iv_data = (Integer_Type*) IV2[yi]->data;
     
     //auto& v_data = V[tid];
     //Integer_Type v_nitems = v_data.size();
