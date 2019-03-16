@@ -89,7 +89,7 @@ Vector<Weight, Integer_Type, Fractional_Type>::Vector(const std::vector<Integer_
     }
     else {        
         nbytes = vector_length * sizeof(Fractional_Type*);
-        if((data = (Fractional_Type**) mmap(nullptr, vector_length * sizeof(Fractional_Type*), PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0)) == (void*) -1) {    
+        if((data = (Fractional_Type**) mmap(nullptr, nbytes, PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0)) == (void*) -1) {    
             fprintf(stderr, "Error mapping memory\n");
             exit(1);
         }
