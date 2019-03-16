@@ -104,6 +104,7 @@ class Matrix {
         Vector<Weight, Integer_Type, Integer_Type>* rowgrp_nnz_rows;
         Vector<Weight, Integer_Type, Integer_Type>* colgrp_nnz_cols;
         
+        
         struct Segment<Weight, Integer_Type, char>** I2;
         struct Segment<Weight, Integer_Type, Integer_Type>** IV2;
         struct Segment<Weight, Integer_Type, char>** J2;
@@ -823,7 +824,7 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_filtering() {
 
     
 
-    /*
+    
     std::vector<Integer_Type> i_sizes(tiling->rank_nrowgrps, tile_height);
     int num_rowgrps_per_thread = tiling->rank_nrowgrps / num_owned_segments;
     assert((num_rowgrps_per_thread * Env::nthreads) == (int32_t) tiling->rank_nrowgrps);
@@ -926,13 +927,13 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_filtering() {
             }
         }    
     }
-    */    
+       
     
 
     
     
 
-    
+    /*
     std::vector<Integer_Type> i_sizes(tiling->rank_nrowgrps, tile_height);
     
     int num_rowgrps_per_thread = tiling->rank_nrowgrps / num_owned_segments;
@@ -1010,7 +1011,7 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_filtering() {
             }
         }
     }
-    
+    */
     
     
     
@@ -1064,10 +1065,10 @@ template<typename Weight, typename Integer_Type, typename Fractional_Type>
 void Matrix<Weight, Integer_Type, Fractional_Type>::filter_vertices(Filtering_type filtering_type_) {
     //std::vector<std::vector<char>> *K;
     //std::vector<std::vector<Integer_Type>> *KV;
-    Vector<Weight, Integer_Type, char>* K;
-    Vector<Weight, Integer_Type, Integer_Type>* KV;
-    //std::vector<Segment<Weight, Integer_Type, char>*> K;
-    //std::vector<Segment<Weight, Integer_Type, Integer_Type>*> KV;
+    //Vector<Weight, Integer_Type, char>* K;
+    //Vector<Weight, Integer_Type, Integer_Type>* KV;
+    std::vector<Segment<Weight, Integer_Type, char>*> K;
+    std::vector<Segment<Weight, Integer_Type, Integer_Type>*> KV;
     //struct Segment<Weight, Integer_Type, char>** K;
     //struct Segment<Weight, Integer_Type, Integer_Type>** KV;
     uint32_t rank_nrowgrps_, rank_ncolgrps_;
@@ -1085,10 +1086,10 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::filter_vertices(Filtering_ty
     if(filtering_type_ == _ROWS_) {
         //K = &I;
         //KV = &IV;
-        K = I;
-        KV = IV;
-        //K = I1;
-        //KV = IV1;
+        //K = I;
+        //KV = IV;
+        K = I1;
+        KV = IV1;
         //K = I2;
         //KV = IV2;
         rank_nrowgrps_ = tiling->rank_nrowgrps;
@@ -1109,10 +1110,10 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::filter_vertices(Filtering_ty
     else if(filtering_type_ == _COLS_) {
         //K = &J;
         //KV = &JV;
-        K = J;
-        KV = JV;
-        //K = J1;
-        //KV = JV1;
+        //K = J;
+        //KV = JV;
+        K = J1;
+        KV = JV1;
         //K = J2;
         //KV = JV2;
         rank_nrowgrps_ = tiling->rank_ncolgrps;
@@ -1291,12 +1292,12 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::filter_vertices(Filtering_ty
             Integer_Type f_nitems = tile_length;
             
             uint32_t ko = accu_segment_rows_[k];  
-            //auto* kj_data = (char*) K[ko]->data;
-            //auto* kvj_data = (Integer_Type*) KV[ko]->data;
+            auto* kj_data = (char*) K[ko]->data;
+            auto* kvj_data = (Integer_Type*) KV[ko]->data;
             //auto* kj_data = (char*) K[ko]->data;
             //auto* kvj_data = (Integer_Type *) KV[ko]->data;
-            auto* kj_data = (char*) K->data[ko];
-            auto* kvj_data = (Integer_Type *) KV->data[ko];
+            //auto* kj_data = (char*) K->data[ko];
+            //auto* kvj_data = (Integer_Type *) KV->data[ko];
             //auto &kj_data =  (*K)[ko];
             //auto &kvj_data = (*KV)[ko];
             Integer_Type j = 0;
@@ -1319,8 +1320,8 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::filter_vertices(Filtering_ty
         this_segment = local_row_segments_[j];
         leader = leader_ranks[this_segment];
         //auto* kj_data = (char*) K[j]->data;
-        //auto* kj_data = (char*) K[j]->data;
-        auto* kj_data = (char*) K->data[j];
+        auto* kj_data = (char*) K[j]->data;
+        //auto* kj_data = (char*) K->data[j];
         //auto &kj_data = (*K)[j];
         if(Env::rank == leader) {
             for(uint32_t i = 0; i < rowgrp_nranks_ - 1; i++) {
@@ -1343,8 +1344,8 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::filter_vertices(Filtering_ty
         this_segment = local_row_segments_[j];
         leader = leader_ranks[this_segment];
         //auto &kvj_data = (*KV)[j];
-        auto* kvj_data = (Integer_Type*) KV->data[j];
-        //auto* kvj_data = (Integer_Type*) KV[j]->data;
+        //auto* kvj_data = (Integer_Type*) KV->data[j];
+        auto* kvj_data = (Integer_Type*) KV[j]->data;
         //auto* kvj_data = (Integer_Type*) KV[j]->data;
         if(Env::rank == leader) {
             for(uint32_t i = 0; i < rowgrp_nranks_ - 1; i++) {
@@ -1366,10 +1367,10 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::filter_vertices(Filtering_ty
     for (uint32_t j = 0; j < rank_nrowgrps_; j++) {
         //auto* kj_data = (char*) K[j]->data;
         //auto* kvj_data = (Integer_Type*) KV[j]->data;
-        //auto* kj_data = (char*) K[j]->data;
-        //auto* kvj_data = (Integer_Type*) KV[j]->data;
-        auto* kj_data = (char*) K->data[j];
-        auto* kvj_data = (Integer_Type*) KV->data[j];
+        auto* kj_data = (char*) K[j]->data;
+        auto* kvj_data = (Integer_Type*) KV[j]->data;
+        //auto* kj_data = (char*) K->data[j];
+        //auto* kvj_data = (Integer_Type*) KV->data[j];
         //auto &kj_data = (*K)[j];
         //auto &kvj_data = (*KV)[j];
         Integer_Type k = 0;
@@ -1454,15 +1455,16 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_tcsc_threaded(int tid) 
         yi = tile.ith;
         Integer_Type c_nitems = nnz_col_sizes_loc[xi];
         Integer_Type r_nitems = nnz_row_sizes_loc[yi];
-        auto* i_data = (char*) I->data[yi];
-        auto* iv_data = (Integer_Type*) IV->data[yi];
-        auto* j_data = (char*) J->data[xi];
-        auto* jv_data = (Integer_Type*) JV->data[xi];
         
-        //auto* i_data = (char*) I1[yi]->data;
-        //auto* iv_data = (Integer_Type*) IV1[yi]->data;
-        //auto* j_data = (char*) J1[xi]->data;
-        //auto* jv_data = (Integer_Type*) JV1[xi]->data;
+        //auto* i_data = (char*) I->data[yi];
+        //auto* iv_data = (Integer_Type*) IV->data[yi];
+        //auto* j_data = (char*) J->data[xi];
+        //auto* jv_data = (Integer_Type*) JV->data[xi];
+        
+        auto* i_data = (char*) I1[yi]->data;
+        auto* iv_data = (Integer_Type*) IV1[yi]->data;
+        auto* j_data = (char*) J1[xi]->data;
+        auto* jv_data = (Integer_Type*) JV1[xi]->data;
         
         //auto* i_data = (char*) I2[yi]->data;
         //auto* iv_data = (Integer_Type*) IV2[yi]->data;
@@ -1489,15 +1491,15 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_tcsc_threaded(int tid) 
 
 template<typename Weight, typename Integer_Type, typename Fractional_Type>
 void Matrix<Weight, Integer_Type, Fractional_Type>::del_filter() {
-    
+    /*
     delete I;
     delete IV;
     delete J;
     delete JV;
     delete rowgrp_nnz_rows;
     delete colgrp_nnz_cols;
+    */
     
-    /*
     for(auto* s: I1) {
         delete s;
     }
@@ -1516,7 +1518,7 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::del_filter() {
     for(auto* s: colgrp_nnz_cols1) {
         delete s;
     }
-    */
+    
     
     /*
     uint64_t nbytes = 0;
