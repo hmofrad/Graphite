@@ -935,8 +935,8 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
     //auto* JC = (Integer_Type*) colgrp_nnz_cols->data[tid];
     //Integer_Type JC_nitems = colgrp_nnz_cols->nitems[tid];
     
-    auto* JC = (Integer_Type*) colgrp_nnz_cols1[tid]->data;
-    Integer_Type JC_nitems = colgrp_nnz_cols1[tid]->nitems;
+    const auto* JC = (Integer_Type*) colgrp_nnz_cols1[tid]->data;
+    const Integer_Type JC_nitems = colgrp_nnz_cols1[tid]->nitems;
     
     //auto* JC = (Integer_Type*) colgrp_nnz_cols2[tid]->data;
     //Integer_Type JC_nitems = colgrp_nnz_cols2[tid]->nitems;
@@ -1021,7 +1021,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
         Integer_Type y_nitems = Y->nitems[yi];
         
         //std::vector<Fractional_Type> &x_data = X[xi];
-        auto* x_data = (Fractional_Type*) X->data[xi];
+        const auto* x_data = (Fractional_Type*) X->data[xi];
         
         const uint64_t nnz = static_cast<TCSC_BASE<Weight, Integer_Type>*>(tile.compressor)->nnz;
         if(nnz) {
@@ -1141,13 +1141,13 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
     uint32_t yi  = accu_segment_rows[tid];
     uint32_t yo = accu_segment_rg;
     //auto& y_data = Y[yi][yo];
-    auto* y_data = (Fractional_Type*) Y->data[yi];
+    const auto* y_data = (Fractional_Type*) Y->data[yi];
     //auto& i_data = (*I)[yi];
     //auto& iv_data = (*IV)[yi];
     //auto* i_data = (char*) I->data[yi];
     //auto* iv_data = (Integer_Type*) IV->data[yi];
-    auto* i_data = (char*) I1[yi]->data;
-    auto* iv_data = (Integer_Type*) IV1[yi]->data;
+    const auto* i_data = (char*) I1[yi]->data;
+    const auto* iv_data = (Integer_Type*) IV1[yi]->data;
     //auto* i_data = (char*) I2[yi]->data;
     //auto* iv_data = (Integer_Type*) IV2[yi]->data;
     
