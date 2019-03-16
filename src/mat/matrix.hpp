@@ -839,10 +839,10 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_filtering() {
     I1.resize(tiling->rank_nrowgrps);
     IV1.resize(tiling->rank_nrowgrps);
     for(uint32_t i = 0; i < tiling->rank_nrowgrps; i++) {
-        Segment<Weight, Integer_Type, char>* s_i = new Segment<Weight, Integer_Type, char>(i_sizes[i], all_rowgrps_thread_sockets[i]);
-        I1[i] = s_i;
-        Segment<Weight, Integer_Type, Integer_Type>* s_iv = new Segment<Weight, Integer_Type, Integer_Type>(i_sizes[i], all_rowgrps_thread_sockets[i]);
-        IV1[i] = s_iv;
+        I1[i] = new Segment<Weight, Integer_Type, char>(i_sizes[i], all_rowgrps_thread_sockets[i]);
+        //I1[i] = s_i;
+        IV1[i] = new Segment<Weight, Integer_Type, Integer_Type>(i_sizes[i], all_rowgrps_thread_sockets[i]);
+        //IV1[i] = s_iv;
     }
     filter_vertices(_ROWS_);
     
@@ -863,8 +863,8 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_filtering() {
     
     rowgrp_nnz_rows1.resize(num_owned_segments);
     for(int32_t i = 0; i < num_owned_segments; i++) {
-        Segment<Weight, Integer_Type, Integer_Type>* r_i = new Segment<Weight, Integer_Type, Integer_Type>(rowgrp_nnz_rows_sizes[i], thread_sockets[i]);
-        rowgrp_nnz_rows1[i] = r_i;
+        rowgrp_nnz_rows1[i] = new Segment<Weight, Integer_Type, Integer_Type>(rowgrp_nnz_rows_sizes[i], thread_sockets[i]);
+        //rowgrp_nnz_rows1[i] = r_i;
     }
     for(int32_t j = 0; j < num_owned_segments; j++) {      
         uint32_t io = accu_segment_rows[j];
@@ -896,10 +896,10 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_filtering() {
     J1.resize(tiling->rank_ncolgrps);
     JV1.resize(tiling->rank_ncolgrps);
     for(uint32_t i = 0; i < tiling->rank_ncolgrps; i++) {
-        Segment<Weight, Integer_Type, char>* s_j = new Segment<Weight, Integer_Type, char>(j_sizes[i], all_colgrps_thread_sockets[i]);
-        J1[i] = s_j;
-        Segment<Weight, Integer_Type, Integer_Type>* s_jv = new Segment<Weight, Integer_Type, Integer_Type>(j_sizes[i], all_colgrps_thread_sockets[i]);
-        JV1[i] = s_jv;
+        J1[i] = new Segment<Weight, Integer_Type, char>(j_sizes[i], all_colgrps_thread_sockets[i]);
+        //J1[i] = s_j;
+        JV1[i] = new Segment<Weight, Integer_Type, Integer_Type>(j_sizes[i], all_colgrps_thread_sockets[i]);
+        //JV1[i] = s_jv;
     }
     filter_vertices(_COLS_);
     
@@ -911,8 +911,8 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_filtering() {
     
     colgrp_nnz_cols1.resize(num_owned_segments);
     for(int32_t i = 0; i < num_owned_segments; i++) {
-        Segment<Weight, Integer_Type, Integer_Type>* c_j = new Segment<Weight, Integer_Type, Integer_Type>(colgrp_nnz_cols_sizes[i], thread_sockets[i]);
-        colgrp_nnz_cols1[i] = c_j;
+        colgrp_nnz_cols1[i] = new Segment<Weight, Integer_Type, Integer_Type>(colgrp_nnz_cols_sizes[i], thread_sockets[i]);
+        //colgrp_nnz_cols1[i] = c_j;
     }
     
     for(int32_t j = 0; j < num_owned_segments; j++) { 
