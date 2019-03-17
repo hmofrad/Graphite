@@ -22,6 +22,7 @@ struct Segment {
         Segment();
         Segment(const Integer_Type nitems_, const int32_t socket_ids);
         ~Segment();
+        void free();
         Integer_Type nitems;
         Fractional_Type* data;
 };
@@ -30,7 +31,10 @@ template<typename Weight, typename Integer_Type, typename Fractional_Type>
 Segment<Weight, Integer_Type, Fractional_Type>::Segment() { }
 
 template<typename Weight, typename Integer_Type, typename Fractional_Type>
-Segment<Weight, Integer_Type, Fractional_Type>::~Segment() {
+Segment<Weight, Integer_Type, Fractional_Type>::~Segment() { }
+
+template<typename Weight, typename Integer_Type, typename Fractional_Type>
+void Segment<Weight, Integer_Type, Fractional_Type>::free() {
     //printf("deleting?\n");
     uint64_t nbytes = 0;
     nbytes = nitems * sizeof(Fractional_Type);
@@ -46,6 +50,7 @@ Segment<Weight, Integer_Type, Fractional_Type>::~Segment() {
         }   
     }
 }
+
 
 template<typename Weight, typename Integer_Type, typename Fractional_Type>
 Segment<Weight, Integer_Type, Fractional_Type>::Segment(const Integer_Type nitems_, const int32_t socket_ids) {
