@@ -57,7 +57,7 @@ Vector<Weight, Integer_Type, Fractional_Type>::~Vector() {
             }
         }
         nbytes = vector_length * sizeof(Fractional_Type*);
-        memset(data, 0, nbytes);    
+        memset(data, 0, nbytes);
         if(munmap(data, nbytes) == -1) {
             fprintf(stderr, "Error unmapping memory\n");
             exit(1);
