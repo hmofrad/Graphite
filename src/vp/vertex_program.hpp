@@ -50,7 +50,8 @@ class Vertex_Program
         //std::vector<std::vector<Vertex_State>> V;
         //Vertex_State** V;
         //Vector<Weight, Integer_Type, Vertex_State>* V = nullptr;
-        std::vector<Segment<Weight, Integer_Type, Vertex_State>*> V;
+        //std::vector<Segment<Weight, Integer_Type, Vertex_State>*> V;
+        Vertex_State** V = nullptr;
         
         //std::vector<std::vector<Integer_Type>> W; // Values (triangle counting)
     protected:
@@ -154,13 +155,16 @@ class Vertex_Program
         //std::vector<Vector<Weight, Integer_Type, Fractional_Type>*> Yt;
         //Vector<Weight, Integer_Type, char>* C = nullptr;
         
-        std::vector<Segment<Weight, Integer_Type, Fractional_Type>*> X;
-        std::vector<Segment<Weight, Integer_Type, Fractional_Type>*> Y;
-        std::vector<std::vector<Segment<Weight, Integer_Type, Fractional_Type>*>> Yt;
+        //std::vector<Segment<Weight, Integer_Type, Fractional_Type>*> X;
+        //std::vector<Segment<Weight, Integer_Type, Fractional_Type>*> Y;
+        //std::vector<std::vector<Segment<Weight, Integer_Type, Fractional_Type>*>> Yt;
         //std::vector<Vector<Weight, Integer_Type, Fractional_Type>*> Yt;
         //std::vector<std::vector<Segment<Weight, Integer_Type, Fractional_Type>*>> Yt;
-        std::vector<Segment<Weight, Integer_Type, char>*> C;
-        
+        //std::vector<Segment<Weight, Integer_Type, char>*> C;
+        char** C = nullptr;
+        Fractional_Type** X;
+        Fractional_Type** Y;
+        std::vector<Fractional_Type**> Yt;
         /* Nonstationary */
         std::vector<std::vector<Integer_Type>> XI;                 // X Indices (Nonstationary)
         std::vector<std::vector<Fractional_Type>> XV;              // X Values  (Nonstationary)
@@ -576,17 +580,20 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
             //Integer_Type v_nitems = v_data.size();
             //auto* v_data = (Vertex_State*) V->data[k];
             //Integer_Type v_nitems = V->nitems[k];
-            auto* v_data = (Vertex_State*) V[k]->data;
-            Integer_Type v_nitems = V[k]->nitems;
+            //auto* v_data = (Vertex_State*) V[k]->data;
+            //Integer_Type v_nitems = V[k]->nitems;
             //auto& c_data = C[k];
             //auto* c_data = (char*) C->data[k];
-            auto* c_data = (char*) C[k]->data;
+            //auto* c_data = (char*) C[k]->data;
             //#pragma omp parallel for schedule(static)
-            for(uint32_t i = 0; i < v_nitems; i++)
+            
+            auto* v_data = (Vertex_State*) V[k];
+            auto* c_data = (char*) C[k];
+            for(uint32_t i = 0; i < tile_height; i++)
             {
                 Vertex_State& state = v_data[i]; 
                 if(i_data[i])
-                    c_data[i] = Vertex_Methods.initializer(get_vid(i, owned_segments[k]), state, (const State&) VProgram.V[k]->data[i]);
+                    c_data[i] = Vertex_Methods.initializer(get_vid(i, owned_segments[k]), state, (const State&) VProgram.V[k][i]);
             }
         }       
     }
@@ -608,7 +615,7 @@ template<typename Weight, typename Integer_Type, typename Fractional_Type, typen
 void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_Methods_Impl>::init_stationary() {
 
         std::vector<Integer_Type> c_v_sizes(num_owned_segments, tile_height);
-        std::vector<Integer_Type> thread_sockets(num_owned_segments);
+        std::vector<int32_t> thread_sockets(num_owned_segments);
         for(int i = 0; i < Env::nthreads; i++) {
             thread_sockets[i] = Env::socket_of_thread(i);
         }
@@ -622,6 +629,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
         //V = new Vector<Weight, Integer_Type, Vertex_State>(c_v_sizes, thread_sockets);
         //C = new Vector<Weight, Integer_Type, char>(c_v_sizes, thread_sockets);
         
+        /*
         V.resize(num_owned_segments);
         for(int i = 0; i < num_owned_segments; i++) {
             V[i] = new Segment<Weight, Integer_Type, Vertex_State>(c_v_sizes[i], thread_sockets[i]);
@@ -631,15 +639,19 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
         C.resize(num_owned_segments);
         for(int i = 0; i < num_owned_segments; i++) {
             C[i] = new Segment<Weight, Integer_Type, char>(c_v_sizes[i], thread_sockets[i]);
-            //C[i] = c_i;
         }
+        */
+        
+        allocate_numa_vector<Integer_Type, Vertex_State>(&V, c_v_sizes, thread_sockets);
+        allocate_numa_vector<Integer_Type, char>(&C, c_v_sizes, thread_sockets);
+        
         
         
         // Initialize messages
         std::vector<Integer_Type> x_sizes = nnz_col_sizes_loc;
         int num_colgrps_per_thread = rank_ncolgrps / num_owned_segments;
         assert((num_colgrps_per_thread * Env::nthreads) == (int32_t) rank_ncolgrps);
-        std::vector<Integer_Type> x_thread_sockets(rank_ncolgrps);    
+        std::vector<int32_t> x_thread_sockets(rank_ncolgrps);    
         for(int i = 0; i < num_colgrps_per_thread; i++) {
             for(int j = 0; j < Env::nthreads; j++) {
                 int k = j + (i * Env::nthreads);
@@ -658,11 +670,13 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
         
         //X = new Vector<Weight, Integer_Type, Fractional_Type>(x_sizes, x_thread_sockets);
         
+        /*
         X.resize(rank_ncolgrps);
         for(uint32_t i = 0; i < rank_ncolgrps; i++) {
             X[i] = new Segment<Weight, Integer_Type, Fractional_Type>(x_sizes[i], x_thread_sockets[i]);
         }
-        
+        */
+        allocate_numa_vector<Integer_Type, Fractional_Type>(&X, x_sizes, x_thread_sockets);
         
         
         /*
@@ -677,7 +691,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
         std::vector<Integer_Type> y_sizes = nnz_row_sizes_loc;
         int num_rowgrps_per_thread = rank_nrowgrps / num_owned_segments;
         assert((num_rowgrps_per_thread * Env::nthreads) == (int32_t) rank_nrowgrps);
-        std::vector<Integer_Type> y_thread_sockets(rank_nrowgrps);    
+        std::vector<int32_t> y_thread_sockets(rank_nrowgrps);    
         for(int i = 0; i < num_rowgrps_per_thread; i++) {
             for(int j = 0; j < Env::nthreads; j++) {
                 int k = j + (i * Env::nthreads);
@@ -685,12 +699,16 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
             }
         }
         //Y = new Vector<Weight, Integer_Type, Fractional_Type>(y_sizes, y_thread_sockets);
+        /*
         Y.resize(rank_nrowgrps);
         for(uint32_t i = 0; i < rank_nrowgrps; i++) {
             Y[i] = new Segment<Weight, Integer_Type, Fractional_Type>(y_sizes[i], y_thread_sockets[i]);
         }
+        */
+
+        allocate_numa_vector<Integer_Type, Fractional_Type>(&Y, y_sizes, y_thread_sockets);
         
-        
+        /*
         Yt.resize(num_owned_segments);
         for(int32_t j = 0; j < num_owned_segments; j++) {
             Yt[j].resize(rowgrp_nranks - 1);
@@ -699,6 +717,21 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
             for(uint32_t i = 0; i < (rowgrp_nranks - 1); i++) 
                 Yt[j][i] = new Segment<Weight, Integer_Type, Fractional_Type>(row_size[i], row_socket[i]);
         }
+        */
+        Yt.resize(num_owned_segments);
+        for(int32_t j = 0; j < num_owned_segments; j++) {
+            std::vector<Integer_Type> row_size((rowgrp_nranks - 1), nnz_row_sizes_all[owned_segments[j]]);
+            std::vector<int32_t> row_socket((rowgrp_nranks - 1), thread_sockets[j]);
+            allocate_numa_vector<Integer_Type, Fractional_Type>(&Yt[j], row_size, row_socket);
+        }
+        
+        
+        
+        
+        
+        
+        //int32_t
+        
         
         /*
         Yt.resize(num_owned_segments);
@@ -719,16 +752,18 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
     
     for(int32_t k = 0; k < num_owned_segments; k++) {
         //auto& v_data = V[tid];
-        auto* v_data = (Vertex_State*) V[k]->data;
+        auto* v_data = (Vertex_State*) V[k];
+        //auto* v_data = (Vertex_State*) V[k]->data;
         //auto* v_data = (Vertex_State*) V->data[k];
         //auto& c_data = C[tid];
-        auto* c_data = (char*) C[k]->data;
+        //auto* c_data = (char*) C[k]->data;
+        auto* c_data = (char*) C[k];
         //auto* c_data = (char*) C->data[k];
         //Integer_Type v_nitems = v_data.size();
         //Integer_Type v_nitems = V->nitems[k];
-        Integer_Type v_nitems = V[k]->nitems;
+        //Integer_Type v_nitems = V[k]->nitems;
         //#pragma omp parallel for schedule(static)
-        for(uint32_t i = 0; i < v_nitems; i++) {
+        for(uint32_t i = 0; i < tile_height; i++) {
             Vertex_State& state = v_data[i]; 
             c_data[i] = Vertex_Methods.initializer(get_vid(i, owned_segments[k]), state);
         }
@@ -761,7 +796,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
     
     if(tid == 0) {
         std::vector<Integer_Type> c_v_sizes(num_owned_segments, tile_height);
-        std::vector<Integer_Type> thread_sockets(num_owned_segments);
+        std::vector<int32_t> thread_sockets(num_owned_segments);
         for(int i = 0; i < Env::nthreads; i++) {
             thread_sockets[i] = Env::socket_of_thread(i);
         }
@@ -774,7 +809,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
         
         //V = new Vector<Weight, Integer_Type, Vertex_State>(c_v_sizes, thread_sockets);
         //C = new Vector<Weight, Integer_Type, char>(c_v_sizes, thread_sockets);
-        
+        /*
         V.resize(num_owned_segments);
         for(int i = 0; i < num_owned_segments; i++) {
             V[i] = new Segment<Weight, Integer_Type, Vertex_State>(c_v_sizes[i], thread_sockets[i]);
@@ -787,12 +822,17 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
             //C[i] = c_i;
         }
         
+        */
+        
+        allocate_numa_vector<Integer_Type, Vertex_State>(&V, c_v_sizes, thread_sockets);
+        allocate_numa_vector<Integer_Type, char>(&C, c_v_sizes, thread_sockets);
+        
         
         // Initialize messages
         std::vector<Integer_Type> x_sizes = nnz_col_sizes_loc;
         int num_colgrps_per_thread = rank_ncolgrps / num_owned_segments;
         assert((num_colgrps_per_thread * Env::nthreads) == (int32_t) rank_ncolgrps);
-        std::vector<Integer_Type> x_thread_sockets(rank_ncolgrps);    
+        std::vector<int32_t> x_thread_sockets(rank_ncolgrps);    
         for(int i = 0; i < num_colgrps_per_thread; i++) {
             for(int j = 0; j < Env::nthreads; j++) {
                 int k = j + (i * Env::nthreads);
@@ -810,10 +850,13 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
         */
         
         //X = new Vector<Weight, Integer_Type, Fractional_Type>(x_sizes, x_thread_sockets);
+        /*
         X.resize(rank_ncolgrps);
         for(uint32_t i = 0; i < rank_ncolgrps; i++) {
             X[i] = new Segment<Weight, Integer_Type, Fractional_Type>(x_sizes[i], x_thread_sockets[i]);
         }
+        */
+        allocate_numa_vector<Integer_Type, Fractional_Type>(&X, x_sizes, x_thread_sockets);
         
         
         /*
@@ -828,7 +871,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
         std::vector<Integer_Type> y_sizes = nnz_row_sizes_loc;
         int num_rowgrps_per_thread = rank_nrowgrps / num_owned_segments;
         assert((num_rowgrps_per_thread * Env::nthreads) == (int32_t) rank_nrowgrps);
-        std::vector<Integer_Type> y_thread_sockets(rank_nrowgrps);    
+        std::vector<int32_t> y_thread_sockets(rank_nrowgrps);    
         for(int i = 0; i < num_rowgrps_per_thread; i++) {
             for(int j = 0; j < Env::nthreads; j++) {
                 int k = j + (i * Env::nthreads);
@@ -836,11 +879,15 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
             }
         }
         //Y = new Vector<Weight, Integer_Type, Fractional_Type>(y_sizes, y_thread_sockets);
+        /*
         Y.resize(rank_nrowgrps);
         for(uint32_t i = 0; i < rank_nrowgrps; i++) {
             Y[i] = new Segment<Weight, Integer_Type, Fractional_Type>(y_sizes[i], y_thread_sockets[i]);
         }
+        */
+        allocate_numa_vector<Integer_Type, Fractional_Type>(&Y, y_sizes, y_thread_sockets);
         
+        /*
         Yt.resize(num_owned_segments);
         for(int32_t j = 0; j < num_owned_segments; j++) {
             Yt[j].resize(rowgrp_nranks - 1);
@@ -848,6 +895,14 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
             std::vector<Integer_Type> row_socket((rowgrp_nranks - 1), thread_sockets[j]);
             for(uint32_t i = 0; i < (rowgrp_nranks - 1); i++) 
                 Yt[j][i] = new Segment<Weight, Integer_Type, Fractional_Type>(row_size[i], row_socket[i]);
+        }
+        */
+        
+        Yt.resize(num_owned_segments);
+        for(int32_t j = 0; j < num_owned_segments; j++) {
+            std::vector<Integer_Type> row_size((rowgrp_nranks - 1), nnz_row_sizes_all[owned_segments[j]]);
+            std::vector<int32_t> row_socket((rowgrp_nranks - 1), thread_sockets[j]);
+            allocate_numa_vector<Integer_Type, Fractional_Type>(&Yt[j], row_size, row_socket);
         }
         
         /*
@@ -891,16 +946,18 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
     pthread_barrier_wait(&p_barrier);
     //for(int32_t k = 0; k < num_owned_segments; k++) {
         //auto& v_data = V[tid];
-        auto* v_data = (Vertex_State*) V[tid]->data;
+        auto* v_data = (Vertex_State*) V[tid];
+        //auto* v_data = (Vertex_State*) V[tid]->data;
         //auto* v_data = (Vertex_State*) V->data[tid];
         //auto& c_data = C[tid];
-        auto* c_data = (char*) C[tid]->data;
+        //auto* c_data = (char*) C[tid]->data;
+        auto* c_data = (char*) C[tid];
         //auto* c_data = (char*) C->data[tid];
         //Integer_Type v_nitems = v_data.size();
         //Integer_Type v_nitems = V->nitems[tid];
-        Integer_Type v_nitems = V[tid]->nitems;
+        //Integer_Type v_nitems = V[tid]->nitems;
         //#pragma omp parallel for schedule(static)
-        for(uint32_t i = 0; i < v_nitems; i++) {
+        for(uint32_t i = 0; i < tile_height; i++) {
             Vertex_State& state = v_data[i]; 
             c_data[i] = Vertex_Methods.initializer(get_vid(i, owned_segments[tid]), state);
             //c_data[i] = initializer(get_vid(i, owned_segments[k]), state);
@@ -1014,7 +1071,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
 
 
 template<typename Weight, typename Integer_Type, typename Fractional_Type, typename Vertex_State, typename Vertex_Methods_Impl>
-void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_Methods_Impl>::bcast_stationary(int tid) {    
+void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_Methods_Impl>::bcast_stationary(int tid) {      
     #ifdef TIMING
     double t1, t2, elapsed_time;
     if(tid == 0) {
@@ -1025,7 +1082,8 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
     uint32_t xo = accu_segment_cols[tid];    
     //std::vector<Fractional_Type>& x_data = X[xo];
     //auto* x_data = (Fractional_Type*) X->data[xo];
-    auto* x_data = (Fractional_Type*) X[xo]->data;
+    auto* x_data = (Fractional_Type*) X[xo];
+    //auto* x_data = (Fractional_Type*) X[xo]->data;
     
     auto* JC = (Integer_Type*) colgrp_nnz_cols[tid];
     Integer_Type JC_nitems = nnz_col_sizes_loc[accu_segment_cols[tid]];
@@ -1042,7 +1100,8 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
     ///Integer_Type JC_nitems = colgrp_nnz_cols2[tid]->nitems;
     
     //auto& v_data = V[tid];
-    auto* v_data = (Vertex_State*) V[tid]->data;
+    auto* v_data = (Vertex_State*) V[tid];
+    //auto* v_data = (Vertex_State*) V[tid]->data;
     //auto* v_data = (Vertex_State*) V->data[tid];
     for(uint32_t j = 0; j < JC_nitems; j++) {
         Vertex_State& state = v_data[JC[j]];
@@ -1064,8 +1123,10 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
         //Integer_Type xj_nitems = xj_data.size();
         //auto* xj_data = (Fractional_Type*) X->data[i];
         //Integer_Type xj_nitems = X->nitems[i];
-        auto* xj_data = (Fractional_Type*) X[i]->data;
-        Integer_Type xj_nitems = X[i]->nitems;
+        //auto* xj_data = (Fractional_Type*) X[i]->data;
+        //Integer_Type xj_nitems = X[i]->nitems;
+        auto* xj_data = (Fractional_Type*) X[i];
+        Integer_Type xj_nitems = nnz_col_sizes_loc[i];
         MPI_Ibcast(xj_data, xj_nitems, TYPE_DOUBLE, leader, colgrps_communicators[tid], &request);
         out_requests_t[tid].push_back(request);
     }
@@ -1080,6 +1141,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
         bcast_time.push_back(elapsed_time);
     }
     #endif
+
 } 
 
 template<typename Weight, typename Integer_Type, typename Fractional_Type, typename Vertex_State, typename Vertex_Methods_Impl>
@@ -1090,6 +1152,8 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
         t1 = Env::clock();
     }
     #endif
+    
+
 
     
     //Env::barrier();
@@ -1122,12 +1186,16 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
         //Integer_Type y_nitems = y_data.size();
         //auto* y_data = (Fractional_Type*) Y->data[yi];
         //Integer_Type y_nitems = Y->nitems[yi];
-        auto* y_data = (Fractional_Type*) Y[yi]->data;
-        Integer_Type y_nitems = Y[yi]->nitems;
+        //auto* y_data = (Fractional_Type*) Y[yi]->data;
+        //Integer_Type y_nitems = Y[yi]->nitems;
+        auto* y_data = (Fractional_Type*) Y[yi];
+        Integer_Type y_nitems = nnz_row_sizes_loc[yi];
+        
         
         //std::vector<Fractional_Type> &x_data = X[xi];
         //const auto* x_data = (Fractional_Type*) X->data[xi];
-        const auto* x_data = (Fractional_Type*) X[xi]->data;
+        //const auto* x_data = (Fractional_Type*) X[xi]->data;
+        const auto* x_data = (Fractional_Type*) X[xi];
         
         const uint64_t nnz = static_cast<TCSC_BASE<Weight, Integer_Type>*>(tile.compressor)->nnz;
         if(nnz) {
@@ -1181,8 +1249,13 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
                     
                     //auto* yj_data = (Fractional_Type*) Yt[tid]->data[j];
                     //Integer_Type yj_nitems = Yt[tid]->nitems[j];
-                    auto* yj_data = (Fractional_Type*) Yt[tid][j]->data;
-                    Integer_Type yj_nitems = Yt[tid][j]->nitems;
+                    //auto* yj_data = (Fractional_Type*) Yt[tid][j]->data;
+                    //Integer_Type yj_nitems = Yt[tid][j]->nitems;
+                    assert(owned_segments[tid] == (int32_t) pair_idx);
+                    auto* yj_data = (Fractional_Type*) Yt[tid][j];
+                    Integer_Type yj_nitems = nnz_row_sizes_all[owned_segments[tid]];
+                    
+
                     
                     //printf("leader=%d <-- follower=%d tag=%d nitems=%d\n", leader, follower, pair_idx, yj_nitems);
                     MPI_Irecv(yj_data, yj_nitems, TYPE_DOUBLE, follower, pair_idx, rowgrps_communicators[tid], &request);
@@ -1205,12 +1278,13 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
     
     MPI_Waitall(in_requests_t[tid].size(), in_requests_t[tid].data(), MPI_STATUSES_IGNORE);
     in_requests_t[tid].clear();
-        
+
     yi  = accu_segment_rows[tid];
     yo = accu_segment_rg;
     //std::vector<Fractional_Type>& y_data = Y[yi][yo];
     //auto* y_data = (Fractional_Type*) Y->data[yi];
-    auto* y_data = (Fractional_Type*) Y[yi]->data;
+    //auto* y_data = (Fractional_Type*) Y[yi]->data;
+    auto* y_data = (Fractional_Type*) Y[yi];
     for(uint32_t j = 0; j < rowgrp_nranks - 1; j++) {
         //accu = follower_rowgrp_ranks_accu_seg_rg[j];
         //std::vector<Fractional_Type>& yj_data = Y[yi][accu];
@@ -1218,8 +1292,12 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
 
         //auto* yj_data = (Fractional_Type*) Yt[tid]->data[j];
        // Integer_Type yj_nitems = Yt[tid]->nitems[j];
-        auto* yj_data = (Fractional_Type*) Yt[tid][j]->data;
-        Integer_Type yj_nitems = Yt[tid][j]->nitems;
+        //const auto* yj_data = (Fractional_Type*) Yt[tid][j]->data;
+        //Integer_Type yj_nitems = Yt[tid][j]->nitems;
+        const auto* yj_data = (Fractional_Type*) Yt[tid][j];
+        Integer_Type yj_nitems = nnz_row_sizes_all[owned_segments[tid]];
+        //Integer_Type y_nitems = nnz_row_sizes_loc[owned_segment[tid]];
+
        
        
         for(uint32_t i = 0; i < yj_nitems; i++)
@@ -1237,6 +1315,9 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
         combine_time.push_back(elapsed_time);
     }
     #endif
+    
+
+    
 }
 
 
@@ -1253,7 +1334,8 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
     uint32_t yi  = accu_segment_rows[tid];
     uint32_t yo = accu_segment_rg;
     //auto& y_data = Y[yi][yo];
-    const auto* y_data = (Fractional_Type*) Y[yi]->data;
+    //const auto* y_data = (Fractional_Type*) Y[yi]->data;
+    const auto* y_data = (Fractional_Type*) Y[yi];
     //const auto* y_data = (Fractional_Type*) Y->data[yi];
     //auto& i_data = (*I)[yi];
     //auto& iv_data = (*IV)[yi];
@@ -1270,13 +1352,15 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
     //auto& v_data = V[tid];
     //Integer_Type v_nitems = v_data.size();
     //auto* v_data = (Vertex_State*) V->data[tid];
-    auto* v_data = (Vertex_State*) V[tid]->data;
+    //auto* v_data = (Vertex_State*) V[tid]->data;
+    auto* v_data = (Vertex_State*) V[tid];
 //    auto& c_data = C[tid];
     //auto* c_data = (char*) C->data[tid];
     //Integer_Type c_nitems = C->nitems[tid];
-    auto* c_data = (char*) C[tid]->data;
-    Integer_Type c_nitems = C[tid]->nitems;
-    for(uint32_t i = 0; i < c_nitems; i++) {
+    auto* c_data = (char*) C[tid];
+    //auto* c_data = (char*) C[tid]->data;
+    //Integer_Type c_nitems = C[tid]->nitems;
+    for(uint32_t i = 0; i < tile_height; i++) {
         Vertex_State &state = v_data[i];
         if(i_data[i]) {
             c_data[i] = Vertex_Methods.applicator(state, y_data[iv_data[i]]);
@@ -1818,13 +1902,14 @@ bool Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
         //auto& c_data = C[tid];
         //auto* c_data = (char*) C->data[tid];
         //Integer_Type c_nitems = C->nitems[tid]; 
-        auto* c_data = (char*) C[tid]->data;
-        Integer_Type c_nitems = C[tid]->nitems;   
-        for(uint32_t i = 0; i < c_nitems; i++) {
+        auto* c_data = (char*) C[tid];
+        //auto* c_data = (char*) C[tid]->data;
+        //Integer_Type c_nitems = C[tid]->nitems;   
+        for(uint32_t i = 0; i < tile_height; i++) {
             if(not c_data[i]) 
                 c_sum_local++;
         }
-        if(c_sum_local == c_nitems)
+        if(c_sum_local == tile_height)
             convergence_vec[tid] = 1;
         
     }
@@ -1863,8 +1948,11 @@ bool Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
             for(uint32_t j: row_indices) {
                 //auto* y_data = Y->data[j];
                 //Integer_Type y_nitems = Y->nitems[j];
-                auto* y_data = Y[j]->data;
-                Integer_Type y_nitems = Y[j]->nitems;
+                //auto* y_data = Y[j]->data;
+                //Integer_Type y_nitems = Y[j]->nitems;
+                auto* y_data = Y[j];
+                Integer_Type y_nitems = nnz_row_sizes_loc[j];
+                
                 uint64_t nbytes = y_nitems * sizeof(Fractional_Type);
                 memset(y_data, 0, nbytes);  
             }
@@ -1872,8 +1960,10 @@ bool Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
             for(uint32_t j = 0; j < rowgrp_nranks - 1; j++) {
                 //auto* yt_data = Yt[tid]->data[j];
                 //Integer_Type yt_nitems = Yt[tid]->nitems[j];
-                auto* yt_data = Yt[tid][j]->data;
-                Integer_Type yt_nitems = Yt[tid][j]->nitems;
+                //auto* yt_data = Yt[tid][j]->data;
+                //Integer_Type yt_nitems = Yt[tid][j]->nitems;
+                auto* yt_data = Yt[tid][j];
+                Integer_Type yt_nitems = nnz_row_sizes_all[owned_segments[tid]];
                 uint64_t nbytes = yt_nitems * sizeof(Fractional_Type);
                 memset(yt_data, 0, nbytes);  
             }
@@ -1893,8 +1983,10 @@ bool Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
             for(uint32_t j: row_indices) {
                 //auto* y_data = Y->data[j];
                 //Integer_Type y_nitems = Y->nitems[j];
-                auto* y_data = Y[j]->data;
-                Integer_Type y_nitems = Y[j]->nitems;
+                //auto* y_data = Y[j]->data;
+                //Integer_Type y_nitems = Y[j]->nitems;
+                auto* y_data = Y[j];
+                Integer_Type y_nitems = nnz_row_sizes_loc[j];
                 uint64_t nbytes = y_nitems * sizeof(Fractional_Type);
                 memset(y_data, 0, nbytes);  
             }
@@ -1902,8 +1994,10 @@ bool Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
             for(uint32_t j = 0; j < rowgrp_nranks - 1; j++) {
                 //auto* yt_data = Yt[tid]->data[j];
                 //Integer_Type yt_nitems = Yt[tid]->nitems[j];
-                auto* yt_data = Yt[tid][j]->data;
-                Integer_Type yt_nitems = Yt[tid][j]->nitems;
+                //auto* yt_data = Yt[tid][j]->data;
+                //Integer_Type yt_nitems = Yt[tid][j]->nitems;
+                auto* yt_data = Yt[tid][j];
+                Integer_Type yt_nitems = nnz_row_sizes_all[owned_segments[tid]];
                 uint64_t nbytes = yt_nitems * sizeof(Fractional_Type);
                 memset(yt_data, 0, nbytes);  
             }
@@ -1953,6 +2047,7 @@ bool Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
     if(tid == 0) {
         Env::print_num("Iteration", iteration);
     }
+
     
     return(converged);   
 }
@@ -1969,9 +2064,10 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
             //Integer_Type v_nitems = v_data.size();
             //auto* v_data = (Vertex_State*) V->data[k];
             //Integer_Type v_nitems = V->nitems[k];
-            auto* v_data = (Vertex_State*) V[k]->data;
-            Integer_Type v_nitems = V[k]->nitems;
-            for(uint32_t i = 0; i < v_nitems; i++) {
+            //auto* v_data = (Vertex_State*) V[k]->data;
+            //Integer_Type v_nitems = V[k]->nitems;
+            auto* v_data = (Vertex_State*) V[k];
+            for(uint32_t i = 0; i < tile_height; i++) {
                 Vertex_State &state = v_data[i];
                 if((state.get_state() != Vertex_Methods.infinity()) and (get_vid(i, owned_segments[k]) < nrows))    
                         v_sum_local += state.get_state();
@@ -2004,9 +2100,10 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
             //Integer_Type v_nitems = v_data.size();
             //auto* v_data = (Vertex_State*) V->data[k];
             //Integer_Type v_nitems = V->nitems[k];
-            auto* v_data = (Vertex_State*) V[k]->data;
-            Integer_Type v_nitems = V[k]->nitems;
-            for(uint32_t i = 0; i < v_nitems; i++) {
+            //auto* v_data = (Vertex_State*) V[k]->data;
+            //Integer_Type v_nitems = V[k]->nitems;
+            auto* v_data = (Vertex_State*) V[k];
+            for(uint32_t i = 0; i < tile_height; i++) {
                 Vertex_State &state = v_data[i];
                 if((state.get_state() != Vertex_Methods.infinity()) and (get_vid(i, owned_segments[k]) < nrows)) 
                     v_sum_local_++;
@@ -2034,11 +2131,11 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
 template<typename Weight, typename Integer_Type, typename Fractional_Type, typename Vertex_State, typename Vertex_Methods_Impl>
 void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_Methods_Impl>::display(Integer_Type count)
 {
-    Integer_Type v_nitems;
-    if(stationary)
+    Integer_Type v_nitems = tile_height;
+    //if(stationary)
         //v_nitems = V[0].size();
         //v_nitems = V->nitems[0];
-        v_nitems = V[0]->nitems;
+      //  v_nitems = V[0]->nitems;
     //else 
         //v_nitems = V.size();
     
@@ -2048,7 +2145,8 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
     {
         Triple<Weight, Integer_Type> pair, pair1;
         //if(stationary) {
-            auto* v_data = (Vertex_State*) V[0]->data;
+            auto* v_data = (Vertex_State*) V[0];
+            //auto* v_data = (Vertex_State*) V[0]->data;
             //auto* v_data = (Vertex_State*) V->data[0];
             for(uint32_t i = 0; i < count; i++) {
                 pair.row = i;
@@ -2112,9 +2210,27 @@ Integer_Type Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State,
 
 template<typename Weight, typename Integer_Type, typename Fractional_Type, typename Vertex_State, typename Vertex_Methods_Impl>
 void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_Methods_Impl>::free() {
+    
+    std::vector<Integer_Type> c_v_sizes(num_owned_segments, tile_height);
+    deallocate_numa_vector<Integer_Type, Vertex_State>(&V, c_v_sizes);
+    deallocate_numa_vector<Integer_Type, char>(&C, c_v_sizes);
+    std::vector<Integer_Type> x_sizes = nnz_col_sizes_loc;
+    deallocate_numa_vector<Integer_Type, Fractional_Type>(&X, x_sizes);
+    std::vector<Integer_Type> y_sizes = nnz_row_sizes_loc;
+    deallocate_numa_vector<Integer_Type, Fractional_Type>(&Y, y_sizes);
+    
+    for(int j = 0; j < num_owned_segments; j++) {
+        std::vector<Integer_Type> yt_size((rowgrp_nranks - 1), nnz_row_sizes_all[owned_segments[j]]); 
+        deallocate_numa_vector<Integer_Type, Fractional_Type>(&Yt[j], yt_size);
+    }
+    
+
+
+    
     //delete V;
     //delete X;
     //delete Y;
+    /*
     for(uint32_t i = 0; i < rank_nrowgrps; i++) {
         delete Y[i];
     }
@@ -2130,6 +2246,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
         delete V[i];
         delete C[i];
     }
+    */
 }
 
 #endif
