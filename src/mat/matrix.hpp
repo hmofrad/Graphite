@@ -108,6 +108,13 @@ class Matrix {
         Integer_Type** rowgrp_nnz_rows = nullptr;
         Integer_Type** colgrp_nnz_cols = nullptr;        
         
+        std::vector<uint64_t> I_bytes;
+        std::vector<uint64_t> IV_bytes;
+        std::vector<uint64_t> J_bytes;
+        std::vector<uint64_t> JV_bytes;
+        std::vector<uint64_t> rgs_bytes;
+        std::vector<uint64_t> cgs_bytes;
+        
         /*
         Vector<Weight, Integer_Type, char>* I = nullptr;
         Vector<Weight, Integer_Type, Integer_Type>* IV = nullptr;
@@ -729,8 +736,6 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_filtering() {
         printf("INFO(rank=%d): Vertex filtering: Filtering zero rows/cols\n", Env::rank);
     
     
-
-    
     std::vector<Integer_Type> i_sizes(tiling->rank_nrowgrps, tile_height);
     int num_rowgrps_per_thread = tiling->rank_nrowgrps / num_owned_segments;
     assert((num_rowgrps_per_thread * Env::nthreads) == (int32_t) tiling->rank_nrowgrps);
@@ -741,11 +746,10 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_filtering() {
             all_rowgrps_thread_sockets[k] = Env::socket_of_thread(j);
         }
     }
-    
-    allocate_numa_vector<Integer_Type, char>(&I, i_sizes, all_rowgrps_thread_sockets);
-    allocate_numa_vector<Integer_Type, Integer_Type>(&IV, i_sizes, all_rowgrps_thread_sockets);
-    
-    
+    I_bytes.resize(tiling->rank_nrowgrps);
+    IV_bytes.resize(tiling->rank_nrowgrps);
+    allocate_numa_vector<Integer_Type, char>(&I, i_sizes, all_rowgrps_thread_sockets, I_bytes);
+    allocate_numa_vector<Integer_Type, Integer_Type>(&IV, i_sizes, all_rowgrps_thread_sockets, IV_bytes);
     filter_vertices(_ROWS_);
     
 
@@ -758,8 +762,8 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_filtering() {
         uint32_t io = accu_segment_rows[j];
         rowgrp_nnz_rows_sizes[j] = nnz_row_sizes_loc[io];
     }
-    
-    allocate_numa_vector<Integer_Type, Integer_Type>(&rowgrp_nnz_rows, rowgrp_nnz_rows_sizes, thread_sockets);
+    rgs_bytes.resize(num_owned_segments);
+    allocate_numa_vector<Integer_Type, Integer_Type>(&rowgrp_nnz_rows, rowgrp_nnz_rows_sizes, thread_sockets, rgs_bytes);
     
     for(int32_t j = 0; j < num_owned_segments; j++) {      
         uint32_t io = accu_segment_rows[j];
@@ -786,9 +790,10 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_filtering() {
             all_colgrps_thread_sockets[k] = Env::socket_of_thread(j);
         }
     }
-    
-    allocate_numa_vector<Integer_Type, char>(&J, j_sizes, all_colgrps_thread_sockets);
-    allocate_numa_vector<Integer_Type, Integer_Type>(&JV, j_sizes, all_colgrps_thread_sockets);
+    J_bytes.resize(tiling->rank_ncolgrps);
+    JV_bytes.resize(tiling->rank_ncolgrps);
+    allocate_numa_vector<Integer_Type, char>(&J, j_sizes, all_colgrps_thread_sockets, J_bytes);
+    allocate_numa_vector<Integer_Type, Integer_Type>(&JV, j_sizes, all_colgrps_thread_sockets, JV_bytes);
     filter_vertices(_COLS_);
     
     std::vector<Integer_Type> colgrp_nnz_cols_sizes(num_owned_segments);
@@ -796,7 +801,8 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_filtering() {
         uint32_t io = accu_segment_cols[j];
         colgrp_nnz_cols_sizes[j] = nnz_col_sizes_loc[io];
     }
-    allocate_numa_vector<Integer_Type, Integer_Type>(&colgrp_nnz_cols, colgrp_nnz_cols_sizes, thread_sockets);
+    cgs_bytes.resize(num_owned_segments);
+    allocate_numa_vector<Integer_Type, Integer_Type>(&colgrp_nnz_cols, colgrp_nnz_cols_sizes, thread_sockets, cgs_bytes);
     
     for(int32_t j = 0; j < num_owned_segments; j++) { 
         uint32_t jo = accu_segment_cols[j];    
@@ -1811,26 +1817,26 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::del_filter() {
     
     
     std::vector<Integer_Type> i_sizes(tiling->rank_nrowgrps, tile_height);
-    deallocate_numa_vector<Integer_Type, char>(&I, i_sizes);
-    deallocate_numa_vector<Integer_Type, Integer_Type>(&IV, i_sizes);
+    deallocate_numa_vector<Integer_Type, char>(&I, i_sizes, I_bytes);
+    deallocate_numa_vector<Integer_Type, Integer_Type>(&IV, i_sizes, IV_bytes);
     
     std::vector<Integer_Type> rowgrp_nnz_rows_sizes(num_owned_segments);
     for(int32_t j = 0; j < num_owned_segments; j++) {  
         uint32_t io = accu_segment_rows[j];
         rowgrp_nnz_rows_sizes[j] = nnz_row_sizes_loc[io];
     }
-    deallocate_numa_vector<Integer_Type, Integer_Type>(&rowgrp_nnz_rows, rowgrp_nnz_rows_sizes);
+    deallocate_numa_vector<Integer_Type, Integer_Type>(&rowgrp_nnz_rows, rowgrp_nnz_rows_sizes, rgs_bytes);
 
     std::vector<Integer_Type> j_sizes(tiling->rank_ncolgrps, tile_width);
-    deallocate_numa_vector<Integer_Type, char>(&J, j_sizes);
-    deallocate_numa_vector<Integer_Type, Integer_Type>(&JV, j_sizes);
+    deallocate_numa_vector<Integer_Type, char>(&J, j_sizes, J_bytes);
+    deallocate_numa_vector<Integer_Type, Integer_Type>(&JV, j_sizes, JV_bytes);
     
     std::vector<Integer_Type> colgrp_nnz_cols_sizes(num_owned_segments);
     for(int32_t j = 0; j < num_owned_segments; j++) {  
         uint32_t io = accu_segment_cols[j];
         colgrp_nnz_cols_sizes[j] = nnz_col_sizes_loc[io];
     }
-    deallocate_numa_vector<Integer_Type, Integer_Type>(&colgrp_nnz_cols, colgrp_nnz_cols_sizes);
+    deallocate_numa_vector<Integer_Type, Integer_Type>(&colgrp_nnz_cols, colgrp_nnz_cols_sizes, cgs_bytes);
     
     
     
