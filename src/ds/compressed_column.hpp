@@ -73,11 +73,14 @@ TCSC_BASE<Weight, Integer_Type>::TCSC_BASE(uint64_t nnz_, Integer_Type nnzcols_,
             #ifdef HAS_WEIGHT
             A = (Weight*) numa_alloc_onnode(nnz * sizeof(Weight), socket_id);
             memset(A, 0, nnz * sizeof(Weight));
+            madvise(A, nnz * sizeof(Weight), MADV_SEQUENTIAL);
             #endif
             IA = (Integer_Type*) numa_alloc_onnode(nnz * sizeof(Integer_Type), socket_id);
             memset(IA, 0, nnz * sizeof(Integer_Type));
+            madvise(IA, nnz * sizeof(Integer_Type), MADV_SEQUENTIAL);
             JA = (Integer_Type*) numa_alloc_onnode((nnzcols + 1) * sizeof(Integer_Type), socket_id);
             memset(JA, 0, (nnzcols + 1) * sizeof(Integer_Type));
+            madvise(JA, (nnzcols + 1) * sizeof(Integer_Type), MADV_SEQUENTIAL);
         } 
         else {
             
@@ -87,6 +90,7 @@ TCSC_BASE<Weight, Integer_Type>::TCSC_BASE(uint64_t nnz_, Integer_Type nnzcols_,
                 exit(1);
             }
             memset(A, 0, nnz * sizeof(Weight));
+            madvise(A, nnz * sizeof(Weight), MADV_SEQUENTIAL);
             #endif
             
             if((IA = (Integer_Type*) mmap(nullptr, nnz * sizeof(Integer_Type), PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0)) == (void*) -1) {    
@@ -94,12 +98,14 @@ TCSC_BASE<Weight, Integer_Type>::TCSC_BASE(uint64_t nnz_, Integer_Type nnzcols_,
                 exit(1);
             }
             memset(IA, 0, nnz * sizeof(Integer_Type));
+            madvise(IA, nnz * sizeof(Integer_Type), MADV_SEQUENTIAL);
             
             if((JA = (Integer_Type*) mmap(nullptr, (nnzcols + 1) * sizeof(Integer_Type), PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0)) == (void*) -1) {    
                 fprintf(stderr, "Error mapping memory\n");
                 exit(1);
             }
             memset(JA, 0, (nnzcols + 1) * sizeof(Integer_Type));
+            madvise(JA, (nnzcols + 1) * sizeof(Integer_Type), MADV_SEQUENTIAL);
         }            
     }
 }
