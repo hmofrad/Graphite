@@ -96,6 +96,7 @@ class Env {
         
         static std::vector<int> ranks; 
         static struct topology network;
+        static long int L1_CACHE_LINE_SIZE;
 
 };
 
@@ -139,6 +140,7 @@ std::vector<MPI_Comm> Env::colgrps_comms;
 
 std::vector<int> Env::ranks;
 struct topology Env::network;
+long int Env::L1_CACHE_LINE_SIZE = 0;
 
 void Env::init() {
     int required = MPI_THREAD_MULTIPLE;
@@ -159,7 +161,7 @@ void Env::init() {
     }
     
     MPI_WORLD = MPI_COMM_WORLD;
-    
+    L1_CACHE_LINE_SIZE = sysconf(_SC_LEVEL1_DCACHE_LINESIZE);
     printf("INFO(rank=%d): Hostname=%s, core_id=%d, nthreads=%d\n", rank, core_name, core_id, nthreads);
     MPI_Barrier(MPI_COMM_WORLD);   
 }
