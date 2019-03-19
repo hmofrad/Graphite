@@ -102,13 +102,6 @@ class Matrix {
         std::vector<uint64_t> JV_bytes;
         std::vector<uint64_t> rgs_bytes;
         std::vector<uint64_t> cgs_bytes;
-
-        std::vector<uint64_t> I_offsets;
-        std::vector<uint64_t> IV_offsets;
-        std::vector<uint64_t> J_offsets;
-        std::vector<uint64_t> JV_offsets;
-        std::vector<uint64_t> rgs_offsets;
-        std::vector<uint64_t> cgs_offsets;
         
         std::vector<std::vector<struct Tile2D<Weight, Integer_Type, Fractional_Type>>> tiles;
         
@@ -692,8 +685,6 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_filtering() {
     }
     I_bytes.resize(tiling->rank_nrowgrps);
     IV_bytes.resize(tiling->rank_nrowgrps);
-    I_offsets.resize(tiling->rank_nrowgrps);
-    IV_offsets.resize(tiling->rank_nrowgrps);
     allocate_numa_vector<Integer_Type, char>(&I, i_sizes, all_rowgrps_thread_sockets, I_bytes);
     allocate_numa_vector<Integer_Type, Integer_Type>(&IV, i_sizes, all_rowgrps_thread_sockets, IV_bytes);
     filter_vertices(_ROWS_);
@@ -709,7 +700,6 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_filtering() {
         rowgrp_nnz_rows_sizes[j] = nnz_row_sizes_loc[io];
     }
     rgs_bytes.resize(num_owned_segments);
-    rgs_offsets.resize(num_owned_segments);
     allocate_numa_vector<Integer_Type, Integer_Type>(&rowgrp_nnz_rows, rowgrp_nnz_rows_sizes, thread_sockets, rgs_bytes);
     
     for(int32_t j = 0; j < num_owned_segments; j++) {      
@@ -739,8 +729,6 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_filtering() {
     }
     J_bytes.resize(tiling->rank_ncolgrps);
     JV_bytes.resize(tiling->rank_ncolgrps);
-    J_offsets.resize(tiling->rank_ncolgrps);
-    JV_offsets.resize(tiling->rank_ncolgrps);
     allocate_numa_vector<Integer_Type, char>(&J, j_sizes, all_colgrps_thread_sockets, J_bytes);
     allocate_numa_vector<Integer_Type, Integer_Type>(&JV, j_sizes, all_colgrps_thread_sockets, JV_bytes);
     filter_vertices(_COLS_);
@@ -751,7 +739,6 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_filtering() {
         colgrp_nnz_cols_sizes[j] = nnz_col_sizes_loc[io];
     }
     cgs_bytes.resize(num_owned_segments);
-    cgs_offsets.resize(num_owned_segments);
     allocate_numa_vector<Integer_Type, Integer_Type>(&colgrp_nnz_cols, colgrp_nnz_cols_sizes, thread_sockets, cgs_bytes, cgs_offsets);
     
     for(int32_t j = 0; j < num_owned_segments; j++) { 
