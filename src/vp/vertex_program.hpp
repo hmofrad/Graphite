@@ -46,14 +46,7 @@ class Vertex_Program
         bool gather_depends_on_apply = false;
         bool apply_depends_on_iter = false;
         Integer_Type iteration = 0;
-        //std::vector<Vertex_State> V;              // Values
-        //std::vector<std::vector<Vertex_State>> V;
-        //Vertex_State** V;
-        //Vector<Weight, Integer_Type, Vertex_State>* V = nullptr;
-        //std::vector<Segment<Weight, Integer_Type, Vertex_State>*> V;
         Vertex_State** V = nullptr;
-        
-        //std::vector<std::vector<Integer_Type>> W; // Values (triangle counting)
     protected:
         bool already_initialized = false;
         bool check_for_convergence = false;
@@ -68,10 +61,8 @@ class Vertex_Program
         void apply_stationary(int tid);
         void apply_nonstationary(int tid);
 
-        
         void thread_function_stationary(int tid);
         void thread_function_nonstationary(int tid);
-
 
         bool has_converged(int tid);
         
@@ -85,7 +76,6 @@ class Vertex_Program
         
         Ordering_type ordering_type;
         Tiling_type tiling_type;
-        //Filtering_type filtering_type;
         Integer_Type nrows, ncols;
         uint32_t nrowgrps, ncolgrps;
         uint32_t rowgrp_nranks, colgrp_nranks;
@@ -94,9 +84,7 @@ class Vertex_Program
         int32_t owned_segment, accu_segment_rg, accu_segment_cg, accu_segment_row, accu_segment_col;
         std::vector<int32_t> local_col_segments;
         std::vector<int32_t> accu_segment_col_vec;
-        //std::vector<int32_t> accu_segment_row_vec;
         std::vector<int32_t> all_rowgrp_ranks_accu_seg;
-        //std::vector<int32_t> accu_segment_rg_vec;
         std::vector<int32_t> local_row_segments;
         std::vector<int32_t> all_rowgrp_ranks;
         std::vector<int32_t> follower_rowgrp_ranks_rg;
@@ -128,43 +116,23 @@ class Vertex_Program
         
         std::vector<std::vector<MPI_Request>> out_requests_t;
         std::vector<std::vector<MPI_Request>> in_requests_t;
-        
     
-        Matrix<Weight, Integer_Type, Fractional_Type>* A;          // Adjacency list
-        
 
-        
         
         std::vector<Integer_Type> nnz_rows_sizes;
         Integer_Type nnz_rows_size;
         std::vector<Integer_Type> nnz_cols_sizes;
         Integer_Type nnz_cols_size;
-        //std::vector<Integer_Type> nnz_cols_size_local;
         std::vector<int32_t> accu_segment_rows, accu_segment_cols;
         std::vector<int32_t> convergence_vec;
         
-        
-        //std::vector<std::vector<Fractional_Type>> X;               // Messages 
-        //std::vector<std::vector<std::vector<Fractional_Type>>> Y;  // Accumulators
-        //std::vector<std::vector<Fractional_Type>> Y1;  // Accumulators
-        //std::vector<std::vector<Fractional_Type>> Yt;  // Accumulators
-        //std::vector<char> C;                                       // Convergence vector
-        //std::vector<std::vector<char>> C;
-        //Vector<Weight, Integer_Type, Fractional_Type>* X = nullptr;
-        //Vector<Weight, Integer_Type, Fractional_Type>* Y = nullptr;
-        //std::vector<Vector<Weight, Integer_Type, Fractional_Type>*> Yt;
-        //Vector<Weight, Integer_Type, char>* C = nullptr;
-        
-        //std::vector<Segment<Weight, Integer_Type, Fractional_Type>*> X;
-        //std::vector<Segment<Weight, Integer_Type, Fractional_Type>*> Y;
-        //std::vector<std::vector<Segment<Weight, Integer_Type, Fractional_Type>*>> Yt;
-        //std::vector<Vector<Weight, Integer_Type, Fractional_Type>*> Yt;
-        //std::vector<std::vector<Segment<Weight, Integer_Type, Fractional_Type>*>> Yt;
-        //std::vector<Segment<Weight, Integer_Type, char>*> C;
+        Matrix<Weight, Integer_Type, Fractional_Type>* A;          // Adjacency list        
         char** C = nullptr;
-        Fractional_Type** X;
-        Fractional_Type** Y;
+        Fractional_Type** X = nullptr;
+        Fractional_Type** Y = nullptr;
         std::vector<Fractional_Type**> Yt;
+        
+        
         /* Nonstationary */
         std::vector<std::vector<Integer_Type>> XI;                 // X Indices (Nonstationary)
         std::vector<std::vector<Fractional_Type>> XV;              // X Values  (Nonstationary)
@@ -175,7 +143,6 @@ class Vertex_Program
         std::vector<std::vector<Integer_Type>> accus_activity_statuses;
         std::vector<Integer_Type> activity_statuses;
         std::vector<Integer_Type> active_vertices;
-        
         
         char** I = nullptr;
         Integer_Type** IV = nullptr;
@@ -189,49 +156,6 @@ class Vertex_Program
         std::vector<uint64_t> X_bytes;
         std::vector<uint64_t> Y_bytes;
         std::vector<std::vector<uint64_t>> Yt_bytes;
-        /*
-        Vector<Weight, Integer_Type, char>* I = nullptr;
-        Vector<Weight, Integer_Type, Integer_Type>* IV = nullptr;
-        Vector<Weight, Integer_Type, char>* J = nullptr;
-        Vector<Weight, Integer_Type, Integer_Type>* JV = nullptr;
-        Vector<Weight, Integer_Type, Integer_Type>* rowgrp_nnz_rows;
-        Vector<Weight, Integer_Type, Integer_Type>* colgrp_nnz_cols;
-        */
-        
-        std::vector<Segment<Weight, Integer_Type, char>*> I1;
-        std::vector<Segment<Weight, Integer_Type, Integer_Type>*> IV1;
-        std::vector<Segment<Weight, Integer_Type, char>*> J1;
-        std::vector<Segment<Weight, Integer_Type, Integer_Type>*> JV1;
-        std::vector<Segment<Weight, Integer_Type, Integer_Type>*> rowgrp_nnz_rows1;
-        std::vector<Segment<Weight, Integer_Type, Integer_Type>*> colgrp_nnz_cols1;
-        
-
-        struct Segment<Weight, Integer_Type, char>** I2;
-        struct Segment<Weight, Integer_Type, Integer_Type>** IV2;
-        struct Segment<Weight, Integer_Type, char>** J2;
-        struct Segment<Weight, Integer_Type, Integer_Type>** JV2;
-        struct Segment<Weight, Integer_Type, Integer_Type>** rowgrp_nnz_rows2;
-        struct Segment<Weight, Integer_Type, Integer_Type>** colgrp_nnz_cols2;
-        
-        
-        /*
-        // Row/col filtering indices 
-        std::vector<std::vector<char>>* I;
-        std::vector<std::vector<Integer_Type>>* IV;
-        std::vector<std::vector<char>>* J;
-        std::vector<std::vector<Integer_Type>>* JV;
-        
-        
-        std::vector<Integer_Type>* rowgrp_nnz_rows;
-        std::vector<Integer_Type>* rowgrp_regular_rows;
-        std::vector<Integer_Type>* rowgrp_source_rows;
-        std::vector<Integer_Type>* colgrp_nnz_columns;
-        std::vector<Integer_Type>* colgrp_sink_columns;
-        
-        std::vector<std::vector<Integer_Type>> rowgrp_nnz_rows_t;
-        std::vector<std::vector<Integer_Type>> colgrp_nnz_cols_t;
-        */
-
 
         std::vector<Integer_Type> nnz_row_sizes_loc;
         std::vector<Integer_Type> nnz_col_sizes_loc;
@@ -292,202 +216,59 @@ Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_Metho
     convergence_vec.resize(Env::nthreads);
     pthread_barrier_init(&p_barrier, NULL, Env::nthreads);
 
-    if(ordering_type == _ROW_)
-    {
-        nrows = A->nrows;
-        ncols = A->ncols;
-        nrowgrps = A->nrowgrps;
-        ncolgrps = A->ncolgrps;
-        rowgrp_nranks = A->tiling->rowgrp_nranks;
-        colgrp_nranks = A->tiling->colgrp_nranks;
-        rank_nrowgrps = A->tiling->rank_nrowgrps;
-        rank_ncolgrps = A->tiling->rank_ncolgrps;
-        tile_height = A->tile_height;
-        tile_width = A->tile_width;
-        local_row_segments = A->local_row_segments;
-        local_col_segments = A->local_col_segments;
-        accu_segment_col = A->accu_segment_col;
-        accu_segment_row = A->accu_segment_row;
-        all_rowgrp_ranks_accu_seg = A->all_rowgrp_ranks_accu_seg;
-        accu_segment_rg = A->accu_segment_rg;
-        accu_segment_cg = A->accu_segment_cg;
-        follower_rowgrp_ranks_rg = A->follower_rowgrp_ranks_rg;
-        follower_rowgrp_ranks_accu_seg_rg = A->follower_rowgrp_ranks_accu_seg_rg;
-        leader_ranks_cg = A->leader_ranks_cg;
-        follower_colgrp_ranks_cg = A->follower_colgrp_ranks_cg;
-        follower_colgrp_ranks = A->follower_colgrp_ranks;
-        local_tiles_row_order = A->local_tiles_row_order;
-        local_tiles_col_order = A->local_tiles_col_order;
-        follower_rowgrp_ranks = A->follower_rowgrp_ranks;
-        follower_rowgrp_ranks_accu_seg = A->follower_rowgrp_ranks_accu_seg;
-        rowgrps_communicator = Env::rowgrps_comm;
-        colgrps_communicator = Env::colgrps_comm;
-        all_rowgrp_ranks = A->all_rowgrp_ranks;
-        nnz_row_sizes_loc = A->nnz_row_sizes_loc;
-        nnz_col_sizes_loc = A->nnz_col_sizes_loc;
-        nnz_row_sizes_all = A->nnz_row_sizes_all;
-        nnz_col_sizes_all = A->nnz_col_sizes_all;
+    nrows = A->nrows;
+    ncols = A->ncols;
+    nrowgrps = A->nrowgrps;
+    ncolgrps = A->ncolgrps;
+    rowgrp_nranks = A->tiling->rowgrp_nranks;
+    colgrp_nranks = A->tiling->colgrp_nranks;
+    rank_nrowgrps = A->tiling->rank_nrowgrps;
+    rank_ncolgrps = A->tiling->rank_ncolgrps;
+    tile_height = A->tile_height;
+    tile_width = A->tile_width;
+    local_row_segments = A->local_row_segments;
+    local_col_segments = A->local_col_segments;
+    accu_segment_col = A->accu_segment_col;
+    accu_segment_row = A->accu_segment_row;
+    all_rowgrp_ranks_accu_seg = A->all_rowgrp_ranks_accu_seg;
+    accu_segment_rg = A->accu_segment_rg;
+    accu_segment_cg = A->accu_segment_cg;
+    follower_rowgrp_ranks_rg = A->follower_rowgrp_ranks_rg;
+    follower_rowgrp_ranks_accu_seg_rg = A->follower_rowgrp_ranks_accu_seg_rg;
+    leader_ranks_cg = A->leader_ranks_cg;
+    follower_colgrp_ranks_cg = A->follower_colgrp_ranks_cg;
+    follower_colgrp_ranks = A->follower_colgrp_ranks;
+    local_tiles_row_order = A->local_tiles_row_order;
+    local_tiles_col_order = A->local_tiles_col_order;
+    follower_rowgrp_ranks = A->follower_rowgrp_ranks;
+    follower_rowgrp_ranks_accu_seg = A->follower_rowgrp_ranks_accu_seg;
+    rowgrps_communicator = Env::rowgrps_comm;
+    colgrps_communicator = Env::colgrps_comm;
+    all_rowgrp_ranks = A->all_rowgrp_ranks;
+    nnz_row_sizes_loc = A->nnz_row_sizes_loc;
+    nnz_col_sizes_loc = A->nnz_col_sizes_loc;
+    nnz_row_sizes_all = A->nnz_row_sizes_all;
+    nnz_col_sizes_all = A->nnz_col_sizes_all;
         
-        /*
-        I2 = Graph.A->I2;
-        IV2 = Graph.A->IV2;
-        J2 = Graph.A->J2;
-        JV2 = Graph.A->JV2;
-        rowgrp_nnz_rows2 = Graph.A->rowgrp_nnz_rows2;
-        colgrp_nnz_cols2 = Graph.A->colgrp_nnz_cols2;
-        */
-        /*
-        I1 = Graph.A->I1;
-        IV1 = Graph.A->IV1;
-        J1 = Graph.A->J1;
-        JV1 = Graph.A->JV1;
-        rowgrp_nnz_rows1 = Graph.A->rowgrp_nnz_rows1;
-        colgrp_nnz_cols1 = Graph.A->colgrp_nnz_cols1;
-        */
-        
-        
-        I = Graph.A->I;
-        IV = Graph.A->IV;
-        J = Graph.A->J;
-        JV = Graph.A->JV;
-        rowgrp_nnz_rows = Graph.A->rowgrp_nnz_rows;
-        colgrp_nnz_cols = Graph.A->colgrp_nnz_cols;
-        
-        
-        
-        /*
-        I = &(Graph.A->I);
-        IV = &(Graph.A->IV);
-        J = &(Graph.A->J);
-        JV = &(Graph.A->JV);
-        rowgrp_nnz_rows = &(Graph.A->rowgrp_nnz_rows);
-        rowgrp_regular_rows = &(Graph.A->rowgrp_regular_rows);
-        rowgrp_source_rows = &(Graph.A->rowgrp_source_rows);
-        colgrp_nnz_columns = &(Graph.A->colgrp_nnz_columns);
-        colgrp_sink_columns = &(Graph.A->colgrp_sink_columns);
-        
+    I = Graph.A->I;
+    IV = Graph.A->IV;
+    J = Graph.A->J;
+    JV = Graph.A->JV;
+    rowgrp_nnz_rows = Graph.A->rowgrp_nnz_rows;
+    colgrp_nnz_cols = Graph.A->colgrp_nnz_cols;
+                
+    out_requests_t.resize(Env::nthreads);
+    in_requests_t.resize(Env::nthreads);
 
-        nnz_rows_sizes = A->nnz_rows_sizes;
-        nnz_cols_sizes = A->nnz_cols_sizes;
-        nnz_rows_size = A->nnz_rows_size;
-        nnz_cols_size = A->nnz_cols_size;
-        */
-
+    num_owned_segments = Graph.A->num_owned_segments;
+    local_tiles_row_order_t = Graph.A->local_tiles_row_order_t;
+    local_tiles_col_order_t = Graph.A->local_tiles_col_order_t;
         
-        out_requests_t.resize(Env::nthreads);
-        in_requests_t.resize(Env::nthreads);
-
-        num_owned_segments = Graph.A->num_owned_segments;
-        local_tiles_row_order_t = Graph.A->local_tiles_row_order_t;
-        local_tiles_col_order_t = Graph.A->local_tiles_col_order_t;
-        
-        //rowgrp_nnz_rows_t = Graph.A->rowgrp_nnz_rows_t;
-        //colgrp_nnz_cols_t = Graph.A->colgrp_nnz_cols_t;
-        
-        accu_segment_rows = Graph.A->accu_segment_rows;
-        accu_segment_cols = Graph.A->accu_segment_cols;
-        
-        rowgrps_communicators = Env::rowgrps_comms;
-        colgrps_communicators = Env::colgrps_comms;
-        
-       
-    }
-    else if (ordering_type == _COL_)
-    {
-        nrows = A->ncols;
-        ncols = A->nrows;
-        nrowgrps = A->ncolgrps;
-        ncolgrps = A->nrowgrps;
-        rowgrp_nranks = A->tiling->colgrp_nranks;
-        colgrp_nranks = A->tiling->rowgrp_nranks;
-        rank_nrowgrps = A->tiling->rank_ncolgrps;
-        rank_ncolgrps = A->tiling->rank_nrowgrps;
-        tile_height = A->tile_width;
-        tile_width = A->tile_height;
-        local_row_segments = A->local_col_segments;
-        local_col_segments = A->local_row_segments;
-        accu_segment_col = A->accu_segment_row;
-        accu_segment_row = A->accu_segment_col;
-        all_rowgrp_ranks_accu_seg = A->all_colgrp_ranks_accu_seg;
-        accu_segment_rg = A->accu_segment_cg;
-        accu_segment_cg = A->accu_segment_rg;
-        follower_rowgrp_ranks_rg = A->follower_colgrp_ranks_cg;
-        follower_rowgrp_ranks_accu_seg_rg = A->follower_colgrp_ranks_accu_seg_cg;
-        leader_ranks_cg = A->leader_ranks_rg;
-        follower_colgrp_ranks_cg = A->follower_rowgrp_ranks_rg;
-        follower_colgrp_ranks = A->follower_rowgrp_ranks;
-        local_tiles_row_order = A->local_tiles_col_order;
-        local_tiles_col_order = A->local_tiles_row_order;
-        follower_rowgrp_ranks = A->follower_colgrp_ranks;
-        follower_rowgrp_ranks_accu_seg = A->follower_colgrp_ranks_accu_seg;
-        rowgrps_communicator = Env::colgrps_comm;
-        colgrps_communicator = Env::rowgrps_comm;
-        all_rowgrp_ranks = A->all_colgrp_ranks;
-        nnz_row_sizes_loc = A->nnz_col_sizes_loc;
-        nnz_col_sizes_loc = A->nnz_row_sizes_loc;
-        nnz_row_sizes_all = A->nnz_col_sizes_all;
-        nnz_col_sizes_all = A->nnz_row_sizes_all;
-        
-        /*
-        I2 = Graph.A->J2;
-        IV2 = Graph.A->JV2;
-        J2 = Graph.A->I2;
-        JV2 = Graph.A->IV2;
-        rowgrp_nnz_rows2 = Graph.A->rowgrp_nnz_rows2;
-        colgrp_nnz_cols2 = Graph.A->colgrp_nnz_cols2;
-        */
-        /*
-        I1 = Graph.A->J1;
-        IV1 = Graph.A->JV1;
-        J1 = Graph.A->I1;
-        JV1 = Graph.A->IV1;
-        rowgrp_nnz_rows1 = Graph.A->colgrp_nnz_cols1;
-        colgrp_nnz_cols1 = Graph.A->rowgrp_nnz_rows1;
-        */
-        
-        I = Graph.A->J;
-        IV = Graph.A->JV;
-        J = Graph.A->I;
-        JV = Graph.A->IV;
-        rowgrp_nnz_rows = Graph.A->colgrp_nnz_cols;
-        colgrp_nnz_cols = Graph.A->rowgrp_nnz_rows;
-       
-        /*
-        I = &(Graph.A->J);
-        IV= &(Graph.A->JV);
-        J = &(Graph.A->I);
-        JV= &(Graph.A->IV);
-        rowgrp_nnz_rows = &(Graph.A->colgrp_nnz_columns);
-        rowgrp_regular_rows = &(Graph.A->rowgrp_regular_rows);
-        rowgrp_source_rows = &(Graph.A->colgrp_sink_columns);
-        colgrp_nnz_columns = &(Graph.A->rowgrp_nnz_rows);
-        colgrp_sink_columns = &(Graph.A->rowgrp_source_rows);
-        
-        nnz_rows_sizes = Graph.A->nnz_cols_sizes;
-        nnz_cols_sizes = Graph.A->nnz_rows_sizes;
-        nnz_rows_size = Graph.A->nnz_cols_size;
-        nnz_cols_size = Graph.A->nnz_rows_size;
-        */
-
-
-        out_requests_t.resize(Env::nthreads);
-        in_requests_t.resize(Env::nthreads);
- 
-        
-        num_owned_segments = Graph.A->num_owned_segments;
-        local_tiles_row_order_t = Graph.A->local_tiles_col_order_t;
-        local_tiles_col_order_t = Graph.A->local_tiles_row_order_t;
-        
-        //rowgrp_nnz_rows_t = Graph.A->colgrp_nnz_cols_t;
-        //colgrp_nnz_cols_t = Graph.A->rowgrp_nnz_rows_t;
-        
-        accu_segment_rows = Graph.A->accu_segment_cols;
-        accu_segment_cols = Graph.A->accu_segment_rows;
-        
-        rowgrps_communicators = Env::colgrps_comms;
-        colgrps_communicators = Env::rowgrps_comms;
-
-    }   
+    accu_segment_rows = Graph.A->accu_segment_rows;
+    accu_segment_cols = Graph.A->accu_segment_cols;
+    
+    rowgrps_communicators = Env::rowgrps_comms;
+    colgrps_communicators = Env::colgrps_comms;
     
     TYPE_DOUBLE = Types<Weight, Integer_Type, Fractional_Type>::get_data_type();
     TYPE_INT = Types<Weight, Integer_Type, Integer_Type>::get_data_type();
@@ -503,9 +284,6 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
     num_iterations = num_iterations_;
     if(!num_iterations)
         check_for_convergence = true; 
-    
-    //if(not already_initialized)
-    //    initialize();
     
     #ifdef TIMING
     double t1, t2, elapsed_time;
@@ -543,27 +321,6 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
     #endif
 }
 
-/*
-template<typename Weight, typename Integer_Type, typename Fractional_Type, typename Vertex_State, typename Vertex_Methods_Impl>
-void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_Methods_Impl>::initialize() {
-    #ifdef TIMING
-    double t1, t2, elapsed_time;
-    t1 = Env::clock();
-    #endif
-    init_stationary();
-    if(not stationary) {
-        init_nonstationary();
-    }
-    #ifdef TIMING
-    t2 = Env::clock();
-    elapsed_time = t2 - t1;
-    Env::print_time("Init", elapsed_time);
-    init_time.push_back(elapsed_time);
-    #endif
-}
-*/
-
-
 template<typename Weight, typename Integer_Type, typename Fractional_Type, typename Vertex_State, typename Vertex_Methods_Impl>
 template<typename Weight_, typename Integer_Type_, typename Fractional_Type_, typename Vertex_State_, typename Vertex_Methods_Impl_>
 void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_Methods_Impl>::initialize(
@@ -577,25 +334,10 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
         for(int32_t k = 0; k < num_owned_segments; k++) {
             uint32_t yi = accu_segment_rows[k];
             auto* i_data = (char*) I[yi];
-            //auto* i_data = (char*) I->data[yi];
-            //auto* i_data = (char*) I1[yi]->data;
-            //auto* i_data = (char*) I2[yi]->data;
-            //auto &i_data = (*I)[yi];             
-            //auto& v_data = V[k];
-            //Integer_Type v_nitems = v_data.size();
-            //auto* v_data = (Vertex_State*) V->data[k];
-            //Integer_Type v_nitems = V->nitems[k];
-            //auto* v_data = (Vertex_State*) V[k]->data;
-            //Integer_Type v_nitems = V[k]->nitems;
-            //auto& c_data = C[k];
-            //auto* c_data = (char*) C->data[k];
-            //auto* c_data = (char*) C[k]->data;
-            //#pragma omp parallel for schedule(static)
-            
             auto* v_data = (Vertex_State*) V[k];
             auto* c_data = (char*) C[k];
-            for(uint32_t i = 0; i < tile_height; i++)
-            {
+            #pragma omp parallel for schedule(static)
+            for(uint32_t i = 0; i < tile_height; i++){
                 Vertex_State& state = v_data[i]; 
                 if(i_data[i])
                     c_data[i] = Vertex_Methods.initializer(get_vid(i, owned_segments[k]), state, (const State&) VProgram.V[k][i]);
@@ -618,166 +360,63 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
 
 template<typename Weight, typename Integer_Type, typename Fractional_Type, typename Vertex_State, typename Vertex_Methods_Impl>
 void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_Methods_Impl>::init_stationary() {
+    // Values and convergance
+    std::vector<Integer_Type> c_v_sizes(num_owned_segments, tile_height);
+    std::vector<int32_t> thread_sockets(num_owned_segments);
+    for(int i = 0; i < Env::nthreads; i++) {
+        thread_sockets[i] = Env::socket_of_thread(i);
+    }
 
-        std::vector<Integer_Type> c_v_sizes(num_owned_segments, tile_height);
-        std::vector<int32_t> thread_sockets(num_owned_segments);
-        for(int i = 0; i < Env::nthreads; i++) {
-            thread_sockets[i] = Env::socket_of_thread(i);
-        }
-        //std::vector<int32_t> c_v_thread_segments(num_owned_segments);
-        //std::iota(c_v_thread_segments.begin(), c_v_thread_segments.end(), 0);
-        
-        //V.resize(num_owned_segments, std::vector<Vertex_State>(tile_height));
-        //C.resize(num_owned_segments, std::vector<char>(tile_width));
-        
-        
-        //V = new Vector<Weight, Integer_Type, Vertex_State>(c_v_sizes, thread_sockets);
-        //C = new Vector<Weight, Integer_Type, char>(c_v_sizes, thread_sockets);
-        
-        /*
-        V.resize(num_owned_segments);
-        for(int i = 0; i < num_owned_segments; i++) {
-            V[i] = new Segment<Weight, Integer_Type, Vertex_State>(c_v_sizes[i], thread_sockets[i]);
-            //V[i] = v_i;
-        }
-        
-        C.resize(num_owned_segments);
-        for(int i = 0; i < num_owned_segments; i++) {
-            C[i] = new Segment<Weight, Integer_Type, char>(c_v_sizes[i], thread_sockets[i]);
-        }
-        */
-        V_bytes.resize(num_owned_segments);
-        C_bytes.resize(num_owned_segments);
-        allocate_numa_vector<Integer_Type, Vertex_State>(&V, c_v_sizes, thread_sockets, V_bytes);
-        allocate_numa_vector<Integer_Type, char>(&C, c_v_sizes, thread_sockets, C_bytes);
-        
-        
-        
-        // Initialize messages
-        std::vector<Integer_Type> x_sizes = nnz_col_sizes_loc;
-        int num_colgrps_per_thread = rank_ncolgrps / num_owned_segments;
-        assert((num_colgrps_per_thread * Env::nthreads) == (int32_t) rank_ncolgrps);
-        std::vector<int32_t> x_thread_sockets(rank_ncolgrps);    
-        for(int i = 0; i < num_colgrps_per_thread; i++) {
-            for(int j = 0; j < Env::nthreads; j++) {
-                int k = j + (i * Env::nthreads);
-                x_thread_sockets[k] = Env::socket_of_thread(j);
-            }
-        }
-
-        
-        /*
-        std::vector<int32_t> x_thread_segments(num_owned_segments);
-        for(int32_t j = 0; j < num_owned_segments; j++) {  
-            uint32_t io = accu_segment_cols[j];
-            x_thread_segments[j] = nnz_col_sizes_loc[io];
-        }
-        */
-        
-        //X = new Vector<Weight, Integer_Type, Fractional_Type>(x_sizes, x_thread_sockets);
-        
-        /*
-        X.resize(rank_ncolgrps);
-        for(uint32_t i = 0; i < rank_ncolgrps; i++) {
-            X[i] = new Segment<Weight, Integer_Type, Fractional_Type>(x_sizes[i], x_thread_sockets[i]);
-        }
-        */
-        X_bytes.resize(rank_ncolgrps);
-        allocate_numa_vector<Integer_Type, Fractional_Type>(&X, x_sizes, x_thread_sockets, X_bytes);
-        
-        
-        /*
-        std::vector<Integer_Type> x_sizes;   
-        x_sizes = nnz_col_sizes_loc;
-        X.resize(rank_ncolgrps);
-        for(uint32_t i = 0; i < rank_ncolgrps; i++)
-            X[i].resize(x_sizes[i]);
-        */
-
-        // Initialiaze accumulators
-        std::vector<Integer_Type> y_sizes = nnz_row_sizes_loc;
-        int num_rowgrps_per_thread = rank_nrowgrps / num_owned_segments;
-        assert((num_rowgrps_per_thread * Env::nthreads) == (int32_t) rank_nrowgrps);
-        std::vector<int32_t> y_thread_sockets(rank_nrowgrps);    
-        for(int i = 0; i < num_rowgrps_per_thread; i++) {
-            for(int j = 0; j < Env::nthreads; j++) {
-                int k = j + (i * Env::nthreads);
-                y_thread_sockets[k] = Env::socket_of_thread(j);
-            }
-        }
-        //Y = new Vector<Weight, Integer_Type, Fractional_Type>(y_sizes, y_thread_sockets);
-        /*
-        Y.resize(rank_nrowgrps);
-        for(uint32_t i = 0; i < rank_nrowgrps; i++) {
-            Y[i] = new Segment<Weight, Integer_Type, Fractional_Type>(y_sizes[i], y_thread_sockets[i]);
-        }
-        */
-        Y_bytes.resize(rank_nrowgrps);
-        allocate_numa_vector<Integer_Type, Fractional_Type>(&Y, y_sizes, y_thread_sockets, Y_bytes);
-        
-        /*
-        Yt.resize(num_owned_segments);
-        for(int32_t j = 0; j < num_owned_segments; j++) {
-            Yt[j].resize(rowgrp_nranks - 1);
-            std::vector<Integer_Type> row_size((rowgrp_nranks - 1), nnz_row_sizes_all[owned_segments[j]]);
-            std::vector<Integer_Type> row_socket((rowgrp_nranks - 1), thread_sockets[j]);
-            for(uint32_t i = 0; i < (rowgrp_nranks - 1); i++) 
-                Yt[j][i] = new Segment<Weight, Integer_Type, Fractional_Type>(row_size[i], row_socket[i]);
-        }
-        */
-        Yt_bytes.resize(num_owned_segments);
-        Yt.resize(num_owned_segments);
-        for(int32_t j = 0; j < num_owned_segments; j++) {
-            std::vector<Integer_Type> row_size((rowgrp_nranks - 1), nnz_row_sizes_all[owned_segments[j]]);
-            std::vector<int32_t> row_socket((rowgrp_nranks - 1), thread_sockets[j]);
-            Yt_bytes[j].resize(rowgrp_nranks - 1);
-            allocate_numa_vector<Integer_Type, Fractional_Type>(&Yt[j], row_size, row_socket, Yt_bytes[j]);
-        }
-        
-        
-        
-        
-        
-        
-        //int32_t
-        
-        
-        /*
-        Yt.resize(num_owned_segments);
-        for(int32_t j = 0; j < num_owned_segments; j++) {
-            //if(!Env::rank) {
-                
-            //}
-            std::vector<Integer_Type> row_size((rowgrp_nranks - 1), nnz_row_sizes_all[owned_segments[j]]);
-            //printf("rank=%d size=%d %d\n", Env::rank, nnz_row_sizes_all[owned_segments[j]], row_size[0]);
-            std::vector<Integer_Type> row_socket((rowgrp_nranks - 1), thread_sockets[j]);
-            Yt[j] = new Vector<Weight, Integer_Type, Fractional_Type>(row_size, row_socket);
-        }
-        */
-
-            
-
+    V_bytes.resize(num_owned_segments);
+    C_bytes.resize(num_owned_segments);
+    allocate_numa_vector<Integer_Type, Vertex_State>(&V, c_v_sizes, thread_sockets, V_bytes);
+    allocate_numa_vector<Integer_Type, char>(&C, c_v_sizes, thread_sockets, C_bytes);
     
+    // Initialize messages
+    std::vector<Integer_Type> x_sizes = nnz_col_sizes_loc;
+    int num_colgrps_per_thread = rank_ncolgrps / num_owned_segments;
+    assert((num_colgrps_per_thread * Env::nthreads) == (int32_t) rank_ncolgrps);
+    std::vector<int32_t> x_thread_sockets(rank_ncolgrps);    
+    for(int i = 0; i < num_colgrps_per_thread; i++) {
+        for(int j = 0; j < Env::nthreads; j++) {
+            int k = j + (i * Env::nthreads);
+            x_thread_sockets[k] = Env::socket_of_thread(j);
+        }
+    }
+    X_bytes.resize(rank_ncolgrps);
+    allocate_numa_vector<Integer_Type, Fractional_Type>(&X, x_sizes, x_thread_sockets, X_bytes);
+
+    // Initialiaze accumulators
+    std::vector<Integer_Type> y_sizes = nnz_row_sizes_loc;
+    int num_rowgrps_per_thread = rank_nrowgrps / num_owned_segments;
+    assert((num_rowgrps_per_thread * Env::nthreads) == (int32_t) rank_nrowgrps);
+    std::vector<int32_t> y_thread_sockets(rank_nrowgrps);    
+    for(int i = 0; i < num_rowgrps_per_thread; i++) {
+        for(int j = 0; j < Env::nthreads; j++) {
+            int k = j + (i * Env::nthreads);
+            y_thread_sockets[k] = Env::socket_of_thread(j);
+        }
+    }
+    Y_bytes.resize(rank_nrowgrps);
+    allocate_numa_vector<Integer_Type, Fractional_Type>(&Y, y_sizes, y_thread_sockets, Y_bytes);
+    // Temporary accumulators 
+    Yt_bytes.resize(num_owned_segments);
+    Yt.resize(num_owned_segments);
+    for(int32_t j = 0; j < num_owned_segments; j++) {
+        std::vector<Integer_Type> row_size((rowgrp_nranks - 1), nnz_row_sizes_all[owned_segments[j]]);
+        std::vector<int32_t> row_socket((rowgrp_nranks - 1), thread_sockets[j]);
+        Yt_bytes[j].resize(rowgrp_nranks - 1);
+        allocate_numa_vector<Integer_Type, Fractional_Type>(&Yt[j], row_size, row_socket, Yt_bytes[j]);
+    }
     
     for(int32_t k = 0; k < num_owned_segments; k++) {
-        //auto& v_data = V[tid];
         auto* v_data = (Vertex_State*) V[k];
-        //auto* v_data = (Vertex_State*) V[k]->data;
-        //auto* v_data = (Vertex_State*) V->data[k];
-        //auto& c_data = C[tid];
-        //auto* c_data = (char*) C[k]->data;
         auto* c_data = (char*) C[k];
-        //auto* c_data = (char*) C->data[k];
-        //Integer_Type v_nitems = v_data.size();
-        //Integer_Type v_nitems = V->nitems[k];
-        //Integer_Type v_nitems = V[k]->nitems;
-        //#pragma omp parallel for schedule(static)
         for(uint32_t i = 0; i < tile_height; i++) {
             Vertex_State& state = v_data[i]; 
             c_data[i] = Vertex_Methods.initializer(get_vid(i, owned_segments[k]), state);
         }
-    }
-    
+    }   
 }
 
 
@@ -790,53 +429,16 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
         t1 = Env::clock();
     }
     #endif
-    
-    
-    //if(!Env::rank) {
-        /*
-        V = (Vertex_State**) mmap(nullptr, num_owned_segments * sizeof(Vertex_State*), PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0);
-        uint64_t nbytes = tile_height * sizeof(Vertex_State);
-        for(int i = 0; i < num_owned_segments; i++)
-            V[i] = (Vertex_State*) mmap(nullptr, nbytes, PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0);
-        */
-    //}
-    //Env::barrier();
-    //Env::exit(0);
-    
     if(tid == 0) {
         std::vector<Integer_Type> c_v_sizes(num_owned_segments, tile_height);
         std::vector<int32_t> thread_sockets(num_owned_segments);
         for(int i = 0; i < Env::nthreads; i++) {
             thread_sockets[i] = Env::socket_of_thread(i);
         }
-        //std::vector<int32_t> c_v_thread_segments(num_owned_segments);
-        //std::iota(c_v_thread_segments.begin(), c_v_thread_segments.end(), 0);
-        
-        //V.resize(num_owned_segments, std::vector<Vertex_State>(tile_height));
-        //C.resize(num_owned_segments, std::vector<char>(tile_width));
-        
-        
-        //V = new Vector<Weight, Integer_Type, Vertex_State>(c_v_sizes, thread_sockets);
-        //C = new Vector<Weight, Integer_Type, char>(c_v_sizes, thread_sockets);
-        /*
-        V.resize(num_owned_segments);
-        for(int i = 0; i < num_owned_segments; i++) {
-            V[i] = new Segment<Weight, Integer_Type, Vertex_State>(c_v_sizes[i], thread_sockets[i]);
-             //= v_i;
-        }
-        
-        C.resize(num_owned_segments);
-        for(int i = 0; i < num_owned_segments; i++) {
-            C[i] = new Segment<Weight, Integer_Type, char>(c_v_sizes[i], thread_sockets[i]);
-            //C[i] = c_i;
-        }
-        
-        */
         V_bytes.resize(num_owned_segments);
         C_bytes.resize(num_owned_segments);
         allocate_numa_vector<Integer_Type, Vertex_State>(&V, c_v_sizes, thread_sockets, V_bytes);
         allocate_numa_vector<Integer_Type, char>(&C, c_v_sizes, thread_sockets, C_bytes);
-        
         
         // Initialize messages
         std::vector<Integer_Type> x_sizes = nnz_col_sizes_loc;
@@ -850,33 +452,8 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
             }
         }
 
-        
-        /*
-        std::vector<int32_t> x_thread_segments(num_owned_segments);
-        for(int32_t j = 0; j < num_owned_segments; j++) {  
-            uint32_t io = accu_segment_cols[j];
-            x_thread_segments[j] = nnz_col_sizes_loc[io];
-        }
-        */
-        
-        //X = new Vector<Weight, Integer_Type, Fractional_Type>(x_sizes, x_thread_sockets);
-        /*
-        X.resize(rank_ncolgrps);
-        for(uint32_t i = 0; i < rank_ncolgrps; i++) {
-            X[i] = new Segment<Weight, Integer_Type, Fractional_Type>(x_sizes[i], x_thread_sockets[i]);
-        }
-        */
         X_bytes.resize(rank_ncolgrps);
         allocate_numa_vector<Integer_Type, Fractional_Type>(&X, x_sizes, x_thread_sockets, X_bytes);
-        
-        
-        /*
-        std::vector<Integer_Type> x_sizes;   
-        x_sizes = nnz_col_sizes_loc;
-        X.resize(rank_ncolgrps);
-        for(uint32_t i = 0; i < rank_ncolgrps; i++)
-            X[i].resize(x_sizes[i]);
-        */
 
         // Initialiaze accumulators
         std::vector<Integer_Type> y_sizes = nnz_row_sizes_loc;
@@ -889,26 +466,9 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
                 y_thread_sockets[k] = Env::socket_of_thread(j);
             }
         }
-        //Y = new Vector<Weight, Integer_Type, Fractional_Type>(y_sizes, y_thread_sockets);
-        /*
-        Y.resize(rank_nrowgrps);
-        for(uint32_t i = 0; i < rank_nrowgrps; i++) {
-            Y[i] = new Segment<Weight, Integer_Type, Fractional_Type>(y_sizes[i], y_thread_sockets[i]);
-        }
-        */
         Y_bytes.resize(rank_nrowgrps);
         allocate_numa_vector<Integer_Type, Fractional_Type>(&Y, y_sizes, y_thread_sockets, Y_bytes);
-        
-        /*
-        Yt.resize(num_owned_segments);
-        for(int32_t j = 0; j < num_owned_segments; j++) {
-            Yt[j].resize(rowgrp_nranks - 1);
-            std::vector<Integer_Type> row_size((rowgrp_nranks - 1), nnz_row_sizes_all[owned_segments[j]]);
-            std::vector<Integer_Type> row_socket((rowgrp_nranks - 1), thread_sockets[j]);
-            for(uint32_t i = 0; i < (rowgrp_nranks - 1); i++) 
-                Yt[j][i] = new Segment<Weight, Integer_Type, Fractional_Type>(row_size[i], row_socket[i]);
-        }
-        */
+        // Partial accumulators
         Yt_bytes.resize(num_owned_segments);
         Yt.resize(num_owned_segments);
         for(int32_t j = 0; j < num_owned_segments; j++) {
@@ -917,70 +477,15 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
             Yt_bytes[j].resize(rowgrp_nranks - 1);
             allocate_numa_vector<Integer_Type, Fractional_Type>(&Yt[j], row_size, row_socket, Yt_bytes[j]);
         }
-        
-        /*
-        Yt.resize(num_owned_segments);
-        for(int32_t j = 0; j < num_owned_segments; j++) {
-            //if(!Env::rank) {
-                
-            //}
-            std::vector<Integer_Type> row_size((rowgrp_nranks - 1), nnz_row_sizes_all[owned_segments[j]]);
-            //printf("rank=%d size=%d %d\n", Env::rank, nnz_row_sizes_all[owned_segments[j]], row_size[0]);
-            std::vector<Integer_Type> row_socket((rowgrp_nranks - 1), thread_sockets[j]);
-            Yt[j] = new Vector<Weight, Integer_Type, Fractional_Type>(row_size, row_socket);
-        }
-        */
-        
-        
-
-        
-        /*
-        std::vector<Integer_Type> y_sizes;   
-        y_sizes = nnz_row_sizes_loc;
-        Y.resize(rank_nrowgrps);
-        int32_t k = 0;
-        for(uint32_t i = 0; i < rank_nrowgrps; i++) {
-            if(leader_ranks[local_row_segments[i]] == Env::rank) {    
-                Y[i].resize(rowgrp_nranks);
-                for(uint32_t j = 0; j < rowgrp_nranks; j++)
-                    Y[i][j].resize(y_sizes[i]);
-                k++;
-            }
-            else {
-                Y[i].resize(1);
-                Y[i][0].resize(y_sizes[i]);
-            }
-        }
-        assert(k == num_owned_segments);
-        */
-        
     }
     
     pthread_barrier_wait(&p_barrier);
-    //for(int32_t k = 0; k < num_owned_segments; k++) {
-        //auto& v_data = V[tid];
-        auto* v_data = (Vertex_State*) V[tid];
-        //auto* v_data = (Vertex_State*) V[tid]->data;
-        //auto* v_data = (Vertex_State*) V->data[tid];
-        //auto& c_data = C[tid];
-        //auto* c_data = (char*) C[tid]->data;
-        auto* c_data = (char*) C[tid];
-        //auto* c_data = (char*) C->data[tid];
-        //Integer_Type v_nitems = v_data.size();
-        //Integer_Type v_nitems = V->nitems[tid];
-        //Integer_Type v_nitems = V[tid]->nitems;
-        //#pragma omp parallel for schedule(static)
-        for(uint32_t i = 0; i < tile_height; i++) {
-            Vertex_State& state = v_data[i]; 
-            c_data[i] = Vertex_Methods.initializer(get_vid(i, owned_segments[tid]), state);
-            //c_data[i] = initializer(get_vid(i, owned_segments[k]), state);
-        }
-    //}
-    //pthread_barrier_wait(&p_barrier);
-    
-    
-    
-    
+    auto* v_data = (Vertex_State*) V[tid];
+    auto* c_data = (char*) C[tid];
+    for(uint32_t i = 0; i < tile_height; i++) {
+        Vertex_State& state = v_data[i]; 
+        c_data[i] = Vertex_Methods.initializer(get_vid(i, owned_segments[tid]), state);
+    }
     
     #ifdef TIMING
     if(tid == 0) {
