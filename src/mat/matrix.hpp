@@ -739,7 +739,7 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_filtering() {
         colgrp_nnz_cols_sizes[j] = nnz_col_sizes_loc[io];
     }
     cgs_bytes.resize(num_owned_segments);
-    allocate_numa_vector<Integer_Type, Integer_Type>(&colgrp_nnz_cols, colgrp_nnz_cols_sizes, thread_sockets, cgs_bytes, cgs_offsets);
+    allocate_numa_vector<Integer_Type, Integer_Type>(&colgrp_nnz_cols, colgrp_nnz_cols_sizes, thread_sockets, cgs_bytes);
     
     for(int32_t j = 0; j < num_owned_segments; j++) { 
         uint32_t jo = accu_segment_cols[j];    
