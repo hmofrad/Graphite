@@ -35,8 +35,9 @@ class Graph {
         void load_text(std::string filepath_, Integer_Type nrows_, Integer_Type ncols_,
             bool directed_, bool transpose_, bool self_loops_, bool acyclic_, bool parallel_edges_, Tiling_type tiling_type_, 
             Compression_type compression_type_);   
+        void free_mat();
+        void free_graph();
         void free();
-
     private:
         std::string filepath;
         Integer_Type nrows, ncols;
@@ -59,6 +60,18 @@ Graph<Weight, Integer_Type, Fractional_Type>::Graph() : A(nullptr) {};
 
 template<typename Weight, typename Integer_Type, typename Fractional_Type>
 Graph<Weight, Integer_Type, Fractional_Type>::~Graph(){};
+
+template<typename Weight, typename Integer_Type, typename Fractional_Type>
+void Graph<Weight, Integer_Type, Fractional_Type>::free_mat() {
+    A->del_compression();
+}
+
+template<typename Weight, typename Integer_Type, typename Fractional_Type>
+void Graph<Weight, Integer_Type, Fractional_Type>::free_graph() {
+    A->del_filter();
+    A->free_tiling();    
+    delete A;
+}
 
 template<typename Weight, typename Integer_Type, typename Fractional_Type>
 void Graph<Weight, Integer_Type, Fractional_Type>::free() {
