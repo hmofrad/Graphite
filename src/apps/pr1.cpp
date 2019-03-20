@@ -34,6 +34,7 @@ int main(int argc, char** argv) {
     /* Degree execution */
     Graph<wp, ip, fp> G;    
     G.load(file_path, num_vertices, num_vertices, directed, transpose, self_loops, acyclic, parallel_edges, TT, CT);
+    
     bool stationary = true;
     bool gather_depends_on_apply = false;
     bool apply_depends_on_iter  = false;
@@ -41,15 +42,17 @@ int main(int argc, char** argv) {
     Deg_Program<wp, ip, fp> V(G, stationary, gather_depends_on_apply, apply_depends_on_iter, OT);
     V.execute(1);
     V.checksum();
-    G.free();
+    G.free_mat();
     Env::barrier();
     
+
     transpose = true;
     Graph<wp, ip, fp> GR;    
     GR.load(file_path, num_vertices, num_vertices, directed, transpose, self_loops, acyclic, parallel_edges, TT, CT);
     PR_Program<wp, ip, fp> VR(GR, stationary, gather_depends_on_apply, apply_depends_on_iter, OT);
     VR.initialize(V);
     V.free();
+    G.free_graph();
     VR.execute(num_iterations); // Vertex execution
     VR.checksum();
     VR.display();
