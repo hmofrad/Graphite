@@ -1,6 +1,6 @@
 /*
  * deg.h: Degree benchmark helper
- * (c) Mohammad Mofrad, 2019
+ * (c) Mohammad Hasanzadeh Mofrad, 2019
  * (e) m.hasanzadeh.mofrad@gmail.com 
  */
 
@@ -57,6 +57,7 @@ struct Deg_State {
         }
         */
 };
+//__attribute__((packed));
 
 class Deg_Methods_Impl {
   public:
