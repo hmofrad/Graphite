@@ -1,6 +1,6 @@
 /*
  * pr.cpp: PageRank benchmark main
- * (c) Mohammad Mofrad, 2018
+ * (c) Mohammad Hasanzadeh Mofrad, 2019
  * (e) m.hasanzadeh.mofrad@gmail.com 
  */
 
