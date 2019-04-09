@@ -1,6 +1,6 @@
 /*
  * pr.cpp: PageRank benchmark main
- * (c) Mohammad Mofrad, 2019
+ * (c) Mohammad Hasanzadeh Mofrad, 2019
  * (e) m.hasanzadeh.mofrad@gmail.com 
  */
 
@@ -28,7 +28,7 @@ int main(int argc, char** argv) {
     bool self_loops = true;
     bool acyclic = false;
     bool parallel_edges = true;
-    Tiling_type TT = _2D_;
+    Tiling_type TT = _NUMA_;
     Compression_type CT = _TCSC_;
     
     /* Degree execution */
@@ -41,7 +41,7 @@ int main(int argc, char** argv) {
     Deg_Program<wp, ip, fp> V(G, stationary, gather_depends_on_apply, apply_depends_on_iter, OT);
     V.execute(1);
     V.checksum();
-    
+    Env::barrier();
     /* Vertex execution */
     OT = _ROW_;
     PR_Program<wp, ip, fp> VR(G, stationary, gather_depends_on_apply, apply_depends_on_iter, OT);
