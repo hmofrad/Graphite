@@ -1,6 +1,6 @@
 /*
  * deg.cpp: Degree benchmark main
- * (c) Mohammad Mofrad, 2019
+ * (c) Mohammad Hasanzadeh Mofrad, 2019
  * (e) m.hasanzadeh.mofrad@gmail.com 
  */
 
@@ -41,9 +41,7 @@ int main(int argc, char** argv) {
     V.execute(num_iterations);
     V.checksum();
     V.display();
-    //V.free();
-    
-    
+    V.free();
     G.free();
     
     double time2 = Env::clock();
