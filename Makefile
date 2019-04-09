@@ -1,6 +1,6 @@
 #!/usr/bin/make
 # Makefile
-# (c) Mohammad Mofrad, 2019
+# (c) Mohammad Hasanzadeh Mofrad, 2019
 # (e) m.hasanzadeh.mofrad@gmail.com
 # make TIMING=-DTIMING to enable time counters
 
