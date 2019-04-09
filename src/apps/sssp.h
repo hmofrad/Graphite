@@ -1,6 +1,6 @@
 /* 
  * bfs.h: Breadth First Search (BFS) benchmark helper
- * (c) Mohammad Mofrad, 2019
+ * (c) Mohammad Hasanzadeh Mofrad, 2019
  * (e) m.hasanzadeh.mofrad@gmail.com 
  */
 
