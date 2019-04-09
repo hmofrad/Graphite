@@ -1,6 +1,6 @@
 /*
  * bfs.cpp: Breadth First Search (BFS) benchmark main
- * (c) Mohammad Mofrad, 2019
+ * (c) Mohammad Hasanzadeh Mofrad, 2019
  * (e) m.hasanzadeh.mofrad@gmail.com 
  */
 
