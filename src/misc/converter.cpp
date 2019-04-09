@@ -1,6 +1,6 @@
 /*
  * converter.cpp: Graph converter (Edge list <--> binary)
- * (c) Mohammad Mofrad, 2018
+ * (c) Mohammad Hasanzadeh Mofrad, 2019
  * (e) m.hasanzadeh.mofrad@gmail.com 
  * Standalone compile commnad:
  * g++ -o converter converter.cpp  -std=c++14 -DNDEBUG -O3 -flto -fwhole-program -march=native
