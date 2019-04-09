@@ -1,6 +1,6 @@
 /*
  * sssp.cpp: Single Source Shortest Path (SSSP) benchmark main
- * (c) Mohammad Mofrad, 2019
+ * (c) Mohammad Hasanzadeh Mofrad, 2019
  * (e) m.hasanzadeh.mofrad@gmail.com 
  */
 
@@ -47,7 +47,9 @@ int main(int argc, char** argv) {
     //V.root = root;
     V.set_root(root);
     V.execute(num_iterations);
-    //V.execute(std::atoi(argv[4]));
+    
+    
+    
     V.checksum();
     V.display();
     V.free();
