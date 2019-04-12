@@ -357,7 +357,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
         Integer_Type segment_size = tile_height;
         int socket_id = Env::socket_of_thread(i);
         auto allocator = Numa_Allocator<char>{};
-        Numa_Allocator<char>::socket_id = socket_id + i;
+        Numa_Allocator<char>::socket_id = socket_id;
         C1[i] = std::vector<char, Numa_Allocator<char>>(tile_height, allocator);
     }
     
@@ -366,8 +366,69 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
         Integer_Type segment_size = tile_height;
         int socket_id = Env::socket_of_thread(i);
         auto allocator = Numa_Allocator<Vertex_State>{};
+        Numa_Allocator<Vertex_State>::socket_id = socket_id;
         V1[i] = std::vector<Vertex_State, Numa_Allocator<Vertex_State>>(segment_size, allocator);
     }
+    
+    
+    // Initialize messages
+    std::vector<Integer_Type> x_sizes = nnz_col_sizes_loc;
+    int num_colgrps_per_thread = rank_ncolgrps / num_owned_segments;
+    assert((num_colgrps_per_thread * Env::nthreads) == (int32_t) rank_ncolgrps);
+    std::vector<int32_t> x_thread_sockets(rank_ncolgrps);    
+    for(int i = 0; i < num_colgrps_per_thread; i++) {
+        for(int j = 0; j < Env::nthreads; j++) {
+            int k = j + (i * Env::nthreads);
+            x_thread_sockets[k] = Env::socket_of_thread(j);
+        }
+    }
+    X1.resize(rank_ncolgrps);
+    for(uint32_t i = 0; i < rank_ncolgrps; i++) {
+        Integer_Type segment_size = x_sizes[i];
+        int socket_id = x_thread_sockets[i];
+        auto allocator = Numa_Allocator<Fractional_Type>{};
+        Numa_Allocator<Fractional_Type>::socket_id = socket_id;
+        X1[i] = std::vector<Fractional_Type, Numa_Allocator<Fractional_Type>>(segment_size, allocator);
+    }
+    
+    // Initialiaze accumulators
+    std::vector<Integer_Type> y_sizes = nnz_row_sizes_loc;
+    int num_rowgrps_per_thread = rank_nrowgrps / num_owned_segments;
+    assert((num_rowgrps_per_thread * Env::nthreads) == (int32_t) rank_nrowgrps);
+    std::vector<int32_t> y_thread_sockets(rank_nrowgrps);    
+    for(int i = 0; i < num_rowgrps_per_thread; i++) {
+        for(int j = 0; j < Env::nthreads; j++) {
+            int k = j + (i * Env::nthreads);
+            y_thread_sockets[k] = Env::socket_of_thread(j);
+        }
+    }
+    Y1.resize(rank_nrowgrps);
+    for(uint32_t i = 0; i < rank_nrowgrps; i++) {
+        Integer_Type segment_size = y_sizes[i];
+        int socket_id = y_thread_sockets[i];
+        auto allocator = Numa_Allocator<Fractional_Type>{};
+        Numa_Allocator<Fractional_Type>::socket_id = socket_id;
+        Y1[i] = std::vector<Fractional_Type, Numa_Allocator<Fractional_Type>>(segment_size, allocator);
+    }
+
+    // Partial accumulators
+    Yt1.resize(num_owned_segments);
+    for(int32_t j = 0; j < num_owned_segments; j++) {
+        std::vector<Integer_Type> row_size((rowgrp_nranks - 1), nnz_row_sizes_all[owned_segments[j]]);
+        std::vector<int32_t> row_socket((rowgrp_nranks - 1), Env::socket_of_thread(j));
+        //Yt_bytes[j].resize(rowgrp_nranks - 1);
+        
+        //allocate_numa_vector<Integer_Type, Fractional_Type>(&Yt[j], row_size, row_socket, Yt_bytes[j]);
+        Yt1[j].resize(rowgrp_nranks - 1);
+        for(uint32_t i = 0; i < (rank_nrowgrps - 1); i++) {
+            Integer_Type segment_size = row_size[i];
+            int socket_id = row_socket[i];
+            auto allocator = Numa_Allocator<Fractional_Type>{};
+            Numa_Allocator<Fractional_Type>::socket_id = socket_id;
+            Yt1[i][j] = new std::vector<Fractional_Type, Numa_Allocator<Fractional_Type>>(segment_size, allocator);
+        }
+    }
+    
 
 
     
@@ -433,75 +494,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
     //Env::barrier();
     //Env::exit(0);
     
-    /*
-    V1.resize(num_owned_segments);
-    for(int i = 0; i < Env::nthreads; i++) {
-        Integer_Type segment_size = tile_height;
-        int socket_id = Env::socket_of_thread(i);
-        auto allocator = Numa_Allocator<Vertex_State>(socket_id);
-        V1[i] = new std::vector<Vertex_State, Numa_Allocator<Vertex_State>>(segment_size, allocator);
-    }
     
-    // Initialize messages
-    std::vector<Integer_Type> x_sizes = nnz_col_sizes_loc;
-    int num_colgrps_per_thread = rank_ncolgrps / num_owned_segments;
-    assert((num_colgrps_per_thread * Env::nthreads) == (int32_t) rank_ncolgrps);
-    std::vector<int32_t> x_thread_sockets(rank_ncolgrps);    
-    for(int i = 0; i < num_colgrps_per_thread; i++) {
-        for(int j = 0; j < Env::nthreads; j++) {
-            int k = j + (i * Env::nthreads);
-            x_thread_sockets[k] = Env::socket_of_thread(j);
-        }
-    }
-    X1.resize(rank_ncolgrps);
-    for(uint32_t i = 0; i < rank_ncolgrps; i++) {
-        Integer_Type segment_size = x_sizes[i];
-        int socket_id = x_thread_sockets[i];
-        auto allocator = Numa_Allocator<Fractional_Type>(socket_id);
-        X1[i] = new std::vector<Fractional_Type, Numa_Allocator<Fractional_Type>>(segment_size, allocator);
-    }
-    
-    // Initialiaze accumulators
-    std::vector<Integer_Type> y_sizes = nnz_row_sizes_loc;
-    int num_rowgrps_per_thread = rank_nrowgrps / num_owned_segments;
-    assert((num_rowgrps_per_thread * Env::nthreads) == (int32_t) rank_nrowgrps);
-    std::vector<int32_t> y_thread_sockets(rank_nrowgrps);    
-    for(int i = 0; i < num_rowgrps_per_thread; i++) {
-        for(int j = 0; j < Env::nthreads; j++) {
-            int k = j + (i * Env::nthreads);
-            y_thread_sockets[k] = Env::socket_of_thread(j);
-        }
-    }
-    Y1.resize(rank_nrowgrps);
-    for(uint32_t i = 0; i < rank_nrowgrps; i++) {
-        Integer_Type segment_size = y_sizes[i];
-        int socket_id = y_thread_sockets[i];
-        auto allocator = Numa_Allocator<Fractional_Type>(socket_id);
-        Y1[i] = new std::vector<Fractional_Type, Numa_Allocator<Fractional_Type>>(segment_size, allocator);
-    }
-    
-    
-    Y_bytes.resize(rank_nrowgrps);
-    //allocate_numa_vector<Integer_Type, Fractional_Type>(&Y, y_sizes, y_thread_sockets, Y_bytes);
-    
-    //Yt_bytes.resize(num_owned_segments);
-    // Partial accumulators
-    Yt1.resize(num_owned_segments);
-    for(int32_t j = 0; j < num_owned_segments; j++) {
-        std::vector<Integer_Type> row_size((rowgrp_nranks - 1), nnz_row_sizes_all[owned_segments[j]]);
-        std::vector<int32_t> row_socket((rowgrp_nranks - 1), Env::socket_of_thread(j));
-        //Yt_bytes[j].resize(rowgrp_nranks - 1);
-        
-        //allocate_numa_vector<Integer_Type, Fractional_Type>(&Yt[j], row_size, row_socket, Yt_bytes[j]);
-        Yt1[j].resize(rowgrp_nranks - 1);
-        for(uint32_t i = 0; i < (rank_nrowgrps - 1); i++) {
-            Integer_Type segment_size = row_size[i];
-            int socket_id = row_socket[i];
-            auto allocator = Numa_Allocator<Fractional_Type>(socket_id);
-            Yt1[i][j] = new std::vector<Fractional_Type, Numa_Allocator<Fractional_Type>>(segment_size, allocator);
-        }
-    }
-    */
 
     
     //printf("Out of loop\n");
