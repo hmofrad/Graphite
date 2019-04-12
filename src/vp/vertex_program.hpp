@@ -12,8 +12,13 @@
 
 #include "mpi/types.hpp" 
 #include "ds/numa_vector.hpp"
-#include "ds/custom_numa_alloc.hpp"
 
+
+//typedef struct {int socket_id;} socket_info;
+//extern socket_info SID{0};
+//static constexpr int static_socket_id = 1;
+#include "ds/custom_numa_alloc.hpp"
+//typedef struct {int socket_id; void set_sid(int sid) {socket_id = sid;}} socket_info;
 struct State { State() {}; };
 
 enum Ordering_type
@@ -49,7 +54,7 @@ class Vertex_Program
         bool apply_depends_on_iter = false;
         Integer_Type iteration = 0;
         Vertex_State** V = nullptr;
-        std::vector<std::vector<Vertex_State, Numa_Allocator<Vertex_State>>*> V1;
+        std::vector<std::vector<Vertex_State, Numa_Allocator<Vertex_State>>> V1;
     protected:
         bool already_initialized = false;
         bool check_for_convergence = false;
@@ -127,10 +132,13 @@ class Vertex_Program
         
         //struct Numa_Allocator<char> allocator_c_v;
         //struct allocator = Numa_Allocator<char>{};
-        std::vector<std::vector<char, Numa_Allocator<char>>*> C1;
-        std::vector<std::vector<Fractional_Type, Numa_Allocator<Fractional_Type>>*> X1;
-        std::vector<std::vector<Fractional_Type, Numa_Allocator<Fractional_Type>>*> Y1;
-        std::vector<std::vector<std::vector<Fractional_Type, Numa_Allocator<Fractional_Type>>*>> Yt1;
+        //std::vector<std::vector<char, Numa_Allocator<char, >>*> C1;
+        //using sid = int;
+
+        std::vector<std::vector<char, Numa_Allocator<char>>> C1;
+        std::vector<std::vector<Fractional_Type, Numa_Allocator<Fractional_Type>>> X1;
+        std::vector<std::vector<Fractional_Type, Numa_Allocator<Fractional_Type>>> Y1;
+        std::vector<std::vector<std::vector<Fractional_Type, Numa_Allocator<Fractional_Type>>>> Yt1;
         
         char** C = nullptr;
         Fractional_Type** X = nullptr;
@@ -344,14 +352,88 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
 
 template<typename Weight, typename Integer_Type, typename Fractional_Type, typename Vertex_State, typename Vertex_Methods_Impl>
 void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_Methods_Impl>::init_vectors() {
-    
     C1.resize(num_owned_segments);
     for(int i = 0; i < Env::nthreads; i++) {
         Integer_Type segment_size = tile_height;
         int socket_id = Env::socket_of_thread(i);
-        auto allocator = Numa_Allocator<char>(socket_id);
-        C1[i] = new std::vector<char, Numa_Allocator<char>>(tile_height, allocator);
+        auto allocator = Numa_Allocator<char>{};
+        Numa_Allocator<char>::socket_id = socket_id + i;
+        C1[i] = std::vector<char, Numa_Allocator<char>>(tile_height, allocator);
     }
+    
+    V1.resize(num_owned_segments);
+    for(int i = 0; i < Env::nthreads; i++) {
+        Integer_Type segment_size = tile_height;
+        int socket_id = Env::socket_of_thread(i);
+        auto allocator = Numa_Allocator<Vertex_State>{};
+        V1[i] = std::vector<Vertex_State, Numa_Allocator<Vertex_State>>(segment_size, allocator);
+    }
+
+
+    
+    
+    
+    //const int socket_id = 1; //Env::socket_of_thread(0);
+    
+    //auto allocator = Numa_Allocator<char>{};
+    //Numa_Allocator<char>::socket_id = Env::socket_of_thread(0);
+    //auto V = std::vector<char, Numa_Allocator<char>>(tile_height, allocator);
+    
+    //V.clear();
+    //V.shrink_to_fit();
+    
+    //std::vector<uint8_t, MyAllocator<uint8_t>>>(array_size, allocator);
+    //C2[0] = std::vector<char, Numa_Allocator<char>>(tile_height, allocator);
+    //static constexpr int static_socket_id = Env::socket_of_thread(0);
+    //C2[0] = std::vector<char, Numa_Allocator<char>>(tile_height, allocator);
+    //static constexpr int static_socket_id = 1;
+    //static_socket_id
+    
+    
+    //C1.resize(num_owned_segments);
+    //
+    //for(int i = 0; i < Env::nthreads; i++) {
+  //      Integer_Type segment_size = tile_height;
+//        int socket_id = Env::socket_of_thread(i);
+        //socket_info sid{socket_id};
+        //printf("%d\n", sid.socket_id);
+        //socket_info sid{socket_id};
+        //using Numa_vector = std::vector<char, Numa_Allocator<char>>;
+        //Numa_vector<char> myvec({handle});
+        //C2{sid};
+        //socket_info SID{20};
+        //SID.socket_id = 20;
+
+        //auto allocator = Numa_Allocator<char>{};
+        //C2 = std::vector<char, Numa_Allocator<char, socket_info>>(tile_height, allocator);
+
+        //auto allocator = Numa_Allocator<char>{};
+        //auto allocator = Numa_Allocator<char>(socket_id){};
+        
+        
+        //C1[i] = new std::vector<char, Numa_Allocator<char>>(tile_height, allocator);
+        //auto a = std::vector<char, Numa_Allocator<char>>(tile_height, allocator);
+        //auto a = std::make_unique<std::vector<uint8_t, MyAllocator<uint8_t>>>(array_size, allocator);
+        //C2{allocator};
+        //Numa_vector C2{allocator};
+        //C2[i] = std::make_unique<std::vector<char, Numa_Allocator<char>>>(tile_height, allocator);
+        //std::make_unique<
+        //auto* cd = (char*) C1[0];
+        //printf("print %d\n",  cd[10]);
+        //cd[10] = 2;
+        //printf("2.print %d\n",  cd[10]);
+        //printf("1.DONE %d\n", a[0]);
+    //}
+    
+    //auto& cd = C1[0];
+    //
+    //printf("2.DONE %d\n", C1[0][0]);
+    //C2.clear();
+    //C2.shrink_to_fit();
+    //Env::barrier();
+    //Env::exit(0);
+    
+    /*
     V1.resize(num_owned_segments);
     for(int i = 0; i < Env::nthreads; i++) {
         Integer_Type segment_size = tile_height;
@@ -419,9 +501,8 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
             Yt1[i][j] = new std::vector<Fractional_Type, Numa_Allocator<Fractional_Type>>(segment_size, allocator);
         }
     }
-    
+    */
 
-    
     
     //printf("Out of loop\n");
     
@@ -446,8 +527,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
     //C1.clear();
     //C1.shrink_to_fit();
     
-    Env::barrier();
-    Env::exit(0);
+
 
 }
 
@@ -592,6 +672,11 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
     if(tid == 0) {
         init_vectors();
     }
+    
+    printf("done\n");
+    Env::barrier();
+    Env::exit(0);
+    
     pthread_barrier_wait(&p_barrier);
     auto* v_data = (Vertex_State*) V[tid];
     auto* c_data = (char*) C[tid];
@@ -600,6 +685,10 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
         c_data[i] = Vertex_Methods.initializer(get_vid(i, owned_segments[tid]), state);
     }
     pthread_barrier_wait(&p_barrier);
+    
+    
+    
+    
     #ifdef TIMING
     if(tid == 0) {
         t2 = Env::clock();
