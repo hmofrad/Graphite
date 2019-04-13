@@ -54,8 +54,8 @@ class Vertex_Program
         bool apply_depends_on_iter = false;
         Integer_Type iteration = 0;
         Vertex_State** V = nullptr;
-        //std::vector<std::vector<Vertex_State, Numa_Allocator<Vertex_State>>> V1;
-        std::vector<std::vector<Vertex_State>> V1;
+        std::vector<std::vector<Vertex_State, Numa_Allocator<Vertex_State>>> V1;
+        //std::vector<std::vector<Vertex_State>> V1;
     protected:
         bool already_initialized = false;
         bool check_for_convergence = false;
@@ -136,17 +136,17 @@ class Vertex_Program
         //std::vector<std::vector<char, Numa_Allocator<char, >>*> C1;
         //using sid = int;
 
-        /*
+        
         std::vector<std::vector<char, Numa_Allocator<char>>> C1;
         std::vector<std::vector<Fractional_Type, Numa_Allocator<Fractional_Type>>> X1;
         std::vector<std::vector<Fractional_Type, Numa_Allocator<Fractional_Type>>> Y1;
         std::vector<std::vector<std::vector<Fractional_Type, Numa_Allocator<Fractional_Type>>>> Yt1;
-        */
+        /*
         std::vector<std::vector<char>> C1;
         std::vector<std::vector<Fractional_Type>> X1;
         std::vector<std::vector<Fractional_Type>> Y1;
         std::vector<std::vector<std::vector<Fractional_Type>>> Yt1;
-        
+        */
         char** C = nullptr;
         Fractional_Type** X = nullptr;
         Fractional_Type** Y = nullptr;
@@ -364,8 +364,8 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
         int socket_id = Env::socket_of_thread(i);
         auto allocator = Numa_Allocator<char>{};
         Numa_Allocator<char>::socket_id = socket_id;
-        //C1[i] = std::vector<char, Numa_Allocator<char>>(tile_height, allocator);
-        C1[i] = std::vector<char>(tile_height);
+        C1[i] = std::vector<char, Numa_Allocator<char>>(tile_height, allocator);
+        //C1[i] = std::vector<char>(tile_height);
     }
     
     V1.resize(num_owned_segments);
@@ -374,8 +374,8 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
         int socket_id = Env::socket_of_thread(i);
         auto allocator = Numa_Allocator<Vertex_State>{};
         Numa_Allocator<Vertex_State>::socket_id = socket_id;
-        //V1[i] = std::vector<Vertex_State, Numa_Allocator<Vertex_State>>(segment_size, allocator);
-        V1[i] = std::vector<Vertex_State>(segment_size);
+        V1[i] = std::vector<Vertex_State, Numa_Allocator<Vertex_State>>(segment_size, allocator);
+        //V1[i] = std::vector<Vertex_State>(segment_size);
     }
     
     // Initialize messages
@@ -395,8 +395,8 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
         int socket_id = x_thread_sockets[i];
         auto allocator = Numa_Allocator<Fractional_Type>{};
         Numa_Allocator<Fractional_Type>::socket_id = socket_id;
-        //X1[i] = std::vector<Fractional_Type, Numa_Allocator<Fractional_Type>>(segment_size, allocator);
-        X1[i] = std::vector<Fractional_Type>(segment_size);
+        X1[i] = std::vector<Fractional_Type, Numa_Allocator<Fractional_Type>>(segment_size, allocator);
+        //X1[i] = std::vector<Fractional_Type>(segment_size);
     }
     
     // Initialiaze accumulators
@@ -416,8 +416,8 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
         int socket_id = y_thread_sockets[i];
         auto allocator = Numa_Allocator<Fractional_Type>{};
         Numa_Allocator<Fractional_Type>::socket_id = socket_id;
-        //Y1[i] = std::vector<Fractional_Type, Numa_Allocator<Fractional_Type>>(segment_size, allocator);
-        Y1[i] = std::vector<Fractional_Type>(segment_size);
+        Y1[i] = std::vector<Fractional_Type, Numa_Allocator<Fractional_Type>>(segment_size, allocator);
+        //Y1[i] = std::vector<Fractional_Type>(segment_size);
     }
 
     // Partial accumulators
@@ -434,8 +434,8 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
             int socket_id = row_socket[j];
             auto allocator = Numa_Allocator<Fractional_Type>{};
             Numa_Allocator<Fractional_Type>::socket_id = socket_id;
-            //Yt1[i][j] = std::vector<Fractional_Type, Numa_Allocator<Fractional_Type>>(segment_size, allocator);
-            Yt1[i][j] = std::vector<Fractional_Type>(segment_size);
+            Yt1[i][j] = std::vector<Fractional_Type, Numa_Allocator<Fractional_Type>>(segment_size, allocator);
+            //Yt1[i][j] = std::vector<Fractional_Type>(segment_size);
         }
     }
 }
