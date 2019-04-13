@@ -218,8 +218,6 @@ struct Numa_Allocator {
             }
         }
         else {
-            
-            
             if(n) {
                 nbytes = (n * sizeof(Vector_Type));// + sizeof(Vector_Type);
                 alignment = (Env::L1_CACHE_LINE_SIZE - (nbytes % Env::L1_CACHE_LINE_SIZE));
@@ -251,18 +249,17 @@ struct Numa_Allocator {
         //nbytes = (n * sizeof(Vector_Type));
         //if(!Env::rank) printf("Deallocating %p %lu %lu %d\n", p, nbytes, alignment, p[n]);
         if(numa_available() != -1) {
-            if(p != nullptr) { 
-            if(n) {
-                nbytes = (n * sizeof(Vector_Type)) + alignment;
-                memset(p, 0, nbytes);    
-                numa_free(p, nbytes);
-                p = nullptr;
-            }
+            if(p) { 
+                if(n) {
+                    nbytes = (n * sizeof(Vector_Type)) + alignment;
+                    memset(p, 0, nbytes);    
+                    numa_free(p, nbytes);
+                    p = nullptr;
+                }
             }
         }
         else {
-            if(p != nullptr) { 
-            
+            if(p) { 
                 if(n) {
                     nbytes = (n * sizeof(Vector_Type)) + alignment;
                     memset(p, 0, nbytes);    
