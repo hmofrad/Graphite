@@ -534,12 +534,14 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
             int tid = omp_get_thread_num();
             uint32_t yi = accu_segment_rows[tid];
             auto* i_data = (char*) I[yi];
-            auto* v_data = (Vertex_State*) V[tid];
-            auto* c_data = (char*) C[tid];
+            //auto* v_data = (Vertex_State*) V[tid];
+            //auto* c_data = (char*) C[tid];
+            auto& v_data = V1[tid];
+            auto& c_data = C1[tid];
             for(uint32_t i = 0; i < tile_height; i++) {
                 Vertex_State& state = v_data[i]; 
                 if(i_data[i])
-                    c_data[i] = Vertex_Methods.initializer(get_vid(i, owned_segments[tid]), state, (const State&) VProgram.V[tid][i]);
+                    c_data[i] = Vertex_Methods.initializer(get_vid(i, owned_segments[tid]), state, (const State&) VProgram.V1[tid][i]);
             }
         }
     }
@@ -771,9 +773,6 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
         apply_time.push_back(elapsed_time);
     }
     #endif
-    printf("XXXXXXXXXXXXXX\n");
-    Env::barrier();
-    Env::exit(0);
 }
 
 
@@ -1221,7 +1220,8 @@ bool Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
     uint64_t c_sum_local = 0, c_sum_gloabl = 0;    
     if(check_for_convergence) {
         convergence_vec[tid] = 0;   
-        auto* c_data = (char*) C[tid];
+        //auto* c_data = (char*) C[tid];
+        auto& c_data = C1[tid];
         for(uint32_t i = 0; i < tile_height; i++) {
             if(not c_data[i]) {
                 c_sum_local++;
@@ -1255,15 +1255,21 @@ bool Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
     }
     if((stationary) or ((not stationary) and ((not gather_depends_on_apply) and (not apply_depends_on_iter)))) {;
         for(uint32_t j: row_indices) {
-            auto* y_data = (Fractional_Type*) Y[j];
-            uint64_t nbytes = Y_bytes[j];
-            memset(y_data, 0, nbytes);  
+            //auto* y_data = (Fractional_Type*) Y[j];
+            //uint64_t nbytes = Y_bytes[j];
+            //memset(y_data, 0, nbytes);  
+            auto& y_data = Y1[j];
+            uint64_t nbytes = y_data.size() * sizeof(Fractional_Type);
+            memset(y_data.data(), 0, nbytes);  
         }
         
         for(uint32_t j = 0; j < rowgrp_nranks - 1; j++) {
-            auto* yt_data = (Fractional_Type*) Yt[tid][j];
-            uint64_t nbytes = Yt_bytes[tid][j];
-            memset(yt_data, 0, nbytes); 
+            //auto* yt_data = (Fractional_Type*) Yt[tid][j];
+            //uint64_t nbytes = Yt_bytes[tid][j];
+            //memset(yt_data, 0, nbytes); 
+            auto& yt_data = Yt1[tid][j];
+            uint64_t nbytes = yt_data.size() * sizeof(Fractional_Type);
+            memset(yt_data.data(), 0, nbytes); 
         }
     }
 
@@ -1301,7 +1307,8 @@ template<typename Weight, typename Integer_Type, typename Fractional_Type, typen
 void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_Methods_Impl>::checksum() {
     uint64_t v_sum_local = 0, v_sum_global = 0;
     for(int32_t k = 0; k < num_owned_segments; k++) {
-        auto* v_data = (Vertex_State*) V[k];
+        //auto* v_data = (Vertex_State*) V[k];
+        auto& v_data = V1[k];
         for(uint32_t i = 0; i < tile_height; i++) {
             Vertex_State &state = v_data[i];
             if((state.get_state() != Vertex_Methods.infinity()) and (get_vid(i, owned_segments[k]) < nrows))    
@@ -1317,7 +1324,8 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
     
     uint64_t v_sum_local_ = 0, v_sum_global_ = 0;
     for(int32_t k = 0; k < num_owned_segments; k++) {
-        auto* v_data = (Vertex_State*) V[k];
+        //auto* v_data = (Vertex_State*) V[k];
+        auto& v_data = V1[k];
         for(uint32_t i = 0; i < tile_height; i++) {
             Vertex_State &state = v_data[i];
             if((state.get_state() != Vertex_Methods.infinity()) and (get_vid(i, owned_segments[k]) < nrows)) 
@@ -1338,7 +1346,8 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
     Env::barrier();
     if(Env::is_master) {
         Triple<Weight, Integer_Type> pair, pair1;
-        auto* v_data = (Vertex_State*) V[0];
+        //auto* v_data = (Vertex_State*) V[0];
+        auto& v_data = V1[0];
         for(uint32_t i = 0; i < count; i++) {
             pair.row = i;
             pair.col = 0;
@@ -1358,51 +1367,50 @@ Integer_Type Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State,
 
 template<typename Weight, typename Integer_Type, typename Fractional_Type, typename Vertex_State, typename Vertex_Methods_Impl>
 void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_Methods_Impl>::free() {
-    /*
+    
     for(int i = 0; i < num_owned_segments; i++) {
         C1[i].clear();
         C1[i].shrink_to_fit();
     }
-    C1.clear();
-    C1.shrink_to_fit();
+    //C1.clear();
+    //C1.shrink_to_fit();
     
     for(int i = 0; i < num_owned_segments; i++) {
         V1[i].clear();
         V1[i].shrink_to_fit();
     }
-    V1.clear();
-    V1.shrink_to_fit();
+    //V1.clear();
+    //V1.shrink_to_fit();
     
     for(uint32_t i = 0; i < rank_ncolgrps; i++) {
         X1[i].clear();
         X1[i].shrink_to_fit();
     }
-    X1.clear();
-    X1.shrink_to_fit();
+    //X1.clear();
+    //X1.shrink_to_fit();
     
     for(uint32_t i = 0; i < rank_nrowgrps; i++) {
         Y1[i].clear();
         Y1[i].shrink_to_fit();
     }
-    Y1.clear();
-    Y1.shrink_to_fit();
+    //Y1.clear();
+    //Y1.shrink_to_fit();
     
     for(uint32_t i = 0; i < rank_nrowgrps; i++) {
         Y1[i].clear();
         Y1[i].shrink_to_fit();
     }
-    Y1.clear();
-    Y1.shrink_to_fit();
+    //Y1.clear();
+    //Y1.shrink_to_fit();
     
     for(int32_t i = 0; i < num_owned_segments; i++) {
         for(uint32_t j = 0; j < (rank_nrowgrps - 1); j++) {
             Yt1[i][j].clear();
             Yt1[i][j].shrink_to_fit();
         }
-        Yt1[i].clear();
-        Yt1[i].shrink_to_fit();
+        //Yt1[i].clear();
+        //Yt1[i].shrink_to_fit();
     }
-    */
     
     /*
     std::vector<Integer_Type> c_v_sizes(num_owned_segments, tile_height);
