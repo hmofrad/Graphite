@@ -16,6 +16,7 @@
 #include "ds/vector.hpp"
 #include "ds/segment.hpp"
 #include "ds/numa_vector.hpp"
+#include "mat/hashers.hpp" 
 enum Filtering_type
 {
   _ROWS_,
@@ -65,7 +66,7 @@ class Matrix {
     
     public:    
         Matrix(Integer_Type nrows_, Integer_Type ncols_, uint32_t ntiles_, bool directed_, bool transpose_, bool parallel_edges_,
-               Tiling_type tiling_type_, Compression_type compression_type_);
+               Tiling_type tiling_type_, Compression_type compression_type_, Hashing_type hashing_type_);
         ~Matrix();
         
     private:
@@ -79,6 +80,8 @@ class Matrix {
         bool directed;
         bool transpose;
         bool parallel_edges;
+        Hashing_type hashing_type;
+        ReversibleHasher *hasher = nullptr;
         
         std::vector<Integer_Type> rows_sizes;
         Integer_Type rows_size;
@@ -166,6 +169,7 @@ class Matrix {
         struct Triple<Weight, Integer_Type> tile_of_triple(const struct Triple<Weight, Integer_Type>& triple);
         
         void free_tiling();
+        void free_hasher();
         void init_matrix();
         void del_triples();
         void init_tiles();
@@ -188,7 +192,7 @@ class Matrix {
 template<typename Weight, typename Integer_Type, typename Fractional_Type>
 Matrix<Weight, Integer_Type, Fractional_Type>::Matrix(Integer_Type nrows_, 
     Integer_Type ncols_, uint32_t ntiles_, bool directed_, bool transpose_, bool parallel_edges_, Tiling_type tiling_type_, 
-    Compression_type compression_type_) {
+    Compression_type compression_type_, Hashing_type hashing_type_) {
     nrows = nrows_;
     ncols = ncols_;
     ntiles = ntiles_;
@@ -202,6 +206,14 @@ Matrix<Weight, Integer_Type, Fractional_Type>::Matrix(Integer_Type nrows_,
     // Initialize tiling 
     tiling = new Tiling(Env::nranks, ntiles, nrowgrps, ncolgrps, tiling_type_);
     compression_type = compression_type_;
+    
+    // Initialize hashing
+    hashing_type = hashing_type_;
+    if (hashing_type == NONE)
+        hasher = new NullHasher();
+    else if (hashing_type == BUCKET)
+        hasher = new SimpleBucketHasher(nrows, Env::nranks);
+    
     // Initialize matrix
     init_matrix();
 }
@@ -212,6 +224,11 @@ Matrix<Weight, Integer_Type, Fractional_Type>::~Matrix(){};
 template<typename Weight, typename Integer_Type, typename Fractional_Type>
 void Matrix<Weight, Integer_Type, Fractional_Type>::free_tiling() {
     delete tiling;
+}
+
+template<typename Weight, typename Integer_Type, typename Fractional_Type>
+void Matrix<Weight, Integer_Type, Fractional_Type>::free_hasher() {
+    delete hasher;
 }
 
 template<typename Weight, typename Integer_Type, typename Fractional_Type>
@@ -1218,10 +1235,10 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_tcsc_threaded(int tid) 
         auto& iv_data = IV[yi];
         auto& j_data = J[xi];
         auto& jv_data = JV[xi];
-        if(tile.nedges) {
+        //if(tile.nedges) {
             tile.compressor = new TCSC_BASE<Weight, Integer_Type>(tile.triples->size(), c_nitems, r_nitems, sid);
             tile.compressor->populate(tile.triples, tile_height, tile_width, i_data, iv_data, j_data, jv_data);
-        }
+        //}
         xi++;
         next_row = (((tile.nth + 1) % tiling->rank_ncolgrps) == 0);
         if(next_row) {
