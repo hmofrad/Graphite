@@ -282,13 +282,14 @@ template <typename Vector_Type>
 int Numa_Allocator<Vector_Type>::socket_id;
 
 
-
+/*
 template<typename Integer_Type, typename Vector_Type>
 struct blk {
     Vector_Type* data;
     Integer_Type nitems;
     uint64_t nbytes;
 };
+*/
 /*
 template<typename Integer_Type, typename Vector_Type>
 void allocate_numa_vector(Vector_Type*** data, const std::vector<Integer_Type> nitems, const std::vector<int32_t> socket_ids, std::vector<uint64_t>& bytes) {
