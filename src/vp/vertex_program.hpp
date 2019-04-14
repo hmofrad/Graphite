@@ -219,7 +219,7 @@ class Vertex_Program
         bool directed;
         bool transpose;
         double activity_filtering_ratio = 0.6;
-        bool activity_filtering = true;
+        bool activity_filtering = false;
         bool accu_activity_filtering = false;
         bool msgs_activity_filtering = false;
         
@@ -632,7 +632,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
             xv_blk.nitems = x_sizes[i];
             xv_blk.socket_id = x_thread_sockets[i];
         }
-        allocate_numa_vector<Integer_Type, Integer_Type>(&XI, XV_blks);
+        allocate_numa_vector<Integer_Type, Integer_Type>(&XI, XI_blks);
         allocate_numa_vector<Integer_Type, Fractional_Type>(&XV, XV_blks);
         
         YI_blks.resize(rank_nrowgrps);
@@ -670,6 +670,11 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
         }
         
         T_blks.resize(rank_nrowgrps);
+        for(uint32_t i = 0; i < rank_nrowgrps; i++) {
+            auto& blk = T_blks[i];
+            blk.nitems = y_sizes[i];
+            blk.socket_id = y_thread_sockets[i];
+        }
         allocate_numa_vector<Integer_Type, char>(&T, T_blks);
     }
 }
@@ -1159,7 +1164,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
                 }
             }
         }
-        
+                
         xi++;
         communication = (((tile_th + 1) % rank_ncolgrps) == 0);
         if(communication) {
@@ -1222,6 +1227,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
             }
             xi = 0;
         }
+
     }
     MPI_Waitall(in_requests_t[tid].size(), in_requests_t[tid].data(), MPI_STATUSES_IGNORE);
     in_requests_t[tid].clear();
@@ -1256,7 +1262,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
         Env::print_time("Combine", elapsed_time);
         combine_time.push_back(elapsed_time);
     }
-    #endif       
+    #endif  
 }
 
 template<typename Weight, typename Integer_Type, typename Fractional_Type, typename Vertex_State, typename Vertex_Methods_Impl>
