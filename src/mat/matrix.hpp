@@ -210,10 +210,10 @@ Matrix<Weight, Integer_Type, Fractional_Type>::Matrix(Integer_Type nrows_,
     
     // Initialize hashing
     hashing_type = hashing_type_;
-    if (hashing_type == NONE)
+    if (hashing_type == _NONE_)
         hasher = new NullHasher();
-    else if (hashing_type == BUCKET)
-        hasher = new SimpleBucketHasher(nrows, Env::nranks);
+    else if (hashing_type == _BUCKET_)
+        hasher = new SimpleBucketHasher(nrows, Env::nsegments);
     
     // Initialize matrix
     init_matrix();
