@@ -185,6 +185,7 @@ class Matrix {
         void del_classifier();
         void print(std::string element);
         void distribute();
+        void balance();
         void init_filtering();
         void filter_vertices(Filtering_type filtering_type_);
 };
@@ -600,6 +601,7 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_tiles() {
         }
         tile.nedges = tile.triples->size();
     }
+    balance();
 }
 
 
@@ -691,6 +693,133 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::distribute() {
     auto retval = MPI_Type_free(&MANY_TRIPLES);
     assert(retval == MPI_SUCCESS);   
     MPI_Barrier(MPI_COMM_WORLD);
+}
+
+template<typename Weight, typename Integer_Type, typename Fractional_Type>
+void Matrix<Weight, Integer_Type, Fractional_Type>::balance()
+{
+    std::vector<std::vector<uint64_t>> nedges_grid(Env::nranks);
+    std::vector<uint64_t> rank_nedges(Env::nranks);
+    std::vector<uint64_t> rowgrp_nedges(nrowgrps);
+    std::vector<uint64_t> colgrp_nedges(ncolgrps);
+    
+    for(int32_t i = 0; i < Env::nranks; i++)
+        nedges_grid[i].resize(tiling->rank_ntiles);
+    
+    uint32_t k = 0;
+    for(uint32_t i = 0; i < nrowgrps; i++)
+    {
+        for(uint32_t j = 0; j < ncolgrps; j++)  
+        {
+            auto &tile = tiles[i][j];
+            if(Env::rank == (int32_t) tile.rank)
+            {
+                nedges_grid[Env::rank][k] = tile.nedges;
+                k++;
+            }
+        }
+    }
+
+    Env::barrier();
+    for(int32_t r = 0; r < Env::nranks; r++)
+    {
+        if(r != Env::rank)
+        {
+            auto &out_edges = nedges_grid[Env::rank];
+            auto &in_edges = nedges_grid[r];
+            MPI_Sendrecv(out_edges.data(), out_edges.size(), MPI_UNSIGNED_LONG, r, Env::rank, 
+                         in_edges.data(), in_edges.size(), MPI_UNSIGNED_LONG, r, r, Env::MPI_WORLD, MPI_STATUS_IGNORE);
+        }
+    }
+    Env::barrier();
+    
+    for(uint32_t i = 0; i < nrowgrps; i++)
+    {
+        for(uint32_t j = 0; j < ncolgrps; j++)  
+        {
+            auto &tile = tiles[i][j];
+            if(Env::rank != tile.rank)
+                tile.nedges = nedges_grid[tile.rank][tile.nth];
+            
+            rank_nedges[tile.rank] += tile.nedges;
+            rowgrp_nedges[i] += tile.nedges;
+            colgrp_nedges[j] += tile.nedges;
+            nedges += tile.nedges;
+        }
+    }
+    
+    print("nedges");
+     
+    if(!Env::rank)
+    {   
+        int32_t skip = 15;
+        double imbalance_threshold = .2;
+        double ratio = 0;
+        uint32_t count = 0;
+        printf("\nEdge balancing info (Not functional):\n");  
+        printf("Edge balancing: Total number of edges = %lu\n", nedges);
+        printf("Edge balancing: Balanced number of edges per ranks = %lu \n", nedges/Env::nranks);
+        printf("Edge balancing: imbalance ratio per ranks [0-%d]\n", Env::nranks-1);
+        printf("Edge balancing: ");
+        for(int32_t r = 0; r < Env::nranks; r++)
+        {
+            ratio = (double) (rank_nedges[r] / (double) (nedges/Env::nranks));
+            if(r < skip)
+                printf("%2.2f ", ratio);
+            if(fabs(ratio - 1) > imbalance_threshold)
+                count++;
+        }
+        if(Env::nranks > skip)
+            printf("...\n");
+        else
+            printf("\n");
+        if(count)
+        {
+            printf("Edge balancing: Edge distribution among %d ranks are not balanced.\n", count);
+        }
+        count = 0;
+        
+        printf("Edge balancing: Imbalance ratio per rowgroups [0-%d]\n", nrowgrps-1);
+        printf("Edge balancing: ");
+        for(uint32_t i = 0; i < nrowgrps; i++)
+        {
+            ratio = (double) (rowgrp_nedges[i] / (double) (nedges/nrowgrps));
+            if(i < (uint32_t) skip)
+                printf("%2.2f ", ratio);
+            if(fabs(ratio - 1) > imbalance_threshold)
+                count++;
+        }
+        if(nrowgrps > (uint32_t) skip)
+            printf("...\n");
+        else
+            printf("\n");
+        if(count)
+        {
+            printf("Edge balancing: Edge distribution among %d rowgroups are not balanced.\n", count);
+        }
+        count = 0;
+        
+        printf("Edge balancing: Imbalance ratio per colgroups [0-%d]\n", ncolgrps-1);
+        printf("Edge balancing: ");
+        for(uint32_t j = 0; j < ncolgrps; j++)
+        {
+            ratio = (double) (colgrp_nedges[j] / (double) (nedges/ncolgrps));
+            if(j < (uint32_t) skip)
+                printf("%2.2f ", ratio);
+            if(fabs(ratio - 1) > imbalance_threshold)
+                count++;
+        }
+        if(ncolgrps > (uint32_t) skip)
+            printf("...\n");
+        else
+            printf("\n");
+        if(count)
+        {
+            printf("Edge balancing: Edge distribution among %d colgroups are not balanced.", count);
+        }
+        printf("\n");
+    }
+    Env::barrier();
 }
 
 template<typename Weight, typename Integer_Type, typename Fractional_Type>
