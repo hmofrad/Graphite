@@ -9,8 +9,8 @@
 
 enum Hashing_type
 {
-  NONE,
-  BUCKET
+  _NONE_,
+  _BUCKET_
 };
 
 
