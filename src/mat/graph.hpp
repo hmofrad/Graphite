@@ -383,12 +383,8 @@ void Graph<Weight, Integer_Type, Fractional_Type>::parread_binary() {
             if(transpose)
                 std::swap(triple.row, triple.col);
             // Hash
-            if(!Env::rank)
-                printf("(%d %d) ", triple.row, triple.col);
             triple.row = (uint32_t) hasher->hash(triple.row);
             triple.col = (uint32_t) hasher->hash(triple.col);
-            if(!Env::rank)
-                printf("(%d %d)\n", triple.row, triple.col);
             // Insert edge
             triples.push_back(triple);
             // Only for undirected graphs        
