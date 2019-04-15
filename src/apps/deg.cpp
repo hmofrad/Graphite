@@ -29,8 +29,9 @@ int main(int argc, char** argv) {
     bool parallel_edges = true;
     Tiling_type TT = _NUMA_;
     Compression_type CT = _TCSC_;
+    Hashing_type HT = _NONE_;
     Graph<wp, ip, fp> G;    
-    G.load(file_path, num_vertices, num_vertices, directed, transpose, self_loops, acyclic, parallel_edges, TT, CT);
+    G.load(file_path, num_vertices, num_vertices, directed, transpose, self_loops, acyclic, parallel_edges, TT, CT, HT);
     bool stationary = true;
     bool gather_depends_on_apply = false;
     bool apply_depends_on_iter  = false;
