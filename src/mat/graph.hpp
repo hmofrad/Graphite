@@ -30,7 +30,7 @@ class Graph {
         void load(std::string filepath_, Integer_Type nrows_, Integer_Type ncols_,
             bool directed_ = true, bool transpose_ = false, bool self_loops_ = true, bool acyclic_ = false,
             bool parallel_edges_ = true, Tiling_type tiling_type_ = _2D_, Compression_type compression_type_ = _TCSC_,
-            Hashing_type hashing_type_ = NONE);
+            Hashing_type hashing_type_ = _NONE_);
         void load_binary(std::string filepath_, Integer_Type nrows_, Integer_Type ncols_,
             bool directed_, bool transpose_, bool self_loops_, bool acyclic_, bool parallel_edges_, Tiling_type tiling_type_, 
             Compression_type compression_type_, Hashing_type hashing_type_);
@@ -111,10 +111,11 @@ void Graph<Weight, Integer_Type, Fractional_Type>::init_graph(std::string filepa
     
     // Hasher
     hashing_type = hashing_type_;
-    if (hashing_type == NONE)
+    if (hashing_type == _NONE_)
         hasher = new NullHasher();
-    else if (hashing_type == BUCKET)
+    else if (hashing_type == _BUCKET_) {
         hasher = new SimpleBucketHasher(nrows, Env::nsegments);
+    }
     
     // Initialize matrix
     A = new Matrix<Weight, Integer_Type, Fractional_Type>(nrows, ncols, ntiles_, directed_, 
