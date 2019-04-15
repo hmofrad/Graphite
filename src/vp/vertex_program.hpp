@@ -38,7 +38,7 @@ class Vertex_Program
         Vertex_Methods_Impl Vertex_Methods;
         Vertex_Program(Vertex_Methods_Impl const &VMs) : Vertex_Methods(VMs) { };
         void set_root(Integer_Type root_) { 
-            Vertex_Methods.set_root(root_);
+            Vertex_Methods.set_root(hasher->hash(root_));
         };
         
         void execute(Integer_Type num_iterations_ = 0);
@@ -230,7 +230,7 @@ class Vertex_Program
         std::vector<MPI_Comm> colgrps_communicators;
         
         pthread_barrier_t p_barrier;
-        
+        ReversibleHasher *hasher;
         #ifdef TIMING
         void times();
         void stats(std::vector<double> &vec, double &sum, double &mean, double &std_dev);
@@ -262,6 +262,7 @@ Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_Metho
     leader_ranks = A->leader_ranks;
     owned_segments = Graph.A->owned_segments;
     owned_segments_all = Graph.A->owned_segments_all;
+    hasher = A->hasher;
     
     convergence_vec.resize(Env::nthreads);
     pthread_barrier_init(&p_barrier, NULL, Env::nthreads);
@@ -1517,7 +1518,9 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
             pair.col = 0;
             pair1 = A->base(pair, owned_segments[0], owned_segments[0]);
             Vertex_State& state = v_data[i];
-            std::cout << std::fixed <<  "vertex[" << pair1.row << "]:" << state.print_state() << std::endl;
+            
+            std::cout << std::fixed <<  "vertex[" << hasher->unhash(pair1.row) << "]:" << state.print_state() << std::endl;
+            //std::cout << std::fixed <<  "vertex[" << pair1.row << "]:" << state.print_state() << std::endl;
         }
     }
     Env::barrier();
