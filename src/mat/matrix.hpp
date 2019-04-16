@@ -1384,6 +1384,7 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_compression() {
         Env::exit(1);
     }
     Env::barrier();
+    Env::exit(0);
 }
 
 
@@ -1916,7 +1917,7 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_tcsc_cf() {
 template<typename Weight, typename Integer_Type, typename Fractional_Type>
 void Matrix<Weight, Integer_Type, Fractional_Type>::init_tcsc_cf_threaded(int tid) {
     
-    /*
+    
     int ret = Env::set_thread_affinity(tid);
     int cid = sched_getcpu();
     int sid =  Env::socket_of_cpu(cid);
@@ -1927,54 +1928,26 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_tcsc_cf_threaded(int ti
         yi = tile.ith;
         Integer_Type c_nitems = nnz_col_sizes_loc[xi];
         Integer_Type r_nitems = nnz_row_sizes_loc[yi];
-        
-        auto& i_data = I[yi];
-        auto& iv_data = IV[yi];
-        auto& j_data = J[xi];
-        auto& jv_data = JV[xi];
-        tile.compressor = new TCSC_BASE<Weight, Integer_Type>(tile.triples->size(), c_nitems, r_nitems, sid);
-        tile.compressor->populate(tile.triples, tile_height, tile_width, i_data, iv_data, j_data, jv_data);
+        auto* i_data = (char*) I[yi];
+        auto* iv_data = (Integer_Type*) IV[yi];
+        auto* j_data = (char*) J[xi];
+        auto* jv_data = (Integer_Type*) JV[xi];
+        auto& regular_rows_data = regular_rows[yi];
+        auto& regular_rows_bv_data = regular_rows_bitvector[yi];
+        auto& source_rows_data = source_rows[yi];
+        auto& source_rows_bv_data = source_rows_bitvector[yi];
+        auto& regular_cols_data = regular_cols[xi];
+        auto& regular_cols_bv_data = regular_cols_bitvector[xi];
+        auto& sink_cols_data = sink_cols[xi];
+        auto& sink_cols_bv_data = sink_cols_bitvector[xi];
+        tile.compressor = new TCSC_CF_BASE<Weight, Integer_Type>(tile.nedges, c_nitems, r_nitems);
+        tile.compressor->populate(tile.triples, tile_height, tile_width, i_data, iv_data, j_data, jv_data, regular_rows_data, regular_rows_bv_data, source_rows_data, source_rows_bv_data, regular_cols_data, regular_cols_bv_data, sink_cols_data, sink_cols_bv_data);
         xi++;
         next_row = (((tile.nth + 1) % tiling->rank_ncolgrps) == 0);
         if(next_row) {
             xi = 0;
         }
     }
-    
-    
-    uint32_t yi = 0, xi = 0, next_row = 0;
-    for(uint32_t t: local_tiles_row_order)
-    {
-        auto pair = tile_of_local_tile(t);
-        auto& tile = tiles[pair.row][pair.col];
-        Integer_Type c_nitems = nnz_col_sizes_loc[xi];
-        Integer_Type r_nitems = nnz_row_sizes_loc[yi];
-        auto& i_data = I[yi];
-        auto& iv_data = IV[yi];
-        auto& j_data = J[xi];
-        auto& jv_data = JV[xi];
-        auto& regular_rows_data = regular_rows[yi];
-        auto& regular_rows_bv_data = regular_rows_bitvector[yi];
-        auto& source_rows_data = source_rows[yi];
-        auto& source_rows_bv_data = source_rows_bitvector[yi];
-        auto& regular_columns_data = regular_columns[xi];
-        auto& regular_columns_bv_data = regular_columns_bitvector[xi];
-        auto& sink_columns_data = sink_columns[xi];
-        auto& sink_columns_bv_data = sink_columns_bitvector[xi];
-        tile.compressor = new TCSC_CF_BASE<Weight, Integer_Type>(tile.nedges, c_nitems, r_nitems);
-        if(tile.nedges)
-            tile.compressor->populate(tile.triples, tile_height, tile_width, i_data, iv_data, j_data, jv_data, regular_rows_data, regular_rows_bv_data, source_rows_data, source_rows_bv_data, regular_columns_data, regular_columns_bv_data, sink_columns_data, sink_columns_bv_data);
-        xi++;
-        next_row = (((tile.nth + 1) % tiling->rank_ncolgrps) == 0);
-        if(next_row) {
-            xi = 0;
-            yi++;
-        }
-    }  
-    del_classifier();
-}
-    */
-    
 }
 
 
