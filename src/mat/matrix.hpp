@@ -1383,6 +1383,7 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_compression() {
         fprintf(stderr, "ERROR(rank=%d): Edge compression: Invalid compression type\n", Env::rank);
         Env::exit(1);
     }
+    printf("compression is done\n");
     Env::barrier();
     Env::exit(0);
 }
