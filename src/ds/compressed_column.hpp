@@ -31,19 +31,19 @@ struct Compressed_column {
                               
         virtual void populate(const std::vector<struct Triple<Weight, Integer_Type>>* triples,
                               const Integer_Type tile_height, 
-                              const Integer_Type tile_width,                
-                              const std::vector<char>&         nnzrows_bitvector,
-                              const std::vector<Integer_Type>& nnzrows_indices, 
-                              const std::vector<char>&         nnzcols_bitvector,
-                              const std::vector<Integer_Type>& nnzcols_indices, 
+                              const Integer_Type tile_width,    
+                              const char*         nnzrows_bitvector,
+                              const Integer_Type* nnzrows_indices, 
+                              const char*         nnzcols_bitvector,
+                              const Integer_Type* nnzcols_indices,                
                               const std::vector<Integer_Type>& regular_rows_indices,
                               const std::vector<char>&         regular_rows_bitvector,
                               const std::vector<Integer_Type>& source_rows_indices,
                               const std::vector<char>&         source_rows_bitvector,
-                              const std::vector<Integer_Type>& regular_columns_indices,
-                              const std::vector<char>&         regular_columns_bitvector,
-                              const std::vector<Integer_Type>& sink_columns_indices,
-                              const std::vector<char>&         sink_columns_bitvector){};                              
+                              const std::vector<Integer_Type>& regular_cols_indices,
+                              const std::vector<char>&         regular_cols_bitvector,
+                              const std::vector<Integer_Type>& sink_cols_indices,
+                              const std::vector<char>&         sink_cols_bitvector){};                              
 };
 
 template<typename Weight, typename Integer_Type>
@@ -189,18 +189,18 @@ struct TCSC_CF_BASE : public Compressed_column<Weight, Integer_Type> {
         virtual void populate(const std::vector<struct Triple<Weight, Integer_Type>>* triples,
                               const Integer_Type tile_height, 
                               const Integer_Type tile_width,                
-                              const std::vector<char>&         nnzrows_bitvector,
-                              const std::vector<Integer_Type>& nnzrows_indices, 
-                              const std::vector<char>&         nnzcols_bitvector,
-                              const std::vector<Integer_Type>& nnzcols_indices, 
+                              const char*         nnzrows_bitvector,
+                              const Integer_Type* nnzrows_indices, 
+                              const char*         nnzcols_bitvector,
+                              const Integer_Type* nnzcols_indices,               
                               const std::vector<Integer_Type>& regular_rows_indices,
                               const std::vector<char>&         regular_rows_bitvector,
                               const std::vector<Integer_Type>& source_rows_indices,
                               const std::vector<char>&         source_rows_bitvector,
-                              const std::vector<Integer_Type>& regular_columns_indices,
-                              const std::vector<char>&         regular_columns_bitvector,
-                              const std::vector<Integer_Type>& sink_columns_indices,
-                              const std::vector<char>&         sink_columns_bitvector);
+                              const std::vector<Integer_Type>& regular_cols_indices,
+                              const std::vector<char>&         regular_cols_bitvector,
+                              const std::vector<Integer_Type>& sink_cols_indices,
+                              const std::vector<char>&         sink_cols_bitvector);
                               
         void allocate_local_reg(Integer_Type nnzcols_regulars_local_);
         void allocate_local_src(Integer_Type nnzcols_sources_local_);
@@ -371,18 +371,18 @@ template<typename Weight, typename Integer_Type>
 void TCSC_CF_BASE<Weight, Integer_Type>::populate(const std::vector<struct Triple<Weight, Integer_Type>>* triples,
                                                const Integer_Type tile_height, 
                                                const Integer_Type tile_width,                
-                                               const std::vector<char>&         nnzrows_bitvector,
-                                               const std::vector<Integer_Type>& nnzrows_indices, 
-                                               const std::vector<char>&         nnzcols_bitvector,
-                                               const std::vector<Integer_Type>& nnzcols_indices, 
+                                               const char*         nnzrows_bitvector,
+                                               const Integer_Type* nnzrows_indices, 
+                                               const char*         nnzcols_bitvector,
+                                               const Integer_Type* nnzcols_indices,     
                                                const std::vector<Integer_Type>& regular_rows_indices,
                                                const std::vector<char>&         regular_rows_bitvector,
                                                const std::vector<Integer_Type>& source_rows_indices,
                                                const std::vector<char>&         source_rows_bitvector,
-                                               const std::vector<Integer_Type>& regular_columns_indices,
-                                               const std::vector<char>&         regular_columns_bitvector,
-                                               const std::vector<Integer_Type>& sink_columns_indices,
-                                               const std::vector<char>&         sink_columns_bitvector) {
+                                               const std::vector<Integer_Type>& regular_cols_indices,
+                                               const std::vector<char>&         regular_cols_bitvector,
+                                               const std::vector<Integer_Type>& sink_cols_indices,
+                                               const std::vector<char>&         sink_cols_bitvector) {
     struct Triple<Weight, Integer_Type> pair;
     Integer_Type i = 0; // Row Index
     Integer_Type j = 1; // Col index
@@ -517,9 +517,9 @@ void TCSC_CF_BASE<Weight, Integer_Type>::populate(const std::vector<struct Tripl
     k = 0;
     l = 0;
     m = 0;
-    if(regular_columns_indices.size()) {
-        while((j1 < nnzcols_local) and (j2 < regular_columns_indices.size())) {
-            if(JC_LOCAL_VAL[j1] == regular_columns_indices[j2]) {
+    if(regular_cols_indices.size()) {
+        while((j1 < nnzcols_local) and (j2 < regular_cols_indices.size())) {
+            if(JC_LOCAL_VAL[j1] == regular_cols_indices[j2]) {
                 j = JC_LOCAL_IDX[j1];
                 for(i = JA[j]; i < JA[j + 1]; i++) {
                     if(source_rows_bitvector[IR[IA[i]]] == 1)
@@ -536,7 +536,7 @@ void TCSC_CF_BASE<Weight, Integer_Type>::populate(const std::vector<struct Tripl
                 j1++;
                 j2++;
             }
-            else if (JC_LOCAL_VAL[j1] < regular_columns_indices[j2])
+            else if (JC_LOCAL_VAL[j1] < regular_cols_indices[j2])
                 j1++;
             else
                 j2++;
@@ -568,8 +568,8 @@ void TCSC_CF_BASE<Weight, Integer_Type>::populate(const std::vector<struct Tripl
     r.shrink_to_fit();     
     if(NC_REG_R_REG_C) {
         
-        while((j1 < nnzcols_local) and (j2 < regular_columns_indices.size())) {
-            if(JC_LOCAL_VAL[j1] == regular_columns_indices[j2]) {
+        while((j1 < nnzcols_local) and (j2 < regular_cols_indices.size())) {
+            if(JC_LOCAL_VAL[j1] == regular_cols_indices[j2]) {
                 j = JC_LOCAL_IDX[j1];
                 for(i = JA[j]; i < JA[j + 1]; i++) {
                     if(source_rows_bitvector[IR[IA[i]]] == 1) {
@@ -603,7 +603,7 @@ void TCSC_CF_BASE<Weight, Integer_Type>::populate(const std::vector<struct Tripl
                 j1++;
                 j2++;
             }
-            else if (JC_LOCAL_VAL[j1] < regular_columns_indices[j2])
+            else if (JC_LOCAL_VAL[j1] < regular_cols_indices[j2])
                 j1++;
             else
                 j2++;
@@ -616,9 +616,9 @@ void TCSC_CF_BASE<Weight, Integer_Type>::populate(const std::vector<struct Tripl
     k = 0;
     l = 0;
     m = 0;
-    if(sink_columns_indices.size()) {
-        while((j1 < nnzcols_local) and (j2 < sink_columns_indices.size())) {
-            if(JC_LOCAL_VAL[j1] == sink_columns_indices[j2]) {
+    if(sink_cols_indices.size()) {
+        while((j1 < nnzcols_local) and (j2 < sink_cols_indices.size())) {
+            if(JC_LOCAL_VAL[j1] == sink_cols_indices[j2]) {
                 j = JC_LOCAL_IDX[j1];
                 for(i = JA[j]; i < JA[j + 1]; i++) {
                     if(source_rows_bitvector[IR[IA[i]]] == 1)
@@ -635,7 +635,7 @@ void TCSC_CF_BASE<Weight, Integer_Type>::populate(const std::vector<struct Tripl
                 j1++;
                 j2++;
             }
-            else if (JC_LOCAL_VAL[j1] < sink_columns_indices[j2])
+            else if (JC_LOCAL_VAL[j1] < sink_cols_indices[j2])
                 j1++;
             else
                 j2++;
@@ -667,8 +667,8 @@ void TCSC_CF_BASE<Weight, Integer_Type>::populate(const std::vector<struct Tripl
     r.clear();
     r.shrink_to_fit(); 
     if(NC_REG_R_SNK_C) {
-        while((j1 < nnzcols_local) and (j2 < sink_columns_indices.size())) {
-            if(JC_LOCAL_VAL[j1] == sink_columns_indices[j2]) {
+        while((j1 < nnzcols_local) and (j2 < sink_cols_indices.size())) {
+            if(JC_LOCAL_VAL[j1] == sink_cols_indices[j2]) {
                 j = JC_LOCAL_IDX[j1];
                 for(i = JA[j]; i < JA[j + 1]; i++) {
                     if(source_rows_bitvector[IR[IA[i]]] == 1) {
@@ -702,7 +702,7 @@ void TCSC_CF_BASE<Weight, Integer_Type>::populate(const std::vector<struct Tripl
                 j1++;
                 j2++;
             }
-            else if (JC_LOCAL_VAL[j1] < sink_columns_indices[j2])
+            else if (JC_LOCAL_VAL[j1] < sink_cols_indices[j2])
                 j1++;
             else
                 j2++;
@@ -715,9 +715,9 @@ void TCSC_CF_BASE<Weight, Integer_Type>::populate(const std::vector<struct Tripl
     j2 = 0;
     k = 0;
     l = 0;
-    if(regular_columns_indices.size()) {
-        while((j1 < nnzcols_local) and (j2 < regular_columns_indices.size())) {
-            if(JC_LOCAL_VAL[j1] == regular_columns_indices[j2]) {
+    if(regular_cols_indices.size()) {
+        while((j1 < nnzcols_local) and (j2 < regular_cols_indices.size())) {
+            if(JC_LOCAL_VAL[j1] == regular_cols_indices[j2]) {
                 j = JC_LOCAL_IDX[j1];
                 for(i = JA[j]; i < JA[j + 1]; i++) {
                     if(source_rows_bitvector[IR[IA[i]]] == 1) {
@@ -729,7 +729,7 @@ void TCSC_CF_BASE<Weight, Integer_Type>::populate(const std::vector<struct Tripl
                 j1++;
                 j2++;
             }
-            else if (JC_LOCAL_VAL[j1] < regular_columns_indices[j2])
+            else if (JC_LOCAL_VAL[j1] < regular_cols_indices[j2])
                 j1++;
             else
                 j2++;
@@ -761,8 +761,8 @@ void TCSC_CF_BASE<Weight, Integer_Type>::populate(const std::vector<struct Tripl
     r.clear();
     r.shrink_to_fit(); 
     if(NC_SRC_R_REG_C) {
-        while((j1 < nnzcols_local) and (j2 < regular_columns_indices.size())) {
-            if(JC_LOCAL_VAL[j1] == regular_columns_indices[j2]) {
+        while((j1 < nnzcols_local) and (j2 < regular_cols_indices.size())) {
+            if(JC_LOCAL_VAL[j1] == regular_cols_indices[j2]) {
                 j = JC_LOCAL_IDX[j1];
                 for(i = JA[j]; i < JA[j + 1]; i++) {
                     if(source_rows_bitvector[IR[IA[i]]] == 1) {
@@ -786,7 +786,7 @@ void TCSC_CF_BASE<Weight, Integer_Type>::populate(const std::vector<struct Tripl
                 j1++;
                 j2++;
             }
-            else if (JC_LOCAL_VAL[j1] < regular_columns_indices[j2])
+            else if (JC_LOCAL_VAL[j1] < regular_cols_indices[j2])
                 j1++;
             else
                 j2++;
@@ -800,9 +800,9 @@ void TCSC_CF_BASE<Weight, Integer_Type>::populate(const std::vector<struct Tripl
     k = 0;
     l = 0;
     m = 0;
-    if(sink_columns_indices.size()) {
-        while((j1 < nnzcols_local) and (j2 < sink_columns_indices.size())) {
-            if(JC_LOCAL_VAL[j1] == sink_columns_indices[j2]) {
+    if(sink_cols_indices.size()) {
+        while((j1 < nnzcols_local) and (j2 < sink_cols_indices.size())) {
+            if(JC_LOCAL_VAL[j1] == sink_cols_indices[j2]) {
                 j = JC_LOCAL_IDX[j1];
                 for(i = JA[j]; i < JA[j + 1]; i++) {
                     if(source_rows_bitvector[IR[IA[i]]] == 1)
@@ -812,7 +812,7 @@ void TCSC_CF_BASE<Weight, Integer_Type>::populate(const std::vector<struct Tripl
                 j1++;
                 j2++;
             }
-            else if (JC_LOCAL_VAL[j1] < sink_columns_indices[j2])
+            else if (JC_LOCAL_VAL[j1] < sink_cols_indices[j2])
                 j1++;
             else
                 j2++;
@@ -845,8 +845,8 @@ void TCSC_CF_BASE<Weight, Integer_Type>::populate(const std::vector<struct Tripl
     r.clear();
     r.shrink_to_fit(); 
     if(NC_SRC_R_REG_C) {
-        while((j1 < nnzcols_local) and (j2 < sink_columns_indices.size())) {
-            if(JC_LOCAL_VAL[j1] == sink_columns_indices[j2]) {
+        while((j1 < nnzcols_local) and (j2 < sink_cols_indices.size())) {
+            if(JC_LOCAL_VAL[j1] == sink_cols_indices[j2]) {
                 j = JC_LOCAL_IDX[j1];
                 for(i = JA[j]; i < JA[j + 1]; i++) {
                     if(source_rows_bitvector[IR[IA[i]]] == 1) {
@@ -870,7 +870,7 @@ void TCSC_CF_BASE<Weight, Integer_Type>::populate(const std::vector<struct Tripl
                 j1++;
                 j2++;
             }
-            else if (JC_LOCAL_VAL[j1] < sink_columns_indices[j2])
+            else if (JC_LOCAL_VAL[j1] < sink_cols_indices[j2])
                 j1++;
             else
                 j2++;
