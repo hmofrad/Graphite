@@ -383,6 +383,10 @@ void TCSC_CF_BASE<Weight, Integer_Type>::populate(const std::vector<struct Tripl
                                                const std::vector<char>&         regular_cols_bitvector,
                                                const std::vector<Integer_Type>& sink_cols_indices,
                                                const std::vector<char>&         sink_cols_bitvector) {
+    if(not(nnz and nnzcols and nnzrows)) {
+        return;
+    }        
+    
     struct Triple<Weight, Integer_Type> pair;
     Integer_Type i = 0; // Row Index
     Integer_Type j = 1; // Col index
