@@ -745,6 +745,7 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::distribute() {
 template<typename Weight, typename Integer_Type, typename Fractional_Type>
 void Matrix<Weight, Integer_Type, Fractional_Type>::balance()
 {
+    MPI_Barrier(MPI_COMM_WORLD);
     std::vector<std::vector<uint64_t>> nedges_grid(Env::nranks);
     std::vector<uint64_t> rank_nedges(Env::nranks);
     std::vector<uint64_t> rowgrp_nedges(nrowgrps);
@@ -767,7 +768,7 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::balance()
         }
     }
 
-    Env::barrier();
+
     for(int32_t r = 0; r < Env::nranks; r++)
     {
         if(r != Env::rank)
@@ -778,7 +779,7 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::balance()
                          in_edges.data(), in_edges.size(), MPI_UNSIGNED_LONG, r, r, Env::MPI_WORLD, MPI_STATUS_IGNORE);
         }
     }
-    Env::barrier();
+    MPI_Barrier(MPI_COMM_WORLD);
     
     for(uint32_t i = 0; i < nrowgrps; i++)
     {
@@ -796,7 +797,7 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::balance()
     }
     
     print("nedges");
-     
+    MPI_Barrier(MPI_COMM_WORLD); 
     if(!Env::rank)
     {   
         int32_t skip = 15;
@@ -866,7 +867,7 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::balance()
         }
         printf("\n");
     }
-    Env::barrier();
+    MPI_Barrier(MPI_COMM_WORLD);
 }
 
 template<typename Weight, typename Integer_Type, typename Fractional_Type>
@@ -1383,9 +1384,6 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_compression() {
         fprintf(stderr, "ERROR(rank=%d): Edge compression: Invalid compression type\n", Env::rank);
         Env::exit(1);
     }
-    printf("compression is done\n");
-    Env::barrier();
-    Env::exit(0);
 }
 
 
