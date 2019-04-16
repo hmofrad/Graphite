@@ -336,10 +336,8 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
     if(!num_iterations)
         check_for_convergence = true; 
     
-    #ifdef TIMING
     double t1, t2, elapsed_time;
     t1 = Env::clock();
-    #endif
     
     if(stationary) {
         std::vector<std::thread> threads;
@@ -362,10 +360,11 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
         }
     }
 
-    #ifdef TIMING
+    
     t2 = Env::clock();
     elapsed_time = t2 - t1;
     Env::print_time("Execute", elapsed_time);
+    #ifdef TIMING
     execute_time.push_back(elapsed_time);
     times();
     #endif
