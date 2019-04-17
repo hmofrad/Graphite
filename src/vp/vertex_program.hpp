@@ -127,7 +127,7 @@ class Vertex_Program
         std::vector<Integer_Type> nnz_cols_sizes;
         Integer_Type nnz_cols_size;
         std::vector<int32_t> accu_segment_rows, accu_segment_cols;
-        std::vector<int32_t> owned_segments_thread, accu_segments_rows_thread;
+        std::vector<int32_t> owned_segments_thread, accu_segments_rows_thread, accu_segments_cols_thread;
         std::vector<int32_t> convergence_vec;
         
         Matrix<Weight, Integer_Type, Fractional_Type>* A;          // Adjacency list        
@@ -266,6 +266,7 @@ Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_Metho
     owned_segments_all = Graph.A->owned_segments_all;
     owned_segments_thread = Graph.A->owned_segments_thread;
     accu_segments_rows_thread = Graph.A->accu_segments_rows_thread;
+    accu_segments_cols_thread = Graph.A->accu_segments_cols_thread;
     compression_type = A->compression_type;
     hasher = A->hasher;
     convergence_vec.resize(Env::nthreads);
@@ -707,7 +708,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
             for(uint32_t i = 0; i < tile_height; i++) {
                 Vertex_State& state = v_data[i]; 
                 if(i_data[i])
-                    c_data[i] = Vertex_Methods.initializer(get_vid(i, owned_segments[tid]), state, (const State&) VProgram.V[tid][i]);
+                    c_data[i] = Vertex_Methods.initializer(get_vid(i, owned_segments_thread[tid]), state, (const State&) VProgram.V[tid][i]);
             }
         }
     }
@@ -768,7 +769,8 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
     }
     #endif
 
-    uint32_t xo = accu_segment_cols[tid];    
+    //uint32_t xo = accu_segment_cols[tid];    
+    uint32_t xo = accu_segments_cols_thread[tid];    
     auto* x_data = (Fractional_Type*) X[xo];
     //auto& x_data = X1[xo];
     const auto* JC = (Integer_Type*) colgrp_nnz_cols[tid];
@@ -1027,7 +1029,8 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
     }
     #endif
 
-    uint32_t xo = accu_segment_cols[tid];
+    //uint32_t xo = accu_segment_cols[tid];
+    uint32_t xo = accu_segments_cols_thread[tid];
     auto* x_data = (Fractional_Type*) X[xo];
     auto* xi_data = (Integer_Type*) XI[xo];
     auto* xv_data = (Fractional_Type*) XV[xo];
