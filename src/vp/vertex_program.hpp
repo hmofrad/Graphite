@@ -127,7 +127,7 @@ class Vertex_Program
         std::vector<Integer_Type> nnz_cols_sizes;
         Integer_Type nnz_cols_size;
         std::vector<int32_t> accu_segment_rows, accu_segment_cols;
-        std::vector<int32_t> owned_segments_thread, accu_segments_rows_thread, accu_segments_cols_thread;
+        std::vector<int32_t> owned_segments_thread, accu_segments_rows_thread, accu_segments_cols_thread, tid_thread;
         std::vector<int32_t> convergence_vec;
         
         Matrix<Weight, Integer_Type, Fractional_Type>* A;          // Adjacency list        
@@ -267,6 +267,7 @@ Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_Metho
     owned_segments_thread = Graph.A->owned_segments_thread;
     accu_segments_rows_thread = Graph.A->accu_segments_rows_thread;
     accu_segments_cols_thread = Graph.A->accu_segments_cols_thread;
+    tid_thread = Graph.A->tid_thread;
     compression_type = A->compression_type;
     hasher = A->hasher;
     convergence_vec.resize(Env::nthreads);
@@ -700,6 +701,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
         {
             int tid = omp_get_thread_num();
             uint32_t yi = accu_segment_rows[tid];
+            //uint32_t yi = accu_segments_rows_thread[tid];
             auto* i_data = (char*) I[yi];
             auto* v_data = (Vertex_State*) V[tid];
             auto* c_data = (char*) C[tid];
@@ -708,7 +710,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
             for(uint32_t i = 0; i < tile_height; i++) {
                 Vertex_State& state = v_data[i]; 
                 if(i_data[i])
-                    c_data[i] = Vertex_Methods.initializer(get_vid(i, owned_segments_thread[tid]), state, (const State&) VProgram.V[tid][i]);
+                    c_data[i] = Vertex_Methods.initializer(get_vid(i, owned_segments[tid]), state, (const State&) VProgram.V[tid][i]);
             }
         }
     }
@@ -746,7 +748,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
     //auto& c_data = C1[tid];
     for(uint32_t i = 0; i < tile_height; i++) {
         Vertex_State& state = v_data[i]; 
-        c_data[i] = Vertex_Methods.initializer(get_vid(i, owned_segments_thread[tid]), state);
+        c_data[i] = Vertex_Methods.initializer(get_vid(i, owned_segments[tid]), state);
     }
     pthread_barrier_wait(&p_barrier);
     
@@ -930,9 +932,9 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
         t1 = Env::clock();
     }
     #endif
-    
-    //uint32_t yi  = accu_segment_rows[tid];
-    uint32_t yi  = accu_segments_rows_thread[tid];
+    tid = tid_thread[tid];
+    uint32_t yi  = accu_segment_rows[tid];
+    //uint32_t yi  = accu_segments_rows_thread[tid];
     const auto* y_data = (Fractional_Type*) Y[yi];
     //const auto& y_data = Y1[yi];
     auto* i_data = (char*) I[yi];
