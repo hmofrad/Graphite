@@ -200,7 +200,7 @@ class Matrix {
         std::vector<int32_t> owned_segments_row, owned_segments_col;
         int32_t num_owned_segments;
         std::vector<int32_t> owned_segments_all;
-        std::vector<int32_t> owned_segments_thread, accu_segments_rows_thread, accu_segments_cols_thread;
+        std::vector<int32_t> owned_segments_thread, accu_segments_rows_thread, accu_segments_cols_thread, tid_thread;
         std::vector<Integer_Type> nnz_row_sizes_all;
         std::vector<Integer_Type> nnz_col_sizes_all;
         std::vector<Integer_Type> nnz_row_sizes_loc;
@@ -572,6 +572,7 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_matrix() {
     owned_segments_thread.resize(num_owned_segments);
     accu_segments_rows_thread.resize(num_owned_segments);
     accu_segments_cols_thread.resize(num_owned_segments);
+    tid_thread.resize(num_owned_segments);
     uint32_t j = 0;
     for(uint32_t i = 0; i < tiling->rank_nrowgrps; i++) {
         if(owned_segments[j] == local_row_segments[i]) {
@@ -582,9 +583,18 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_matrix() {
     for(int32_t i = 0; i < num_owned_segments; i++) {
         owned_segments_thread[places[i]] = owned_segments[i];
         accu_segments_rows_thread[places[i]] = accu_segment_rows[i];
+        tid_thread[places[i]] = i;
+    }
+    j = 0;
+    for(uint32_t i = 0; i < tiling->rank_ncolgrps; i++) {
+        if(owned_segments[j] == local_col_segments[i]) {
+            places[j] = i % Env::nthreads;
+            j++;
+        }
+    }
+    for(int32_t i = 0; i < num_owned_segments; i++) {
         accu_segments_cols_thread[places[i]] = accu_segment_cols[i];
     }
-    
   
     // Print tiling assignment
     if(Env::is_master) {
@@ -667,7 +677,7 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_tiles() {
         }
         tile.nedges = tile.triples->size();
     }
-    balance();
+    //balance();
 }
 
 
