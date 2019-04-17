@@ -20,9 +20,9 @@
 
 #include <mpi.h>
 #include <omp.h>
-//#include <numa.h>
+#include <numa.h>
 #include <thread>
-#include </ihome/rmelhem/moh18/numactl/libnuma/usr/local/include/numa.h>
+//#include </ihome/rmelhem/moh18/numactl/libnuma/usr/local/include/numa.h>
 
 struct topology {
     int nmachines;
@@ -34,7 +34,8 @@ struct machine {
     std::vector<int> ranks;
     std::vector<int> sockets;
     int nsockets;
-    int socket_nranks;
+    //int socket_nranks;
+    std::vector<int> socket_nranks;
     std::string name;
     std::vector<std::vector<int>> socket_ranks;
 };
@@ -289,7 +290,8 @@ bool Env::affinity() {
         auto& machine = network.machines[i];
         machine.name = machines[i];
         machine.socket_ranks.resize(nsockets);
-        machine.socket_nranks = socket_nranks;
+        machine.socket_nranks.resize(nsockets);
+        //machine.socket_nranks = socket_nranks;
     }
    
     std::vector<std::string>::iterator it;
@@ -308,6 +310,32 @@ bool Env::affinity() {
         network.machines[idx].sockets.push_back(sid); 
     }  
     
+    for(auto& machine: network.machines) {
+        int i = 0;
+        for(int j = 0; j < nsockets; j++) {
+            int uniq = std::set<int>(machine.socket_ranks[j].begin(), machine.socket_ranks[j].end()).size();
+            machine.socket_nranks[j] = uniq;
+        }
+    }
+    
+    for(auto& machine: network.machines) {
+        for(std::vector<int>& socket_ranks_: machine.socket_ranks) {
+            std::vector<int> this_socket_ranks = socket_ranks_;
+            this_socket_ranks.erase(std::unique(this_socket_ranks.begin(), this_socket_ranks.end()), this_socket_ranks.end());
+            for(int rank_: this_socket_ranks) { 
+                if(std::find(ranks.begin(), ranks.end(), rank_) == ranks.end())
+                    ranks.push_back(rank_);
+            }
+        }
+    }
+    
+    if(nranks != (int32_t) ranks.size()) {
+        enabled = false;
+    }
+    
+    
+    
+    /*
     i = 0;
     ranks.resize(nranks);
     for(auto& machine: network.machines) {
@@ -341,15 +369,18 @@ bool Env::affinity() {
         if(not enabled)
             break;
     }  
+    */
+
+    
     if(not enabled) {
         if(is_master)
             printf("WARN(rank=%d): Failure to enable 2D NUMA tiling. Falling back to 2D machine level tiling\n", rank);
     }
-    /*
+    
     Env::barrier();
     if(!Env::rank) {
         for(auto& machine: network.machines) {
-            printf("%s\n", machine.name.c_str());
+            printf("INFO(rank=%d): %s\n", Env::rank, machine.name.c_str());
             printf("   Ranks  : ");
             for(int rank_: machine.ranks)
                 printf("%d ", rank_);
@@ -364,16 +395,19 @@ bool Env::affinity() {
                     printf("%d ", rank_);
                 printf("\n");
             }
-            
+            printf("   Sockets nranks: ");
+            for(int socket_nranks_: machine.socket_nranks) {
+                printf("%d ", socket_nranks_);
+            }
+            printf("\n");
         }
-        printf("NUMA ranks order: ");
+        printf("   NUMA ranks order: ");
         for(int i = 0; i < nranks; i++) {
             printf("%d ", ranks[i]);
         }
         printf("\n");
     }
     Env::barrier();
-    */
     return(enabled);
 }
 
