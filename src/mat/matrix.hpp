@@ -685,13 +685,39 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_matrix() {
         }
     }
     
+    std::vector<int32_t> places(num_owned_segments);
+    int32_t j = 0;
+    for(int32_t i = 0; i < num_owned_segments; i++) {
+        for(int32_t t: local_tiles_row_order_t[i]) {
+            pair = tile_of_local_tile(t);
+            
+            auto it = std::find(owned_segments.begin(), owned_segments.end(), t);
+            if(it != owned_segments.end()){
+                thread_nsegments[i]++;
+                //auto idx = std::distance(owned_segments.begin(), it);
+            auto it = std::find(owned_segments.begin(), owned_segments.end(), t);
+            if(it != owned_segments.end()){
+                auto idx = std::distance(owned_segments.begin(), it);
+                places[i] = idx;
+                
+            }
+
+    }
+    
+    owned_segments_thread.resize(num_owned_segments);
+    accu_segments_rows_thread.resize(num_owned_segments);
+    //accu_segments_cols_thread.resize(num_owned_segments);
+    tid_thread.resize(num_owned_segments);
+    
+    for(int32_t i = 0; i < num_owned_segments; i++) {
+        owned_segments_thread[places[i]] = owned_segments[i];
+        accu_segments_rows_thread[places[i]] = accu_segment_rows[i];
+        tid_thread[places[i]] = i;
+    }
     
     /*
     std::vector<int32_t> places(num_owned_segments);
-    owned_segments_thread.resize(num_owned_segments);
-    accu_segments_rows_thread.resize(num_owned_segments);
-    accu_segments_cols_thread.resize(num_owned_segments);
-    tid_thread.resize(num_owned_segments);
+    
     uint32_t j = 0;
     for(uint32_t i = 0; i < tiling->rank_nrowgrps; i++) {
         if(owned_segments[j] == local_row_segments[i]) {
