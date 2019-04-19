@@ -564,7 +564,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
     std::vector<Integer_Type> c_v_sizes(num_owned_segments, tile_height);
     std::vector<int32_t> thread_sockets(num_owned_segments);
     for(int i = 0; i < Env::nthreads; i++) {
-        thread_sockets[i] = Env::socket_of_thread(tid_thread[i]);
+        thread_sockets[i] = Env::socket_of_thread(i);
         //thread_sockets[i] = Env::socket_of_thread(i);
     }
     V_blks.resize(num_owned_segments);
@@ -584,7 +584,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
     std::vector<Integer_Type> x_sizes = nnz_col_sizes_loc;
     std::vector<int32_t> x_thread_sockets(rank_ncolgrps);    
     for(uint32_t i = 0; i < rank_ncolgrps; i++) {
-        x_thread_sockets[i] = Env::socket_of_thread(tid_thread[colgrp_owner_thread[i]]);
+        x_thread_sockets[i] = Env::socket_of_thread(colgrp_owner_thread[i]);
     }
     /*
     int num_colgrps_per_thread = rank_ncolgrps / num_owned_segments;
@@ -609,7 +609,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
     std::vector<Integer_Type> y_sizes = nnz_row_sizes_loc;
     std::vector<int32_t> y_thread_sockets(rank_nrowgrps);    
     for(uint32_t i = 0; i < rank_nrowgrps; i++) {
-        y_thread_sockets[i] = Env::socket_of_thread(tid_thread[rowgrp_owner_thread[i]]);
+        y_thread_sockets[i] = Env::socket_of_thread(rowgrp_owner_thread[i]);
     }
     /*
     int num_rowgrps_per_thread = rank_nrowgrps / num_owned_segments;
@@ -635,8 +635,8 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
     Yt_blks.resize(num_owned_segments);
     for(int32_t i = 0; i < num_owned_segments; i++) {
         //int32_t ii = tid_thread[i];
-        std::vector<Integer_Type> row_size((rowgrp_nranks - 1), nnz_row_sizes_all[owned_segments_thread[i]]);
-        std::vector<int32_t> row_socket((rowgrp_nranks - 1), thread_sockets[tid_thread[i]]);
+        std::vector<Integer_Type> row_size((rowgrp_nranks - 1), nnz_row_sizes_all[owned_segments[i]]);
+        std::vector<int32_t> row_socket((rowgrp_nranks - 1), thread_sockets[i]);
         Yt_blks[i].resize(rowgrp_nranks - 1);
         for(uint32_t j = 0; j < (rowgrp_nranks - 1); j++) {
             auto& blk = Yt_blks[i][j];
@@ -712,7 +712,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
         YIt_blks.resize(num_owned_segments);
         YVt_blks.resize(num_owned_segments);
         for(int32_t i = 0; i < num_owned_segments; i++) {
-            i = tid_thread[i];
+            //i = tid_thread[i];
             std::vector<Integer_Type> row_size((rowgrp_nranks - 1), nnz_row_sizes_all[owned_segments[i]]);
             std::vector<int32_t> row_socket((rowgrp_nranks - 1), thread_sockets[i]);
             YIt_blks[i].resize(rowgrp_nranks - 1);
@@ -737,6 +737,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
         }
         allocate_numa_vector<Integer_Type, char>(&T, T_blks);
     }
+
 }
 
 
@@ -754,9 +755,10 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
         #pragma omp parallel 
         {
             int tid = omp_get_thread_num();
-            tid = tid_thread[tid];
+            //tid = tid_thread[tid];
             uint32_t yi = accu_segment_rows[tid];
             //uint32_t yi = accu_segments_rows_thread[tid];
+            
             auto* i_data = (char*) I[yi];
             auto* v_data = (Vertex_State*) V[tid];
             auto* c_data = (char*) C[tid];
@@ -783,11 +785,12 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
     Env::print_time("Init", elapsed_time);
     init_time.push_back(elapsed_time);
     #endif
+
 }
 
 template<typename Weight, typename Integer_Type, typename Fractional_Type, typename Vertex_State, typename Vertex_Methods_Impl>
 void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_Methods_Impl>::init_stationary(int tid) {
-    tid = tid_thread[tid];
+    //tid = tid_thread[tid];
     #ifdef TIMING
     double t1, t2, elapsed_time;
     if(tid == 0) {
@@ -818,13 +821,12 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
         init_time.push_back(elapsed_time);
     }
     #endif
-
 }
 
 template<typename Weight, typename Integer_Type, typename Fractional_Type, typename Vertex_State, typename Vertex_Methods_Impl>
 void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_Methods_Impl>::bcast_stationary(int tid) {      
     //int32_t ii = tid;
-    tid = tid_thread[tid];
+    //tid = tid_thread[tid];
     #ifdef TIMING
     double t1, t2, elapsed_time;
     if(tid == 0) {
@@ -959,7 +961,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
                 for(uint32_t j = 0; j < rowgrp_nranks - 1; j++) {                        
                     follower = follower_rowgrp_ranks_rg[j];
                     auto* yj_data = (Fractional_Type*) Yt[tid][j];
-                    Integer_Type yj_nitems = nnz_row_sizes_all[owned_segments_thread[tid]];
+                    Integer_Type yj_nitems = nnz_row_sizes_all[owned_segments[tid]];
                     //if(y_nitems != Yt_blks[tid][j].nitems) printf("@@@@@@@@@@@@@@@\n");
                     //if(y_nitems != yj_nitems) printf("@@@@@@@@@@@@@@@\n");
                     //if(yj_data == nullptr) printf("++++++ %d %d %d %d %d %d %d %p\n", Env::rank, tid, tid_thread[tid], yi, pair.row, pair_idx, Yt_blks[tid_thread[tid]][j].nitems, yj_data);
@@ -997,14 +999,14 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
     MPI_Waitall(in_requests_t[tid].size(), in_requests_t[tid].data(), MPI_STATUSES_IGNORE);
     in_requests_t[tid].clear();
 
-    //yi  = accu_segment_rows[tid];
-    yi  = accu_segments_rows_thread[tid];
+    yi  = accu_segment_rows[tid];
+    //yi  = accu_segments_rows_thread[tid];
     auto* y_data = (Fractional_Type*) Y[yi];
     //auto& y_data = Y1[yi];
     for(uint32_t j = 0; j < rowgrp_nranks - 1; j++) {
     auto* yj_data = (Fractional_Type*) Yt[tid][j];
         //auto& yj_data = Yt1[tid][j];
-        Integer_Type yj_nitems = nnz_row_sizes_all[owned_segments_thread[tid]];
+        Integer_Type yj_nitems = nnz_row_sizes_all[owned_segments[tid]];
         for(uint32_t i = 0; i < yj_nitems; i++)
             Vertex_Methods.combiner(y_data[i], yj_data[i]);
     }
@@ -1022,6 +1024,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
     #endif    
     //Env::barrier();
     //Env::exit(0);
+                 
 }
 
 template<typename Weight, typename Integer_Type, typename Fractional_Type, typename Vertex_State, typename Vertex_Methods_Impl>
@@ -1034,14 +1037,14 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
         t1 = Env::clock();
     }
     #endif
-    //uint32_t yi  = accu_segment_rows[tid];
-    uint32_t yi  = accu_segments_rows_thread[tid];
+    uint32_t yi  = accu_segment_rows[tid];
+    //uint32_t yi  = accu_segments_rows_thread[tid];
     const auto* y_data = (Fractional_Type*) Y[yi];
     //const auto& y_data = Y1[yi];
     auto* i_data = (char*) I[yi];
     auto* iv_data = (Integer_Type*) IV[yi];
-    auto* v_data = (Vertex_State*) V[tid_thread[tid]];
-    auto* c_data = (char*) C[tid_thread[tid]];
+    auto* v_data = (Vertex_State*) V[tid];
+    auto* c_data = (char*) C[tid];
     
     //printf("%d %d %d %d\n", Env::rank, tid, owned_segments_thread[tid], accu_segments_rows_thread[tid]);
     //if(Env::rank == 10) {
@@ -1560,7 +1563,7 @@ bool Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
     */
     if((stationary) or ((not stationary) and ((not gather_depends_on_apply) and (not apply_depends_on_iter)))) {
         
-        for(int32_t j: rowgrp_owner_thread_segments[tid_thread[tid]]) {
+        for(int32_t j: rowgrp_owner_thread_segments[tid]) {
         //for(uint32_t j: row_indices) {
             auto* y_data = (Fractional_Type*) Y[j];
             uint64_t nbytes = Y_blks[j].nbytes;
