@@ -486,12 +486,14 @@ void Env::colgrps_init(std::vector<int32_t>& colgrps_ranks, int32_t colgrps_nran
         grps_init(colgrps_ranks, colgrps_nranks, rank_cg, nranks_cg, colgrps_groups_[i], colgrps_groups[i], colgrps_comms[i]);  
     }
     
+    /*
     colgrps_groups_thread_.resize(rank_ncolgrps);
     colgrps_groups_thread.resize(rank_ncolgrps);
     colgrps_comms_thread.resize(rank_ncolgrps);
     for(uint32_t i = 0; i < rank_ncolgrps; i++) {
         grps_init(colgrps_ranks, colgrps_nranks, rank_cg, nranks_cg, colgrps_groups_thread_[i], colgrps_groups_thread[i], colgrps_comms_thread[i]);  
     }
+    */
     
     /*
     colgrps_comms.resize(Env::nthreads);
