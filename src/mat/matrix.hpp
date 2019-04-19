@@ -23,7 +23,6 @@ enum Filtering_type
   _COLS_
 }; 
 
-
 template<typename Weight, typename Integer_Type, typename Fractional_Type>
 struct Tile2D { 
     template <typename Weight_, typename Integer_Type_, typename Fractional_Type_>
@@ -99,11 +98,6 @@ class Matrix {
         Integer_Type** rowgrp_nnz_rows = nullptr;
         Integer_Type** colgrp_nnz_cols = nullptr;        
         
-        /*
-        std::vector<Integer_Type> rowgrp_regular_rows;
-        std::vector<Integer_Type> rowgrp_source_rows;
-        std::vector<Integer_Type> colgrp_sink_cols;
-        */
         std::vector<std::vector<Integer_Type>> regular_rows; 
         std::vector<std::vector<char>> regular_rows_bitvector; 
         std::vector<std::vector<Integer_Type>> source_rows;
@@ -113,44 +107,12 @@ class Matrix {
         std::vector<std::vector<Integer_Type>> sink_cols;
         std::vector<std::vector<char>> sink_cols_bitvector;
         
-        
         Integer_Type** rowgrp_regular_rows;
         Integer_Type** rowgrp_source_rows;
         Integer_Type** colgrp_sink_cols;
         std::vector<struct blk<Integer_Type>> rowgrp_regular_rows_blks;
         std::vector<struct blk<Integer_Type>> rowgrp_source_rows_blks;
         std::vector<struct blk<Integer_Type>> colgrp_sink_cols_blks;
-        
-        /*
-        std::vector<Integer_Type**> regular_rows;
-        std::vector<char**> regular_rows_bitvector;
-        std::vector<Integer_Type**> source_rows;
-        std::vector<char**> source_rows_bitvector;
-        std::vector<Integer_Type**> regular_columns;
-        std::vector<char**> regular_columns_bitvector;
-        std::vector<Integer_Type**> sink_columns;
-        std::vector<char**> sink_columns_bitvector;
-        
-        std::vector<struct blk<Integer_Type>> rowgrp_regular_rows_blks;
-        std::vector<struct blk<Integer_Type>> rowgrp_source_rows_blks;
-        std::vector<struct blk<Integer_Type>> colgrp_sink_cols_blks;
-        std::vector<std::vector<struct blk<Integer_Type>>> regular_rows_blks;
-        std::vector<std::vector<struct blk<Integer_Type>>> regular_rows_bitvector_blks;
-        std::vector<std::vector<struct blk<Integer_Type>>> source_rows_blks;
-        std::vector<std::vector<struct blk<Integer_Type>>> source_rows_bitvector_blks;
-        std::vector<std::vector<struct blk<Integer_Type>>> regular_columns_blks;
-        std::vector<std::vector<struct blk<Integer_Type>>> regular_columns_bitvector_blks;
-        std::vector<std::vector<struct blk<Integer_Type>>> sink_columns_blks;
-        std::vector<std::vector<struct blk<Integer_Type>>> sink_columns_bitvector_blks;
-        */
-        /*
-        std::vector<uint64_t> I_bytes;
-        std::vector<uint64_t> IV_bytes;
-        std::vector<uint64_t> J_bytes;
-        std::vector<uint64_t> JV_bytes;
-        std::vector<uint64_t> rgs_bytes;
-        std::vector<uint64_t> cgs_bytes;
-        */
         
         std::vector<struct blk<Integer_Type>> I_blks;
         std::vector<struct blk<Integer_Type>> IV_blks;
@@ -439,7 +401,6 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_matrix() {
             }
         }
     }
-    
 
     //Calculate local tiles in column order
     for (uint32_t j = 0; j < ncolgrps; j++) {
@@ -521,7 +482,7 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_matrix() {
 
     if(not Env::get_init_status()) {
         Env::rowgrps_init(all_rowgrp_ranks, tiling->rowgrp_nranks, tiling->rank_nrowgrps);
-        Env::colgrps_init(all_colgrp_ranks, tiling->colgrp_nranks, tiling->rank_ncolgrps);
+        Env::colgrps_init(all_colgrp_ranks, tiling->colgrp_nranks);
         Env::set_init_status();
     }
     // Which column index in my rowgrps is mine when I'm the accumulator
@@ -555,8 +516,9 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_matrix() {
         }
     } 
 
-    
-    // Distribute tiles among threads
+    /* Distribute tiles among threads in a way that
+       each thread is the owner of one row group
+    */
     local_tiles_row_order_t.resize(Env::nthreads);    
     for(int32_t t: local_tiles_row_order) {
         pair = tile_of_local_tile(t);
@@ -589,117 +551,79 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_matrix() {
         }
     }
     
-    /*
-    Env::barrier();
-    if(Env::rank == 0) {
-        for(int32_t i = 0; i < num_owned_segments; i++) {
-            for(int32_t t: local_tiles[i]) {
-                printf("%d ", t);
-            }
-            printf("\n");
-        }
-        
-        for(int32_t i = 0; i < num_owned_segments; i++)
-            printf("%2d ", thread_nsegments[i]);
-        printf("\n");
-        printf("\n");
-        
-    }
-    Env::barrier();
-    */
-    
     bool swap_tiles = false;
     if(not(std::equal(thread_nsegments.begin() + 1, thread_nsegments.end(), thread_nsegments.begin())))
         swap_tiles = true;
     
     if(swap_tiles) {
         for(int32_t i = 0; i < num_owned_segments; i++) {
-            //if(thread_nsegments[i] > 1) {
-                for(int32_t j = 0; j < num_owned_segments; j++) {
-                    if((thread_nsegments[i] > 1) and (thread_nsegments[j] == 0)) {
-                        
-                        int32_t segment_i = thread_segments[i].back();
-                        thread_segments[i].pop_back();
-                        int32_t segment_j = -1;
-                        for(int32_t t: local_tiles[j]) {
-                            if (std::find(owned_segments.begin(), owned_segments.end(), t) == owned_segments.end()) {
-                                segment_j = t;
-                                break;
-                            }
+            for(int32_t j = 0; j < num_owned_segments; j++) {
+                if((thread_nsegments[i] > 1) and (thread_nsegments[j] == 0)) {
+                    int32_t segment_i = thread_segments[i].back();
+                    thread_segments[i].pop_back();
+                    int32_t segment_j = -1;
+                    for(int32_t t: local_tiles[j]) {
+                        if (std::find(owned_segments.begin(), owned_segments.end(), t) == owned_segments.end()) {
+                            segment_j = t;
+                            break;
                         }
-                        if(segment_j == -1) {
-                            fprintf(stderr, "ERROR(rank=%d): Cannot find a segment to swap\n", Env::rank);
-                            Env::exit(1);
-                        }                        
-                        
-                        int32_t s_i = 0;
-                        int32_t s_j = 0;
-                        int32_t s_n = local_tiles_row_order_t[i].size();
-                        while((s_i < s_n) and (s_j < s_n)) {
-                            int t_i = local_tiles_row_order_t[i][s_i];
-                            auto p_i = tile_of_local_tile(t_i);
-                            int t_j = local_tiles_row_order_t[j][s_j];
-                            auto p_j = tile_of_local_tile(t_j);
-                            if((p_i.row == (uint32_t) segment_i) and (p_j.row == (uint32_t) segment_j)) {
-                                local_tiles_row_order_t[i][s_i] = local_tiles_row_order_t[j][s_j];
-                                local_tiles_row_order_t[j][s_j] = t_i;
-                                s_i++;
-                                s_j++;
-                            }
-                            else if(p_i.row != (uint32_t) segment_i)
-                                s_i++;
-                            else if(p_j.row != (uint32_t) segment_j)
-                                s_j++;
-                        }
-                        
-                        for(uint32_t k = 0; k < local_tiles[i].size(); k++) {
-                            //if (std::find(owned_segments.begin(), owned_segments.end(), segment_i) == owned_segments.end()) {
-                            if(local_tiles[i][k] == segment_i) {
-                                local_tiles[i][k] = segment_j;
-                                break;
-                            }
-                        }
-                        
-                        for(uint32_t k = 0; k < local_tiles[j].size(); k++) {
-                            //if (std::find(owned_segments.begin(), owned_segments.end(), segment_j) == owned_segments.end()) {
-                            if(local_tiles[j][k] == segment_j) {
-                                local_tiles[j][k] = segment_i;
-                                break;
-                            }
-                        }
-                        
-                        thread_nsegments[i]--;
-                        thread_nsegments[j]++;
-                        //break;
                     }
+                    if(segment_j == -1) {
+                        fprintf(stderr, "ERROR(rank=%d): Cannot find a segment to swap\n", Env::rank);
+                        Env::exit(1);
+                    }                        
+                    
+                    int32_t s_i = 0;
+                    int32_t s_j = 0;
+                    int32_t s_n = local_tiles_row_order_t[i].size();
+                    while((s_i < s_n) and (s_j < s_n)) {
+                        int t_i = local_tiles_row_order_t[i][s_i];
+                        auto p_i = tile_of_local_tile(t_i);
+                        int t_j = local_tiles_row_order_t[j][s_j];
+                        auto p_j = tile_of_local_tile(t_j);
+                        if((p_i.row == (uint32_t) segment_i) and (p_j.row == (uint32_t) segment_j)) {
+                            local_tiles_row_order_t[i][s_i] = local_tiles_row_order_t[j][s_j];
+                            local_tiles_row_order_t[j][s_j] = t_i;
+                            s_i++;
+                            s_j++;
+                        }
+                        else if(p_i.row != (uint32_t) segment_i)
+                            s_i++;
+                        else if(p_j.row != (uint32_t) segment_j)
+                            s_j++;
+                    }
+                    
+                    for(uint32_t k = 0; k < local_tiles[i].size(); k++) {
+                        if(local_tiles[i][k] == segment_i) {
+                            local_tiles[i][k] = segment_j;
+                            break;
+                        }
+                    }
+                    
+                    for(uint32_t k = 0; k < local_tiles[j].size(); k++) {
+                        if(local_tiles[j][k] == segment_j) {
+                            local_tiles[j][k] = segment_i;
+                            break;
+                        }
+                    }
+                    
+                    thread_nsegments[i]--;
+                    thread_nsegments[j]++;
                 }
-            //}
-        }
-        /*
-        for(int32_t i = 0; i < num_owned_segments; i++) {
-            std::sort(local_tiles_row_order_t[i].begin(), local_tiles_row_order_t[i].end());
-            std::sort(local_tiles[i].begin(), local_tiles[i].end());
-        }
-        */
-    }
-    /*
-    owned_segments_thread.resize(num_owned_segments);
-    int32_t j = 0;
-    for(int32_t i = 0; i < num_owned_segments; i++) {
-        for(int32_t t: local_tiles_row_order_t[i]) {
-            pair = tile_of_local_tile(t);
-            auto it = std::find(owned_segments.begin(), owned_segments.end(), pair.row);
-            if(it != owned_segments.end()){
-                auto idx = std::distance(owned_segments.begin(), it);
-                owned_segments_thread[i] = owned_segments[idx];
-                j++;
-                break;
             }
         }
     }
-    assert(j == num_owned_segments);
-    */
+    if(not(std::equal(thread_nsegments.begin() + 1, thread_nsegments.end(), thread_nsegments.begin()))) {        
+        fprintf(stderr, "ERROR(rank=%d): Failure configuring 2D tiling\n", Env::rank);
+        Env::exit(1);
+    }
     
+    for(auto& t: local_tiles) {
+        t.clear();
+        t.shrink_to_fit();
+    }
+    local_tiles.clear();
+    local_tiles.shrink_to_fit();
     
     std::vector<int32_t> places(num_owned_segments);
     int32_t j = 0;
@@ -737,7 +661,6 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_matrix() {
                 }
             }
         }
-        
         for(int32_t i = 0; i < num_owned_segments; i++) {
             int32_t k = 0;
             for(uint32_t j = 0; j < local_tiles_row_order_t[i].size(); j++) {    
@@ -750,7 +673,6 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_matrix() {
                 }
             }
         }
-        
     }
     
     if(swap_tiles or sort_tiles) {
@@ -758,68 +680,8 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_matrix() {
             std::sort(local_tiles_row_order_t[i].begin(), local_tiles_row_order_t[i].end());
         }
     }
-    
-    /*
-    if(Env::rank == 2) {
-        for(int32_t i = 0; i < num_owned_segments; i++)
-            printf("%2d ", owned_segments[i]);
-        printf("\n");
-        for(int32_t i = 0; i < num_owned_segments; i++)
-            printf("%2d ", places[i]);
-        printf("\n");
-        
-        for(int32_t i = 0; i < num_owned_segments; i++) {
-            for(int32_t t: local_tiles_row_order_t[i]) {
-                pair = tile_of_local_tile(t);
-                printf("%d ", pair.row);
-            }
-            printf("\n");
-        }
-        
 
-    }
-    */
-/*
-        for(int32_t i = 0; i < num_owned_segments; i++) {
-        for(int32_t t: local_tiles_row_order_t[i]) {
-            pair = tile_of_local_tile(t);
-            auto it = std::find(owned_segments.begin(), owned_segments.end(), pair.row);
-            if(it != owned_segments.end()){
-                auto idx = std::distance(owned_segments.begin(), it);
-                places[i] = idx;
-                break;
-            }
-        }
-        */
-   // }
-    
-        
-
-    /*
-    owned_segments_thread.resize(num_owned_segments);
-    accu_segments_rows_thread.resize(num_owned_segments);
-    accu_segments_cols_thread.resize(num_owned_segments);
-    tid_thread.resize(num_owned_segments);
-    
-    for(int32_t i = 0; i < num_owned_segments; i++) {
-        
-        owned_segments_thread[places[i]] = owned_segments[i];
-        accu_segments_rows_thread[places[i]] = accu_segment_rows[i];
-        accu_segments_cols_thread[places[i]] = accu_segment_cols[i];
-        tid_thread[places[i]] = i;
-        */
-        /*
-        owned_segments_thread[i] = owned_segments[places[i]];
-        accu_segments_rows_thread[i] = accu_segment_rows[places[i]];
-        accu_segments_cols_thread[i] = accu_segment_cols[places[i]];
-        tid_thread[i] = places[i];
-        */
-        
-   // }
-    
-
-    
-    
+    // Assignment of threads to row groups
     rowgrp_owner_thread.resize(tiling->rank_nrowgrps);
     for(int32_t i = 0; i < num_owned_segments; i++) {
         for(int32_t t: local_tiles_row_order_t[i]) {
@@ -828,236 +690,27 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_matrix() {
             rowgrp_owner_thread[tile.ith] = i;
         }
     }
-    
     rowgrp_owner_thread_segments.resize(num_owned_segments);
     for(uint32_t i = 0; i < tiling->rank_nrowgrps; i++) {
         rowgrp_owner_thread_segments[rowgrp_owner_thread[i]].push_back(i);
     }
     
+    // Assignment of threads to column groups
     colgrp_owner_thread.resize(tiling->rank_ncolgrps);
     std::vector<std::vector<int32_t>> col_threads(tiling->rank_ncolgrps);
-    
     for(int32_t i = 0; i < num_owned_segments; i++) {
         for(int32_t t: local_tiles_col_order_t[i]) {
             pair = tile_of_local_tile(t);
             auto& tile = tiles[pair.row][pair.col];
             colgrp_owner_thread[tile.jth] = i;
-            //if(std::find(col_threads[tile.jth].begin(), col_threads[tile.jth].end(), i) == col_threads[tile.jth].end())
-             //   col_threads[tile.jth].push_back(i);
-            //colgrp_owner_thread[tile.jth] = i;
         }
     }
     colgrp_owner_thread_segments.resize(num_owned_segments);
     for(uint32_t i = 0; i < tiling->rank_ncolgrps; i++) {
         colgrp_owner_thread_segments[colgrp_owner_thread[i]].push_back(i);
     }
-    /*
-    if(Env::rank == 2) {
-        for(int32_t i = 0; i < num_owned_segments; i++)
-            printf("%2d ", places[i]);
-        printf("\n");
-        
-        for(int32_t i = 0; i < num_owned_segments; i++)
-            printf("%2d ", tid_thread[i]);
-        printf("\n");
-        for(int32_t i = 0; i < num_owned_segments; i++)
-            printf("%2d ", owned_segments[i]);
-        printf("\n");
-        
-        for(int32_t i = 0; i < num_owned_segments; i++)
-            printf("%2d ", owned_segments_thread[i]);
-        printf("\n");
-        
-        for(int32_t i = 0; i < num_owned_segments; i++)
-            printf("%2d ", accu_segment_rows[i]);
-        printf("\n");
-        
-        for(int32_t i = 0; i < num_owned_segments; i++)
-            printf("%2d ", accu_segments_rows_thread[i]);
-        printf("\n");
-        
-        for(int32_t i = 0; i < num_owned_segments; i++)
-            printf("%2d ", accu_segment_cols[i]);
-        printf("\n");
-        
-        for(int32_t i = 0; i < num_owned_segments; i++)
-            printf("%2d ", accu_segments_cols_thread[i]);
-        printf("\n");
-        
-        for(int32_t i = 0; i < num_owned_segments; i++) {
-            for(int32_t t: local_tiles_row_order_t[i]) {
-                pair = tile_of_local_tile(t);
-                printf("%d ", pair.row);
-            }
-            printf("\n");
-        }
-        
-        
-    }
-    */
-        
     
-
-    
-    
-
-    /*
     Env::barrier();
-    if(Env::rank == 20) {
-        
-        for(int32_t i = 0; i < num_owned_segments; i++){
-            for(int32_t j: colgrp_owner_thread_segments[i])
-                printf("%2d ", j);
-            printf("\n");
-        }
-        //printf(">>>\n");
-        
-        for(int32_t i = 0; i < num_owned_segments; i++)
-            printf("%2d ", i);
-        printf("\n");
-        
-        for(int32_t i = 0; i < num_owned_segments; i++)
-            printf("%2d ", owned_segments[i]);
-        printf("\n");
-        
-        for(int32_t i = 0; i < num_owned_segments; i++)
-            printf("%2d ", owned_segments_thread[i]);
-        printf("\n");
-        
-        for(int32_t i = 0; i < num_owned_segments; i++)
-            printf("%2d ", tid_thread[i]);
-        printf("\n");
-        
-        for(int32_t i = 0; i < num_owned_segments; i++) {
-            for(int32_t t: local_tiles_row_order_t[i]) {
-                pair = tile_of_local_tile(t);
-                printf("%d ", pair.row);
-            }
-            printf("\n");
-        }
-        for(int32_t i = 0; i < num_owned_segments; i++) {
-            for(int32_t t: local_tiles[i]) {
-                printf("%d ", t);
-            }
-            printf("\n");
-        }
-        for(int32_t i = 0; i < num_owned_segments; i++)
-            printf("%2d ", thread_nsegments[i]);
-        printf("\n");
-        
-        for(uint32_t i = 0; i < tiling->rank_nrowgrps; i++)
-            printf("%2d ", i);
-        printf("\n");    
-        
-        for(uint32_t i = 0; i < tiling->rank_nrowgrps; i++)
-            printf("%2d ", local_row_segments[i]);
-        printf("\n");
-        
-        //for(uint32_t i = 0; i < tiling->rank_nrowgrps; i++)
-        //    printf("%2d ", rowgrp_owner_thread[i]);
-        //printf("\n");
-        
-        ////for(int32_t i = 0; i < num_owned_segments; i++)
-          //  printf("%2d ", owned_segments[i]);
-        printf("\n");
-        
-        //for(int32_t i = 0; i < num_owned_segments; i++)
-        //    printf("%2d ", owned_segments_thread[i]);
-        //printf("\n");
-        
-        for(int32_t i = 0; i < num_owned_segments; i++)
-            printf("%2d ", accu_segment_rows[i]);
-        printf("\n");
-        
-        for(int32_t i = 0; i < num_owned_segments; i++)
-            printf("%2d ", accu_segments_rows_thread[i]);
-        printf("\n");
-        
-        //for(int32_t i = 0; i < num_owned_segments; i++)
-        //    printf("%2d ", i);
-        //printf("\n");
-        
-        //for(int32_t i = 0; i < num_owned_segments; i++)
-        //    printf("%2d ", tid_thread[i]);
-        //printf("\n");
-        
-        for(uint32_t i = 0; i < tiling->rank_ncolgrps; i++)
-            printf("%2d ", local_col_segments[i]);
-        printf("\n");
-        
-        for(uint32_t i = 0; i < tiling->rank_ncolgrps; i++)
-            printf("%2d ", colgrp_owner_thread[i]);
-        printf("\n");
-        
-        for(int32_t i = 0; i < num_owned_segments; i++)
-            printf("%2d ", accu_segment_cols[i]);
-        printf("\n");
-        
-        
-        //for(int32_t i = 0; i < num_owned_segments; i++)
-        //    printf("%2d ", accu_segments_cols_thread[i]);
-        //printf("\n");
-        
-    }
-    */
-    
-    if(not(std::equal(thread_nsegments.begin() + 1, thread_nsegments.end(), thread_nsegments.begin()))) {
-        
-        fprintf(stderr, "ERROR(rank=%d): Failure configuring 2D tiling\n", Env::rank);
-        Env::exit(1);
-    }
-    //Env::barrier();
-    //Env::exit(0);
-    
-    /*
-    Env::barrier();
-    if(Env::rank == 0) {
-        for(int32_t i = 0; i < num_owned_segments; i++){
-            for(int32_t j: rowgrp_owner_thread_segments[i])
-                printf("%2d ", j);
-            printf("\n");
-        }  
-        printf("\n");
-    }
-    Env::barrier();
-    if(Env::rank == 4) {
-        for(int32_t i = 0; i < num_owned_segments; i++){
-            for(int32_t j: rowgrp_owner_thread_segments[i])
-                printf("%2d ", j);
-            printf("\n");
-        }  
-        printf("\n");
-    }
-    Env::barrier();
-    if(Env::rank == 14) {
-        for(int32_t i = 0; i < num_owned_segments; i++){
-            for(int32_t j: rowgrp_owner_thread_segments[i])
-                printf("%2d ", j);
-            printf("\n");
-        }  
-        printf("\n");        
-    }
-    Env::barrier();
-    if(Env::rank == 24) {
-        for(int32_t i = 0; i < num_owned_segments; i++){
-            for(int32_t j: rowgrp_owner_thread_segments[i])
-                printf("%2d ", j);
-            printf("\n");
-        }    
-        printf("\n");
-    }
-    Env::barrier();
-    */
-    //print("rank");
-    //Env::barrier();
-    //Env::exit(0);
-    
-
-
-
-  
-    // Print tiling assignment
-    /*
     if(Env::is_master) {
         printf("INFO(rank=%d): 2D tiling: %d x %d [nrows x ncols]\n", Env::rank, nrows, ncols);
         printf("INFO(rank=%d): 2D tiling: %d x %d [nrowgrps x ncolgrps]\n", Env::rank, nrowgrps, ncolgrps);
@@ -1067,7 +720,7 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_matrix() {
         printf("INFO(rank=%d): 2D tiling: %d x %d [rank_nrowgrps x rank_ncolgrps]\n", Env::rank, tiling->rank_nrowgrps, tiling->rank_ncolgrps);
     }
     print("rank");
-    */
+    Env::barrier();
 }
 
 template<typename Weight, typename Integer_Type, typename Fractional_Type>
@@ -1259,7 +912,6 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::balance()
         }
     }
 
-
     for(int32_t r = 0; r < Env::nranks; r++)
     {
         if(r != Env::rank)
@@ -1372,19 +1024,6 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_filtering() {
     for(uint32_t i = 0; i < tiling->rank_nrowgrps; i++) {
         all_rowgrps_thread_sockets[i] = Env::socket_of_thread(rowgrp_owner_thread[i]);
     }
-    /*
-    std::vector<Integer_Type> i_sizes(tiling->rank_nrowgrps, tile_height);
-    int num_rowgrps_per_thread = tiling->rank_nrowgrps / num_owned_segments;
-    assert((num_rowgrps_per_thread * Env::nthreads) == (int32_t) tiling->rank_nrowgrps);
-    std::vector<int32_t> all_rowgrps_thread_sockets(tiling->rank_nrowgrps);    
-    for(int i = 0; i < num_rowgrps_per_thread; i++) {
-        for(int j = 0; j < Env::nthreads; j++) {
-            int k = j + (i * Env::nthreads);
-            //int k = tid_thread[j];
-            all_rowgrps_thread_sockets[k] = Env::socket_of_thread(j);
-        }
-    }
-    */
     I_blks.resize(tiling->rank_nrowgrps);
     IV_blks.resize(tiling->rank_nrowgrps);
     for(uint32_t i = 0; i < tiling->rank_nrowgrps; i++) {
@@ -1403,12 +1042,6 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_filtering() {
     for(int i = 0; i < Env::nthreads; i++) {
         thread_sockets[i] = Env::socket_of_thread(i);
     }
-    /*
-    std::vector<int32_t> thread_sockets(num_owned_segments);    
-    for(int i = 0; i < Env::nthreads; i++) {
-        thread_sockets[i] = Env::socket_of_thread(i);
-    }
-    */
     std::vector<Integer_Type> rowgrp_nnz_rows_sizes(num_owned_segments);
     for(int32_t j = 0; j < num_owned_segments; j++) {  
         uint32_t io = accu_segment_rows[j];
@@ -1440,19 +1073,6 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_filtering() {
     for(uint32_t i = 0; i < tiling->rank_ncolgrps; i++) {
         all_colgrps_thread_sockets[i] = Env::socket_of_thread(colgrp_owner_thread[i]);
     }
-    
-    /*
-    std::vector<Integer_Type> j_sizes(tiling->rank_ncolgrps, tile_width);
-    int num_colgrps_per_thread = tiling->rank_ncolgrps / num_owned_segments;
-    assert((num_colgrps_per_thread * Env::nthreads) == (int32_t) tiling->rank_ncolgrps);
-    std::vector<int32_t> all_colgrps_thread_sockets(tiling->rank_ncolgrps);    
-    for(int i = 0; i < num_colgrps_per_thread; i++) {
-        for(int j = 0; j < Env::nthreads; j++) {
-            int k = j + (i * Env::nthreads);
-            all_colgrps_thread_sockets[k] = Env::socket_of_thread(j);
-        }
-    }
-    */
     J_blks.resize(tiling->rank_ncolgrps);
     JV_blks.resize(tiling->rank_ncolgrps);
     for(uint32_t i = 0; i < tiling->rank_ncolgrps; i++) {
@@ -1491,96 +1111,6 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_filtering() {
             }
         }    
     }
-    
-    
-    /*
-    if(Env::is_master)
-        printf("INFO(rank=%d): Vertex filtering: Filtering zero rows/cols\n", Env::rank);
-    
-    // Filtering rows 
-    std::vector<Integer_Type> i_sizes(tiling->rank_nrowgrps, tile_height);
-    int num_rowgrps_per_thread = tiling->rank_nrowgrps / num_owned_segments;
-    assert((num_rowgrps_per_thread * Env::nthreads) == (int32_t) tiling->rank_nrowgrps);
-    std::vector<int32_t> all_rowgrps_thread_sockets(tiling->rank_nrowgrps);    
-    for(int i = 0; i < num_rowgrps_per_thread; i++) {
-        for(int j = 0; j < Env::nthreads; j++) {
-            int k = j + (i * Env::nthreads);
-            all_rowgrps_thread_sockets[k] = Env::socket_of_thread(j);
-        }
-    }
-    I_bytes.resize(tiling->rank_nrowgrps);
-    IV_bytes.resize(tiling->rank_nrowgrps);
-    allocate_numa_vector<Integer_Type, char>(&I, i_sizes, all_rowgrps_thread_sockets, I_bytes);
-    allocate_numa_vector<Integer_Type, Integer_Type>(&IV, i_sizes, all_rowgrps_thread_sockets, IV_bytes);
-    filter_vertices(_ROWS_);
-    
-
-    std::vector<int32_t> thread_sockets(num_owned_segments);    
-    for(int i = 0; i < Env::nthreads; i++) {
-        thread_sockets[i] = Env::socket_of_thread(i);
-    }
-    std::vector<Integer_Type> rowgrp_nnz_rows_sizes(num_owned_segments);
-    for(int32_t j = 0; j < num_owned_segments; j++) {  
-        uint32_t io = accu_segment_rows[j];
-        rowgrp_nnz_rows_sizes[j] = nnz_row_sizes_loc[io];
-    }
-    rgs_bytes.resize(num_owned_segments);
-    allocate_numa_vector<Integer_Type, Integer_Type>(&rowgrp_nnz_rows, rowgrp_nnz_rows_sizes, thread_sockets, rgs_bytes);
-    
-    for(int32_t j = 0; j < num_owned_segments; j++) {      
-        uint32_t io = accu_segment_rows[j];
-        auto* i_data = (char*) I[io];
-        auto* rgj_data = (Integer_Type*) rowgrp_nnz_rows[j];
-        Integer_Type k = 0;
-        for(Integer_Type i = 0; i < tile_height; i++) {
-            if(i_data[i]) {
-                rgj_data[k] = i;
-                k++;
-            }
-        }    
-    }
-
-    
-    // Filtering columns 
-    std::vector<Integer_Type> j_sizes(tiling->rank_ncolgrps, tile_width);
-    int num_colgrps_per_thread = tiling->rank_ncolgrps / num_owned_segments;
-    assert((num_colgrps_per_thread * Env::nthreads) == (int32_t) tiling->rank_ncolgrps);
-    std::vector<int32_t> all_colgrps_thread_sockets(tiling->rank_ncolgrps);    
-    for(int i = 0; i < num_colgrps_per_thread; i++) {
-        for(int j = 0; j < Env::nthreads; j++) {
-            int k = j + (i * Env::nthreads);
-            all_colgrps_thread_sockets[k] = Env::socket_of_thread(j);
-        }
-    }
-    J_bytes.resize(tiling->rank_ncolgrps);
-    JV_bytes.resize(tiling->rank_ncolgrps);
-    allocate_numa_vector<Integer_Type, char>(&J, j_sizes, all_colgrps_thread_sockets, J_bytes);
-    allocate_numa_vector<Integer_Type, Integer_Type>(&JV, j_sizes, all_colgrps_thread_sockets, JV_bytes);
-    filter_vertices(_COLS_);
-    
-    std::vector<Integer_Type> colgrp_nnz_cols_sizes(num_owned_segments);
-    for(int32_t j = 0; j < num_owned_segments; j++) {  
-        uint32_t io = accu_segment_cols[j];
-        colgrp_nnz_cols_sizes[j] = nnz_col_sizes_loc[io];
-    }
-    cgs_bytes.resize(num_owned_segments);
-    allocate_numa_vector<Integer_Type, Integer_Type>(&colgrp_nnz_cols, colgrp_nnz_cols_sizes, thread_sockets, cgs_bytes);
-    
-    for(int32_t j = 0; j < num_owned_segments; j++) { 
-        uint32_t jo = accu_segment_cols[j];    
-        auto* j_data = (char*) J[jo];
-        auto* cgj_data = (Integer_Type*) colgrp_nnz_cols[j];
-        Integer_Type k = 0;
-        for(Integer_Type i = 0; i < tile_width; i++) {
-            if(j_data[i]) {
-                cgj_data[k] = i;
-                k++;
-            }
-        }    
-    }
-    */
-    
-    
 }   
 
 template<typename Weight, typename Integer_Type, typename Fractional_Type>
@@ -2008,7 +1538,6 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::classify_vertices() {
         }
     }
     
-    
     // regular rows/cols
     MPI_Datatype TYPE_INT = Types<Weight, Integer_Type, Integer_Type>::get_data_type();
     std::vector<MPI_Request> out_requests;
@@ -2245,170 +1774,6 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::classify_vertices() {
         }
     }
     Env::barrier();
-    //rowgrp_regular_rows = regular_rows[io];
-    //rowgrp_source_rows = source_rows[io];
-    //colgrp_sink_columns = sink_columns[jo];
-    
-    /*
-    uint32_t io = accu_segment_row;
-    auto& i_data = I[io];
-    uint32_t jo = accu_segment_col;
-    auto& j_data = J[jo];
-    
-    regular_rows.resize(tiling->rank_nrowgrps);
-    source_rows.resize(tiling->rank_nrowgrps);
-    regular_columns.resize(tiling->rank_ncolgrps);
-    sink_columns.resize(tiling->rank_ncolgrps);
-    for(Integer_Type i = 0; i < tile_height; i++) {
-        if(i_data[i] and j_data[i]) {
-            regular_rows[io].push_back(i);
-            regular_columns[jo].push_back(i);
-        }
-        if(i_data[i] and !j_data[i])
-            source_rows[io].push_back(i);
-        if(!i_data[i] and j_data[i])
-            sink_columns[jo].push_back(i);
-    }
-    
-    // regular rows/cols
-    MPI_Datatype TYPE_INT = Types<Weight, Integer_Type, Integer_Type>::get_data_type();
-    std::vector<MPI_Request> out_requests;
-    std::vector<MPI_Request> in_requests;
-    MPI_Request request;
-    MPI_Status status;
-    int32_t leader, my_rank, row_group, col_group;
-    int32_t follower;
-    Integer_Type nitems = 0;
-    for (uint32_t i = 0; i < tiling->rank_nrowgrps; i++) {
-        row_group = local_row_segments[i];
-        leader = leader_ranks[row_group];
-        my_rank = Env::rank;
-        if(leader == my_rank) {            
-            for(uint32_t j = 0; j < tiling->rowgrp_nranks - 1; j++) {
-                follower = follower_rowgrp_ranks[j];
-                nitems = regular_rows[io].size();
-                MPI_Send(&nitems, 1, TYPE_INT, follower, row_group, Env::MPI_WORLD);
-                MPI_Isend(regular_rows[io].data(), regular_rows[io].size(), TYPE_INT, follower, row_group, Env::MPI_WORLD, &request);
-                out_requests.push_back(request);
-            }
-        }
-        else {
-            MPI_Recv(&nitems, 1, TYPE_INT, leader, row_group, Env::MPI_WORLD, &status);
-            regular_rows[i].resize(nitems);
-            MPI_Irecv(regular_rows[i].data(), regular_rows[i].size(), TYPE_INT, leader, row_group, Env::MPI_WORLD, &request);
-            in_requests.push_back(request);
-        }
-        
-    }
-    MPI_Waitall(in_requests.size(), in_requests.data(), MPI_STATUSES_IGNORE);
-    in_requests.clear();
-    MPI_Waitall(out_requests.size(), out_requests.data(), MPI_STATUSES_IGNORE);
-    out_requests.clear();
-    regular_rows_bitvector.resize(tiling->rank_nrowgrps);
-    for(uint32_t i = 0; i < tiling->rank_nrowgrps; i++)
-        regular_rows_bitvector[i].resize(tile_height);
-    for(uint32_t i = 0; i < tiling->rank_nrowgrps; i++) {
-        for(uint32_t j: regular_rows[i])
-            regular_rows_bitvector[i][j] = 1;
-    }
-    // Source rows
-    for (uint32_t i = 0; i < tiling->rank_nrowgrps; i++) {
-        row_group = local_row_segments[i];
-        leader = leader_ranks[row_group];
-        my_rank = Env::rank;
-        if(leader == my_rank) {            
-            for(uint32_t j = 0; j < tiling->rowgrp_nranks - 1; j++) {
-                follower = follower_rowgrp_ranks[j];
-                nitems = source_rows[io].size();
-                MPI_Send(&nitems, 1, TYPE_INT, follower, row_group, Env::MPI_WORLD);
-                MPI_Isend(source_rows[io].data(), source_rows[io].size(), TYPE_INT, follower, row_group, Env::MPI_WORLD, &request);
-                out_requests.push_back(request);
-            }
-        }
-        else {
-            MPI_Recv(&nitems, 1, TYPE_INT, leader, row_group, Env::MPI_WORLD, &status);
-            source_rows[i].resize(nitems);
-            MPI_Irecv(source_rows[i].data(), source_rows[i].size(), TYPE_INT, leader, row_group, Env::MPI_WORLD, &request);
-            in_requests.push_back(request);
-        }
-    }
-    MPI_Waitall(in_requests.size(), in_requests.data(), MPI_STATUSES_IGNORE);
-    in_requests.clear();
-    MPI_Waitall(out_requests.size(), out_requests.data(), MPI_STATUSES_IGNORE);
-    out_requests.clear();
-    source_rows_bitvector.resize(tiling->rank_nrowgrps);
-    for(uint32_t i = 0; i < tiling->rank_nrowgrps; i++)
-        source_rows_bitvector[i].resize(tile_height);
-    for(uint32_t i = 0; i < tiling->rank_nrowgrps; i++) {
-        for(Integer_Type j: source_rows[i])
-                source_rows_bitvector[i][j] = 1;
-    }
-    
-    // Regular columns
-    for(uint32_t i = 0; i < tiling->colgrp_nranks - 1; i++) {
-        col_group = local_col_segments[jo];
-        follower = follower_colgrp_ranks[i];
-        nitems = regular_columns[jo].size();
-        MPI_Send(&nitems, 1, TYPE_INT, follower, col_group, Env::MPI_WORLD);
-        MPI_Isend(regular_columns[jo].data(), regular_columns[jo].size(), TYPE_INT, follower, col_group, Env::MPI_WORLD, &request);
-        out_requests.push_back(request);
-    }
-    
-    for(uint32_t i = 0; i < tiling->rank_ncolgrps; i++) {
-        col_group = local_col_segments[i];
-        leader = leader_ranks[col_group];
-        my_rank = Env::rank;
-        if(leader != my_rank) {
-            MPI_Recv(&nitems, 1, TYPE_INT, leader, col_group, Env::MPI_WORLD, &status);
-            regular_columns[i].resize(nitems);
-            MPI_Irecv(regular_columns[i].data(), regular_columns[i].size(), TYPE_INT, leader, col_group, Env::MPI_WORLD, &request);
-            in_requests.push_back(request);
-        }
-    }
-    MPI_Waitall(in_requests.size(), in_requests.data(), MPI_STATUSES_IGNORE);
-    in_requests.clear();
-    MPI_Waitall(out_requests.size(), out_requests.data(), MPI_STATUSES_IGNORE);
-    out_requests.clear();
-    regular_columns_bitvector.resize(tiling->rank_ncolgrps);
-    for(uint32_t i = 0; i < tiling->rank_ncolgrps; i++)
-        regular_columns_bitvector[i].resize(tile_height);
-    for(uint32_t i = 0; i < tiling->rank_ncolgrps; i++) {
-        for(Integer_Type j: regular_columns[i])
-            regular_columns_bitvector[i][j] = 1;
-    }     
-    // Sink columns
-    for(uint32_t i = 0; i < tiling->colgrp_nranks - 1; i++) {
-        col_group = local_col_segments[jo];
-        follower = follower_colgrp_ranks[i];
-        nitems = sink_columns[jo].size();
-        MPI_Send(&nitems, 1, TYPE_INT, follower, col_group, Env::MPI_WORLD);
-        MPI_Isend(sink_columns[jo].data(), nitems, TYPE_INT, follower, col_group, Env::MPI_WORLD, &request);
-        out_requests.push_back(request);
-    }
-    
-    for(uint32_t i = 0; i < tiling->rank_ncolgrps; i++) {
-        col_group = local_col_segments[i];
-        leader = leader_ranks[col_group];
-        my_rank = Env::rank;
-        if(leader != my_rank) {
-            MPI_Recv(&nitems, 1, TYPE_INT, leader, col_group, Env::MPI_WORLD, &status);
-            sink_columns[i].resize(nitems);
-            MPI_Irecv(sink_columns[i].data(), sink_columns[i].size(), TYPE_INT, leader, col_group, Env::MPI_WORLD, &request);
-            in_requests.push_back(request);
-        }
-    }
-    MPI_Waitall(in_requests.size(), in_requests.data(), MPI_STATUSES_IGNORE);
-    in_requests.clear();
-    MPI_Waitall(out_requests.size(), out_requests.data(), MPI_STATUSES_IGNORE);
-    out_requests.clear();
-    sink_columns_bitvector.resize(tiling->rank_ncolgrps);
-    for(uint32_t i = 0; i < tiling->rank_ncolgrps; i++)
-        sink_columns_bitvector[i].resize(tile_height);
-    for(uint32_t i = 0; i < tiling->rank_ncolgrps; i++) {
-        for(Integer_Type j: sink_columns[i])
-            sink_columns_bitvector[i][j] = 1;
-    }    
-    */
 }
 
 template<typename Weight, typename Integer_Type, typename Fractional_Type>
@@ -2429,8 +1794,6 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_tcsc_cf() {
 
 template<typename Weight, typename Integer_Type, typename Fractional_Type>
 void Matrix<Weight, Integer_Type, Fractional_Type>::init_tcsc_cf_threaded(int tid) {
-    
-    
     int ret = Env::set_thread_affinity(tid);
     int cid = sched_getcpu();
     int sid =  Env::socket_of_cpu(cid);
@@ -2472,30 +1835,6 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::del_filter() {
     deallocate_numa_vector<Integer_Type, char>(&J, J_blks);
     deallocate_numa_vector<Integer_Type, Integer_Type>(&JV, JV_blks);
     deallocate_numa_vector<Integer_Type, Integer_Type>(&colgrp_nnz_cols, cgs_blks);
-    
-    /*
-    std::vector<Integer_Type> i_sizes(tiling->rank_nrowgrps, tile_height);
-    deallocate_numa_vector<Integer_Type, char>(&I, i_sizes, I_bytes);
-    deallocate_numa_vector<Integer_Type, Integer_Type>(&IV, i_sizes, IV_bytes);
-    
-    std::vector<Integer_Type> rowgrp_nnz_rows_sizes(num_owned_segments);
-    for(int32_t j = 0; j < num_owned_segments; j++) {  
-        uint32_t io = accu_segment_rows[j];
-        rowgrp_nnz_rows_sizes[j] = nnz_row_sizes_loc[io];
-    }
-    deallocate_numa_vector<Integer_Type, Integer_Type>(&rowgrp_nnz_rows, rowgrp_nnz_rows_sizes, rgs_bytes);
-
-    std::vector<Integer_Type> j_sizes(tiling->rank_ncolgrps, tile_width);
-    deallocate_numa_vector<Integer_Type, char>(&J, j_sizes, J_bytes);
-    deallocate_numa_vector<Integer_Type, Integer_Type>(&JV, j_sizes, JV_bytes);
-    
-    std::vector<Integer_Type> colgrp_nnz_cols_sizes(num_owned_segments);
-    for(int32_t j = 0; j < num_owned_segments; j++) {  
-        uint32_t io = accu_segment_cols[j];
-        colgrp_nnz_cols_sizes[j] = nnz_col_sizes_loc[io];
-    }
-    deallocate_numa_vector<Integer_Type, Integer_Type>(&colgrp_nnz_cols, colgrp_nnz_cols_sizes, cgs_bytes);
-    */
 }
 
 
