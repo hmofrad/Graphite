@@ -33,6 +33,7 @@ int main(int argc, char** argv) {
     Tiling_type TT = _NUMA_;
     Compression_type CT = _TCSC_;
     Hashing_type HT = _NONE_;
+    
     /* Single Source Shortest Path (SSSP) execution*/
     bool stationary = false;
     // Requirement for nonstationary algorithms on directed graphs
@@ -42,14 +43,9 @@ int main(int argc, char** argv) {
     G.load(file_path, num_vertices, num_vertices, directed, transpose, self_loops, acyclic, parallel_edges, TT, CT, HT);
     bool gather_depends_on_apply = true;
     bool apply_depends_on_iter  = false;
-    Ordering_type OT = _ROW_;
-    SSSP_Program<wp, ip, fp> V(G, stationary, gather_depends_on_apply, apply_depends_on_iter, OT);   
-    //V.root = root;
+    SSSP_Program<wp, ip, fp> V(G, stationary, gather_depends_on_apply, apply_depends_on_iter);   
     V.set_root(root);
     V.execute(num_iterations);
-    
-    
-    
     V.checksum();
     V.display();
     V.free();
