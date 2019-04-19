@@ -40,8 +40,7 @@ int main(int argc, char** argv) {
     G.load(file_path, num_vertices, num_vertices, directed, transpose, self_loops, acyclic, parallel_edges, TT, CT, HT);
     bool gather_depends_on_apply = false;
     bool apply_depends_on_iter  = true;
-    Ordering_type OT = _ROW_;
-    BFS_Program<wp, ip, fp> V(G, stationary, gather_depends_on_apply, apply_depends_on_iter, OT);   
+    BFS_Program<wp, ip, fp> V(G, stationary, gather_depends_on_apply, apply_depends_on_iter);   
     //V.root = root;
     V.set_root(root);
     V.execute();
