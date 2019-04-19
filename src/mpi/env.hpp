@@ -69,8 +69,8 @@ class Env {
         static int nranks_cg;
         static void grps_init(std::vector<int32_t>& grps_ranks, int32_t grps_nranks, 
                               int& grps_rank_, int& grps_nranks_, MPI_Group& grps_group_, MPI_Group& grps_group, MPI_Comm& grps_comm);
-        static void rowgrps_init(std::vector<int32_t>& rowgrps_ranks, int32_t rowgrps_nranks);
-        static void colgrps_init(std::vector<int32_t>& colgrps_ranks, int32_t colgrps_nranks);               
+        static void rowgrps_init(std::vector<int32_t>& rowgrps_ranks, int32_t rowgrps_nranks, uint32_t rank_nrowgrps);
+        static void colgrps_init(std::vector<int32_t>& colgrps_ranks, int32_t colgrps_nranks, uint32_t rank_ncolgrps);               
 
         static double clock();
         static void   print_time(std::string preamble, double time);
@@ -95,6 +95,10 @@ class Env {
         static std::vector<MPI_Comm> rowgrps_comms;
         static std::vector<MPI_Comm> colgrps_comms; 
         
+        static std::vector<MPI_Group> rowgrps_groups_thread_, rowgrps_groups_thread;
+        static std::vector<MPI_Group> colgrps_groups_thread_, colgrps_groups_thread;
+        static std::vector<MPI_Comm> rowgrps_comms_thread;
+        static std::vector<MPI_Comm> colgrps_comms_thread;         
         static std::vector<int> ranks; 
         static struct topology network;
         static long int L1_CACHE_LINE_SIZE;
@@ -138,6 +142,13 @@ std::vector<MPI_Comm> Env::rowgrps_comms;
 std::vector<MPI_Group> Env::colgrps_groups_;
 std::vector<MPI_Group> Env::colgrps_groups;
 std::vector<MPI_Comm> Env::colgrps_comms; 
+
+std::vector<MPI_Group> Env::rowgrps_groups_thread_;
+std::vector<MPI_Group> Env::rowgrps_groups_thread;
+std::vector<MPI_Comm> Env::rowgrps_comms_thread; 
+std::vector<MPI_Group> Env::colgrps_groups_thread_;
+std::vector<MPI_Group> Env::colgrps_groups_thread;
+std::vector<MPI_Comm> Env::colgrps_comms_thread; 
 
 std::vector<int> Env::ranks;
 struct topology Env::network;
@@ -241,7 +252,7 @@ int Env::socket_of_thread(int thread_id) {
 
 bool Env::affinity() {   
     bool enabled = true;
-    shuffle_ranks();
+    //shuffle_ranks();
     // Get information about cores a rank owns
     std::vector<int> core_ids_all = std::vector<int>(nranks * nthreads);
     MPI_Allgather(core_ids.data(), nthreads, MPI_INT, core_ids_all.data(), nthreads, MPI_INT, MPI_WORLD); 
@@ -437,7 +448,7 @@ void Env::grps_init(std::vector<int32_t>& grps_ranks, int grps_nranks, int& grps
     }
 }
 
-void Env::rowgrps_init(std::vector<int32_t>& rowgrps_ranks, int32_t rowgrps_nranks) {
+void Env::rowgrps_init(std::vector<int32_t>& rowgrps_ranks, int32_t rowgrps_nranks, uint32_t rank_nrowgrps) {
     grps_init(rowgrps_ranks, rowgrps_nranks, rank_rg, nranks_rg, rowgrps_group_, rowgrps_group, rowgrps_comm);
     
     rowgrps_groups_.resize(Env::nthreads);
@@ -446,6 +457,14 @@ void Env::rowgrps_init(std::vector<int32_t>& rowgrps_ranks, int32_t rowgrps_nran
     for(int i = 0; i < Env::nthreads; i++) {
         grps_init(rowgrps_ranks, rowgrps_nranks, rank_rg, nranks_rg, rowgrps_groups_[i], rowgrps_groups[i], rowgrps_comms[i]);
     }
+    
+    rowgrps_groups_thread_.resize(rank_nrowgrps);
+    rowgrps_groups_thread.resize(rank_nrowgrps);
+    rowgrps_comms_thread.resize(rank_nrowgrps);
+    for(uint32_t i = 0; i < rank_nrowgrps; i++) {
+        grps_init(rowgrps_ranks, rowgrps_nranks, rank_rg, nranks_rg, rowgrps_groups_thread_[i], rowgrps_groups_thread[i], rowgrps_comms_thread[i]);
+    }
+    
     
     /*
     rowgrps_comms.resize(Env::nthreads);
@@ -457,7 +476,7 @@ void Env::rowgrps_init(std::vector<int32_t>& rowgrps_ranks, int32_t rowgrps_nran
     */
 }
 
-void Env::colgrps_init(std::vector<int32_t>& colgrps_ranks, int32_t colgrps_nranks) {
+void Env::colgrps_init(std::vector<int32_t>& colgrps_ranks, int32_t colgrps_nranks, uint32_t rank_ncolgrps) {
     grps_init(colgrps_ranks, colgrps_nranks, rank_cg, nranks_cg, colgrps_group_, colgrps_group, colgrps_comm);   
     
     colgrps_groups_.resize(Env::nthreads);
@@ -465,6 +484,13 @@ void Env::colgrps_init(std::vector<int32_t>& colgrps_ranks, int32_t colgrps_nran
     colgrps_comms.resize(Env::nthreads);
     for(int i = 0; i < Env::nthreads; i++) {
         grps_init(colgrps_ranks, colgrps_nranks, rank_cg, nranks_cg, colgrps_groups_[i], colgrps_groups[i], colgrps_comms[i]);  
+    }
+    
+    colgrps_groups_thread_.resize(rank_ncolgrps);
+    colgrps_groups_thread.resize(rank_ncolgrps);
+    colgrps_comms_thread.resize(rank_ncolgrps);
+    for(uint32_t i = 0; i < rank_ncolgrps; i++) {
+        grps_init(colgrps_ranks, colgrps_nranks, rank_cg, nranks_cg, colgrps_groups_thread_[i], colgrps_groups_thread[i], colgrps_comms_thread[i]);  
     }
     
     /*
@@ -535,6 +561,20 @@ void Env::finalize() {
         MPI_Group_free(&colgrps_groups_[i]);
         MPI_Group_free(&colgrps_groups[i]);
         MPI_Comm_free(&colgrps_comms[i]);
+    }
+    
+    uint32_t rank_nrowgrps = rowgrps_groups_thread_.size();
+    for(uint32_t i = 0; i < rank_nrowgrps; i++) {
+        MPI_Group_free(&rowgrps_groups_thread_[i]);
+        MPI_Group_free(&rowgrps_groups_thread[i]);
+        MPI_Comm_free(&rowgrps_comms_thread[i]);
+    }
+    
+    uint32_t rank_ncolgrps = colgrps_groups_thread_.size();
+    for(uint32_t i = 0; i < rank_ncolgrps; i++) {
+        MPI_Group_free(&colgrps_groups_thread_[i]);
+        MPI_Group_free(&colgrps_groups_thread[i]);
+        MPI_Comm_free(&colgrps_comms_thread[i]);
     }
     
     int ret = MPI_Finalize();
