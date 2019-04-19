@@ -39,8 +39,7 @@ int main(int argc, char** argv) {
     G.load(file_path, num_vertices, num_vertices, directed, transpose, self_loops, acyclic, parallel_edges, TT, CT, HT);
     bool gather_depends_on_apply = true;
     bool gather_depends_on_iter  = false;
-    Ordering_type OT = _ROW_;
-    CC_Program<wp, ip, fp> V(G, stationary, gather_depends_on_apply, gather_depends_on_iter, OT);   
+    CC_Program<wp, ip, fp> V(G, stationary, gather_depends_on_apply, gather_depends_on_iter);   
     V.execute();
     V.checksum();
     V.display();
