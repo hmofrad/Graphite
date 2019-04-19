@@ -608,7 +608,11 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_matrix() {
     Env::barrier();
     */
     
-    if(not(std::equal(thread_nsegments.begin() + 1, thread_nsegments.end(), thread_nsegments.begin()))) {
+    bool swap_tiles = false;
+    if(not(std::equal(thread_nsegments.begin() + 1, thread_nsegments.end(), thread_nsegments.begin())))
+        swap_tiles = true;
+    
+    if(swap_tiles) {
         for(int32_t i = 0; i < num_owned_segments; i++) {
             //if(thread_nsegments[i] > 1) {
                 for(int32_t j = 0; j < num_owned_segments; j++) {
@@ -671,10 +675,12 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_matrix() {
                 }
             //}
         }
+        /*
         for(int32_t i = 0; i < num_owned_segments; i++) {
             std::sort(local_tiles_row_order_t[i].begin(), local_tiles_row_order_t[i].end());
             std::sort(local_tiles[i].begin(), local_tiles[i].end());
         }
+        */
     }
     /*
     owned_segments_thread.resize(num_owned_segments);
@@ -708,21 +714,110 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_matrix() {
             }
         }
     }
+   
+    std::vector<int32_t> indices(num_owned_segments);
+    std::iota(indices.begin(), indices.end(), 0);
+    bool sort_tiles = false;
+    for(int32_t i = 0; i < num_owned_segments; i++) {
+        if(places[i] != indices[i]) {
+            sort_tiles = true;
+            break;
+        }
+    }
     
+    if(sort_tiles) {
+        std::vector<std::vector<int32_t>> tile_ids(num_owned_segments);
+        for(int32_t i = 0; i < num_owned_segments; i++) {
+            for(int32_t t: local_tiles_row_order_t[i]) {
+                pair = tile_of_local_tile(t);
+                auto it = std::find(owned_segments.begin(), owned_segments.end(), pair.row);
+                if(it != owned_segments.end()){
+                    auto idx = std::distance(owned_segments.begin(), it);
+                    tile_ids[idx].push_back(t);
+                }
+            }
+        }
+        
+        for(int32_t i = 0; i < num_owned_segments; i++) {
+            int32_t k = 0;
+            for(uint32_t j = 0; j < local_tiles_row_order_t[i].size(); j++) {    
+                int32_t t = local_tiles_row_order_t[i][j];
+                pair = tile_of_local_tile(t);
+                auto it = std::find(owned_segments.begin(), owned_segments.end(), pair.row);
+                if(it != owned_segments.end()){
+                    local_tiles_row_order_t[i][j] = tile_ids[i][k];
+                    k++;
+                }
+            }
+        }
+        
+    }
+    
+    if(swap_tiles or sort_tiles) {
+        for(int32_t i = 0; i < num_owned_segments; i++) {
+            std::sort(local_tiles_row_order_t[i].begin(), local_tiles_row_order_t[i].end());
+        }
+    }
+    
+    /*
+    if(Env::rank == 2) {
+        for(int32_t i = 0; i < num_owned_segments; i++)
+            printf("%2d ", owned_segments[i]);
+        printf("\n");
+        for(int32_t i = 0; i < num_owned_segments; i++)
+            printf("%2d ", places[i]);
+        printf("\n");
+        
+        for(int32_t i = 0; i < num_owned_segments; i++) {
+            for(int32_t t: local_tiles_row_order_t[i]) {
+                pair = tile_of_local_tile(t);
+                printf("%d ", pair.row);
+            }
+            printf("\n");
+        }
+        
+
+    }
+    */
+/*
+        for(int32_t i = 0; i < num_owned_segments; i++) {
+        for(int32_t t: local_tiles_row_order_t[i]) {
+            pair = tile_of_local_tile(t);
+            auto it = std::find(owned_segments.begin(), owned_segments.end(), pair.row);
+            if(it != owned_segments.end()){
+                auto idx = std::distance(owned_segments.begin(), it);
+                places[i] = idx;
+                break;
+            }
+        }
+        */
+   // }
+    
+        
+
+    /*
     owned_segments_thread.resize(num_owned_segments);
     accu_segments_rows_thread.resize(num_owned_segments);
     accu_segments_cols_thread.resize(num_owned_segments);
     tid_thread.resize(num_owned_segments);
     
     for(int32_t i = 0; i < num_owned_segments; i++) {
-        //owned_segments_thread[places[i]] = owned_segments[i];
-        //accu_segments_rows_thread[places[i]] = accu_segment_rows[i];
-        //accu_segments_cols_thread[places[i]] = accu_segment_cols[i];
+        
+        owned_segments_thread[places[i]] = owned_segments[i];
+        accu_segments_rows_thread[places[i]] = accu_segment_rows[i];
+        accu_segments_cols_thread[places[i]] = accu_segment_cols[i];
+        tid_thread[places[i]] = i;
+        */
+        /*
         owned_segments_thread[i] = owned_segments[places[i]];
         accu_segments_rows_thread[i] = accu_segment_rows[places[i]];
         accu_segments_cols_thread[i] = accu_segment_cols[places[i]];
-        tid_thread[places[i]] = i;
-    }
+        tid_thread[i] = places[i];
+        */
+        
+   // }
+    
+
     
     
     rowgrp_owner_thread.resize(tiling->rank_nrowgrps);
@@ -756,8 +851,57 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_matrix() {
     for(uint32_t i = 0; i < tiling->rank_ncolgrps; i++) {
         colgrp_owner_thread_segments[colgrp_owner_thread[i]].push_back(i);
     }
+    /*
+    if(Env::rank == 2) {
+        for(int32_t i = 0; i < num_owned_segments; i++)
+            printf("%2d ", places[i]);
+        printf("\n");
+        
+        for(int32_t i = 0; i < num_owned_segments; i++)
+            printf("%2d ", tid_thread[i]);
+        printf("\n");
+        for(int32_t i = 0; i < num_owned_segments; i++)
+            printf("%2d ", owned_segments[i]);
+        printf("\n");
+        
+        for(int32_t i = 0; i < num_owned_segments; i++)
+            printf("%2d ", owned_segments_thread[i]);
+        printf("\n");
+        
+        for(int32_t i = 0; i < num_owned_segments; i++)
+            printf("%2d ", accu_segment_rows[i]);
+        printf("\n");
+        
+        for(int32_t i = 0; i < num_owned_segments; i++)
+            printf("%2d ", accu_segments_rows_thread[i]);
+        printf("\n");
+        
+        for(int32_t i = 0; i < num_owned_segments; i++)
+            printf("%2d ", accu_segment_cols[i]);
+        printf("\n");
+        
+        for(int32_t i = 0; i < num_owned_segments; i++)
+            printf("%2d ", accu_segments_cols_thread[i]);
+        printf("\n");
+        
+        for(int32_t i = 0; i < num_owned_segments; i++) {
+            for(int32_t t: local_tiles_row_order_t[i]) {
+                pair = tile_of_local_tile(t);
+                printf("%d ", pair.row);
+            }
+            printf("\n");
+        }
+        
+        
+    }
+    */
+        
+    
 
+    
+    
 
+    /*
     Env::barrier();
     if(Env::rank == 20) {
         
@@ -855,6 +999,7 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_matrix() {
         //printf("\n");
         
     }
+    */
     
     if(not(std::equal(thread_nsegments.begin() + 1, thread_nsegments.end(), thread_nsegments.begin()))) {
         
@@ -864,6 +1009,7 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_matrix() {
     //Env::barrier();
     //Env::exit(0);
     
+    /*
     Env::barrier();
     if(Env::rank == 0) {
         for(int32_t i = 0; i < num_owned_segments; i++){
@@ -901,6 +1047,7 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_matrix() {
         printf("\n");
     }
     Env::barrier();
+    */
     //print("rank");
     //Env::barrier();
     //Env::exit(0);
@@ -1223,7 +1370,7 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_filtering() {
     std::vector<Integer_Type> i_sizes(tiling->rank_nrowgrps, tile_height);
     std::vector<int32_t> all_rowgrps_thread_sockets(tiling->rank_nrowgrps);    
     for(uint32_t i = 0; i < tiling->rank_nrowgrps; i++) {
-        all_rowgrps_thread_sockets[i] = Env::socket_of_thread(tid_thread[rowgrp_owner_thread[i]]);
+        all_rowgrps_thread_sockets[i] = Env::socket_of_thread(rowgrp_owner_thread[i]);
     }
     /*
     std::vector<Integer_Type> i_sizes(tiling->rank_nrowgrps, tile_height);
@@ -1254,7 +1401,7 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_filtering() {
     
     std::vector<int32_t> thread_sockets(num_owned_segments);    
     for(int i = 0; i < Env::nthreads; i++) {
-        thread_sockets[i] = Env::socket_of_thread(tid_thread[i]);
+        thread_sockets[i] = Env::socket_of_thread(i);
     }
     /*
     std::vector<int32_t> thread_sockets(num_owned_segments);    
@@ -1291,7 +1438,7 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_filtering() {
     std::vector<Integer_Type> j_sizes(tiling->rank_ncolgrps, tile_width);
     std::vector<int32_t> all_colgrps_thread_sockets(tiling->rank_ncolgrps);     
     for(uint32_t i = 0; i < tiling->rank_ncolgrps; i++) {
-        all_colgrps_thread_sockets[i] = Env::socket_of_thread(tid_thread[colgrp_owner_thread[i]]);
+        all_colgrps_thread_sockets[i] = Env::socket_of_thread(colgrp_owner_thread[i]);
     }
     
     /*
@@ -1768,7 +1915,6 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_tcsc() {
 
 template<typename Weight, typename Integer_Type, typename Fractional_Type>
 void Matrix<Weight, Integer_Type, Fractional_Type>::init_tcsc_threaded(int tid) {
-    //tid = tid_thread[tid];
     int ret = Env::set_thread_affinity(tid);
     int cid = sched_getcpu();
     int sid =  Env::socket_of_cpu(cid);
