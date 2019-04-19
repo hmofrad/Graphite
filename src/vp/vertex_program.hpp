@@ -867,8 +867,8 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
         auto* xj_data = (Fractional_Type*) X[i];
         //auto& xj_data = X1[i];
         Integer_Type xj_nitems = nnz_col_sizes_loc[i];
-        MPI_Ibcast(xj_data, xj_nitems, TYPE_DOUBLE, leader, Env::colgrps_comms_thread[i], &request);
-        //MPI_Ibcast(xj_data, xj_nitems, TYPE_DOUBLE, leader, colgrps_communicators[tid], &request);
+        //MPI_Ibcast(xj_data, xj_nitems, TYPE_DOUBLE, leader, Env::colgrps_comms_thread[i], &request);
+        MPI_Ibcast(xj_data, xj_nitems, TYPE_DOUBLE, leader, colgrps_communicators[tid], &request);
         out_requests_t[tid].push_back(request);
     }
     MPI_Waitall(out_requests_t[tid].size(), out_requests_t[tid].data(), MPI_STATUSES_IGNORE);
@@ -1107,14 +1107,22 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
     auto* c_data = (char*) C[tid];
     for(uint32_t i = 0; i < tile_height; i++) {
         Vertex_State& state = v_data[i]; 
-        c_data[i] = Vertex_Methods.initializer(get_vid(i, owned_segments_thread[tid]), state);
+        c_data[i] = Vertex_Methods.initializer(get_vid(i, owned_segments[tid]), state);
     }
+    /*
     int num_rowgrps_per_thread = rank_nrowgrps / num_owned_segments;
     std::vector<int> row_indices(num_rowgrps_per_thread);
     for(int i = 0; i < num_rowgrps_per_thread; i++) {
         row_indices[i] = tid + (i * Env::nthreads);
     }
     for(uint32_t i: row_indices) {
+        auto* y_data = (Fractional_Type*) Y[i];
+        Integer_Type y_nitems = nnz_row_sizes_loc[i];
+        for(uint32_t j = 0; j < y_nitems; j++)
+            y_data[j] = Vertex_Methods.infinity();
+    }
+    */
+    for(int32_t i: rowgrp_owner_thread_segments[tid]) {
         auto* y_data = (Fractional_Type*) Y[i];
         Integer_Type y_nitems = nnz_row_sizes_loc[i];
         for(uint32_t j = 0; j < y_nitems; j++)
@@ -1128,7 +1136,8 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
         Env::print_time("Init", elapsed_time);
         init_time.push_back(elapsed_time);
     }
-    #endif    
+    #endif 
+
 }
 
 
@@ -1141,8 +1150,8 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
     }
     #endif
 
-    //uint32_t xo = accu_segment_cols[tid];
-    uint32_t xo = accu_segments_cols_thread[tid];
+    uint32_t xo = accu_segment_cols[tid];
+    //uint32_t xo = accu_segments_cols_thread[tid];
     auto* x_data = (Fractional_Type*) X[xo];
     auto* xi_data = (Integer_Type*) XI[xo];
     auto* xv_data = (Fractional_Type*) XV[xo];
@@ -1188,6 +1197,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
         }
     }
     pthread_barrier_wait(&p_barrier);
+    /*
     const int32_t col_chunk_size = rank_ncolgrps / Env::nthreads;
     const int32_t col_start = tid * col_chunk_size;
     const int32_t col_end = (tid != Env::nthreads - 1) ? col_start + col_chunk_size : rank_ncolgrps;
@@ -1196,6 +1206,13 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
     int32_t leader_cg;
     for(int32_t i = col_start; i < col_end; i++) {
         leader_cg = leader_ranks_cg[local_col_segments[i]]; 
+    */    
+    MPI_Request request;
+    int32_t leader_cg, col_group;    
+    for(int32_t i: colgrp_owner_thread_segments[tid]) {
+        col_group = local_col_segments[i];
+        leader_cg = leader_ranks_cg[col_group];  
+        
         int nitems = 0;
         if(Env::rank_cg == leader_cg)
             nitems = msgs_activity_statuses[i];
@@ -1207,8 +1224,10 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
             auto* xij_data = (Integer_Type*) XI[i];
             auto* xvj_data = (Fractional_Type*) XV[i];
             if(nitems > 1) {
+                //MPI_Ibcast(xij_data, nitems - 1, TYPE_INT, leader_cg, Env::colgrps_comms_thread[i], &request);
                 MPI_Ibcast(xij_data, nitems - 1, TYPE_INT, leader_cg, colgrps_communicators[tid], &request);
                 out_requests_t[tid].push_back(request);
+                //MPI_Ibcast(xvj_data, nitems - 1, TYPE_DOUBLE, leader_cg, Env::colgrps_comms_thread[i], &request);
                 MPI_Ibcast(xvj_data, nitems - 1, TYPE_DOUBLE, leader_cg, colgrps_communicators[tid], &request);
                 out_requests_t[tid].push_back(request);
             }
@@ -1216,6 +1235,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
         else {
             auto* xj_data = (Fractional_Type*) X[i];
             Integer_Type xj_nitems = nnz_col_sizes_loc[i];
+            //MPI_Ibcast(xj_data, xj_nitems, TYPE_DOUBLE, leader_cg, Env::colgrps_comms_thread[i], &request);
             MPI_Ibcast(xj_data, xj_nitems, TYPE_DOUBLE, leader_cg, colgrps_communicators[tid], &request);
             out_requests_t[tid].push_back(request);
         }
@@ -1231,7 +1251,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
         Env::print_time("Bcast", elapsed_time);
         bcast_time.push_back(elapsed_time);
     }
-    #endif   
+    #endif       
 }
 
 template<typename Weight, typename Integer_Type, typename Fractional_Type, typename Vertex_State, typename Vertex_Methods_Impl>
@@ -1313,21 +1333,21 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
                         // 0 all / 1 nothing / else nitems 
                         int nitems = 0;
                         MPI_Status status;
-                        MPI_Recv(&nitems, 1, MPI_INT, follower, pair_idx, rowgrps_communicators[tid], &status);
+                        MPI_Recv(&nitems, 1, MPI_INT, follower, pair_idx, Env::rowgrps_comms_thread[yi], &status);
                         accus_activity_statuses[tid][j] = nitems;
                         if(accus_activity_statuses[tid][j] > 1) {
                             auto* yij_data = (Integer_Type*) YIt[tid][j];
                             auto* yvj_data = (Fractional_Type*) YVt[tid][j];
-                            MPI_Irecv(yij_data, accus_activity_statuses[tid][j] - 1, TYPE_INT, follower, pair_idx, rowgrps_communicators[tid], &request);
+                            MPI_Irecv(yij_data, accus_activity_statuses[tid][j] - 1, TYPE_INT, follower, pair_idx, Env::rowgrps_comms_thread[yi], &request);
                             in_requests_t[tid].push_back(request);
-                            MPI_Irecv(yvj_data, accus_activity_statuses[tid][j] - 1, TYPE_DOUBLE, follower, pair_idx, rowgrps_communicators[tid], &request);
+                            MPI_Irecv(yvj_data, accus_activity_statuses[tid][j] - 1, TYPE_DOUBLE, follower, pair_idx, Env::rowgrps_comms_thread[yi], &request);
                             in_requests_t[tid].push_back(request);
                         }
                     }
                     else {                                
                         auto* yj_data = (Fractional_Type*) Yt[tid][j];
-                        Integer_Type yj_nitems = nnz_row_sizes_all[owned_segments_thread[tid]];
-                        MPI_Irecv(yj_data, yj_nitems, TYPE_DOUBLE, follower, pair_idx, rowgrps_communicators[tid], &request);
+                        Integer_Type yj_nitems = nnz_row_sizes_all[owned_segments[tid]];
+                        MPI_Irecv(yj_data, yj_nitems, TYPE_DOUBLE, follower, pair_idx, Env::rowgrps_comms_thread[yi], &request);
                         in_requests_t[tid].push_back(request);
                     }       
                 }   
@@ -1348,16 +1368,16 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
                     }
                     nitems = j;
                     nitems++;
-                    MPI_Send(&nitems, 1, TYPE_INT, leader, pair_idx, rowgrps_communicators[tid]);
+                    MPI_Send(&nitems, 1, TYPE_INT, leader, pair_idx, Env::rowgrps_comms_thread[yi]);
                     if(nitems > 1) {
-                        MPI_Isend(yi_data, nitems - 1, TYPE_INT, leader, pair_idx, rowgrps_communicators[tid], &request);
+                        MPI_Isend(yi_data, nitems - 1, TYPE_INT, leader, pair_idx, Env::rowgrps_comms_thread[yi], &request);
                         out_requests_t[tid].push_back(request);
-                        MPI_Isend(yv_data, nitems - 1, TYPE_DOUBLE, leader, pair_idx, rowgrps_communicators[tid], &request);
+                        MPI_Isend(yv_data, nitems - 1, TYPE_DOUBLE, leader, pair_idx, Env::rowgrps_comms_thread[yi], &request);
                         out_requests_t[tid].push_back(request);
                     }
                 }
                 else {
-                    MPI_Isend(y_data, y_nitems, TYPE_DOUBLE, leader, pair_idx, rowgrps_communicators[tid], &request);
+                    MPI_Isend(y_data, y_nitems, TYPE_DOUBLE, leader, pair_idx, Env::rowgrps_comms_thread[yi], &request);
                     out_requests_t[tid].push_back(request);
                 }
             }
@@ -1368,8 +1388,8 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
     MPI_Waitall(in_requests_t[tid].size(), in_requests_t[tid].data(), MPI_STATUSES_IGNORE);
     in_requests_t[tid].clear();
     
-    //yi = accu_segment_rows[tid];
-    yi  = accu_segments_rows_thread[tid];
+    yi = accu_segment_rows[tid];
+    //yi  = accu_segments_rows_thread[tid];
     auto* y_data = (Fractional_Type*) Y[yi];
     for(uint32_t j = 0; j < rowgrp_nranks - 1; j++) {
         if(activity_filtering and accus_activity_statuses[tid][j]) {
@@ -1384,7 +1404,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
         }
         else {
             auto* yj_data = (Fractional_Type*) Yt[tid][j];
-            Integer_Type yj_nitems = nnz_row_sizes_all[owned_segments_thread[tid]];
+            Integer_Type yj_nitems = nnz_row_sizes_all[owned_segments[tid]];
             for(uint32_t i = 0; i < yj_nitems; i++)
                 Vertex_Methods.combiner(y_data[i], yj_data[i]);
         }
@@ -1414,8 +1434,8 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
     uint32_t yi = 0, yo = 0;
     if(apply_depends_on_iter) {
         if(iteration == 0) {
-            //yi  = accu_segment_rows[tid];
-            yi  = accu_segments_rows_thread[tid];
+            yi  = accu_segment_rows[tid];
+            //yi  = accu_segments_rows_thread[tid];
             auto* y_data = (Fractional_Type*) Y[yi];
             auto* i_data = (char*) I[yi];
             auto* iv_data = (Integer_Type*) IV[yi];
@@ -1434,8 +1454,8 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
         }
         else
         {
-            //yi  = accu_segment_rows[tid];                
-            yi  = accu_segments_rows_thread[tid];
+            yi  = accu_segment_rows[tid];                
+            //yi  = accu_segments_rows_thread[tid];
             auto* y_data = (Fractional_Type*) Y[yi];
             auto* iv_data = (Integer_Type*) IV[yi];
             auto* IR = (Integer_Type*) rowgrp_nnz_rows[tid];
@@ -1453,8 +1473,8 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
     else {
         if(iteration == 0)
         {
-            //yi  = accu_segment_rows[tid];
-            yi  = accu_segments_rows_thread[tid];
+            yi  = accu_segment_rows[tid];
+            //yi  = accu_segments_rows_thread[tid];
             auto* y_data = (Fractional_Type*) Y[yi];
             auto* i_data = (char*) I[yi];
             auto* iv_data = (Integer_Type*) IV[yi];
@@ -1473,8 +1493,8 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
         }
         else
         {
-            //yi  = accu_segment_rows[tid];     
-            yi  = accu_segments_rows_thread[tid];            
+            yi  = accu_segment_rows[tid];     
+            //yi  = accu_segments_rows_thread[tid];            
             auto* y_data = (Fractional_Type*) Y[yi];
             auto* iv_data = (Integer_Type*) IV[yi];
             auto* IR = (Integer_Type*) rowgrp_nnz_rows[tid];
