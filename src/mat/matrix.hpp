@@ -1013,7 +1013,7 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_matrix() {
     Env::barrier();
     if(Env::rank == 0) {
         for(int32_t i = 0; i < num_owned_segments; i++){
-            for(int32_t j: colgrp_owner_thread_segments[i])
+            for(int32_t j: rowgrp_owner_thread_segments[i])
                 printf("%2d ", j);
             printf("\n");
         }  
@@ -1022,7 +1022,7 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_matrix() {
     Env::barrier();
     if(Env::rank == 4) {
         for(int32_t i = 0; i < num_owned_segments; i++){
-            for(int32_t j: colgrp_owner_thread_segments[i])
+            for(int32_t j: rowgrp_owner_thread_segments[i])
                 printf("%2d ", j);
             printf("\n");
         }  
@@ -1031,7 +1031,7 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_matrix() {
     Env::barrier();
     if(Env::rank == 14) {
         for(int32_t i = 0; i < num_owned_segments; i++){
-            for(int32_t j: colgrp_owner_thread_segments[i])
+            for(int32_t j: rowgrp_owner_thread_segments[i])
                 printf("%2d ", j);
             printf("\n");
         }  
@@ -1040,7 +1040,7 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_matrix() {
     Env::barrier();
     if(Env::rank == 24) {
         for(int32_t i = 0; i < num_owned_segments; i++){
-            for(int32_t j: colgrp_owner_thread_segments[i])
+            for(int32_t j: rowgrp_owner_thread_segments[i])
                 printf("%2d ", j);
             printf("\n");
         }    
