@@ -35,16 +35,15 @@ int main(int argc, char** argv) {
     bool stationary = true;
     bool gather_depends_on_apply = false;
     bool apply_depends_on_iter  = false;
-    Ordering_type OT = _ROW_;
     
     /* Degree execution */
-    Deg_Program<wp, ip, fp> V(G, stationary, gather_depends_on_apply, apply_depends_on_iter, OT);
+    Deg_Program<wp, ip, fp> V(G, stationary, gather_depends_on_apply, apply_depends_on_iter);
     V.execute(num_iterations);
     V.checksum();
     V.display();
     V.free();
     G.free();
-    
+
     double time2 = Env::clock();
     Env::print_time("Degree end-to-end", time2 - time1);
     Env::finalize();
