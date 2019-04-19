@@ -252,7 +252,7 @@ int Env::socket_of_thread(int thread_id) {
 
 bool Env::affinity() {   
     bool enabled = true;
-    //shuffle_ranks();
+    shuffle_ranks();
     // Get information about cores a rank owns
     std::vector<int> core_ids_all = std::vector<int>(nranks * nthreads);
     MPI_Allgather(core_ids.data(), nthreads, MPI_INT, core_ids_all.data(), nthreads, MPI_INT, MPI_WORLD); 
