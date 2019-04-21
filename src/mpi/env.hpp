@@ -20,9 +20,9 @@
 
 #include <mpi.h>
 #include <omp.h>
-//#include <numa.h>
+#include <numa.h>
 #include <thread>
-#include </ihome/rmelhem/moh18/numactl/libnuma/usr/local/include/numa.h>
+//#include </ihome/rmelhem/moh18/numactl/libnuma/usr/local/include/numa.h>        
 
 struct topology {
     int nmachines;
@@ -68,6 +68,7 @@ class Env {
         static int socket_of_cpu(int cpu_id);
         static int socket_of_thread(int thread_id);
         static void shuffle_ranks();
+        static void numa_memory_configure();
 
         static bool initialized;
         static std::vector<MPI_Group> rowgrps_groups_, rowgrps_groups;
@@ -90,7 +91,7 @@ class Env {
         static std::vector<int> ranks; 
         static struct topology network;
         static long int L1_CACHE_LINE_SIZE;
-
+        static bool numa_allocation;
 };
 
 MPI_Comm Env::MPI_WORLD;
@@ -126,6 +127,8 @@ std::vector<MPI_Comm> Env::colgrps_comms;
 std::vector<int> Env::ranks;
 struct topology Env::network;
 long int Env::L1_CACHE_LINE_SIZE = 0;
+bool Env::numa_allocation = true;
+
 
 void Env::init() {
     int required = MPI_THREAD_MULTIPLE;
@@ -138,6 +141,10 @@ void Env::init() {
     assert(rank >= 0);
     is_master = rank == 0;
     
+    if((numa_available() == -1) or (not numa_allocation)) {
+        numa_allocation = false;
+        printf("xxxxxxxxxxxxxxx\n");
+    }
     init_threads();
     
     if(required != provided) {
