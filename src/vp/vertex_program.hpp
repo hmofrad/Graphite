@@ -13,7 +13,6 @@
 #include "mpi/types.hpp" 
 #include "ds/numa_vector.hpp"
 
-#include "ds/custom_numa_alloc.hpp"
 struct State { State() {}; };
 
 
