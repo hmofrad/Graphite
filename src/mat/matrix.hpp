@@ -1784,8 +1784,6 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_tcsc_cf() {
         th.join();
     }
     del_classifier();
-    Env::barrier();
-    Env::exit(0);
 }
 
 
