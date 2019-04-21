@@ -43,13 +43,14 @@ struct Compressed_column {
                               const std::vector<Integer_Type>& regular_cols_indices,
                               const std::vector<char>&         regular_cols_bitvector,
                               const std::vector<Integer_Type>& sink_cols_indices,
-                              const std::vector<char>&         sink_cols_bitvector){};                              
+                              const std::vector<char>&         sink_cols_bitvector,
+                              const int socket_id){};                              
 };
 
 template<typename Weight, typename Integer_Type>
 struct TCSC_BASE : public Compressed_column<Weight, Integer_Type> {
     public:
-        TCSC_BASE(uint64_t nnz_, Integer_Type nnzcols_, Integer_Type nnzrows_, int socket_id = 0);
+        TCSC_BASE(const uint64_t nnz_, const Integer_Type nnzcols_, const Integer_Type nnzrows_, const int socket_id = 0);
         ~TCSC_BASE();
         virtual void populate(const std::vector<struct Triple<Weight, Integer_Type>>* triples,
                               const Integer_Type tile_height, 
@@ -72,20 +73,22 @@ struct TCSC_BASE : public Compressed_column<Weight, Integer_Type> {
 };
 
 template<typename Weight, typename Integer_Type>
-TCSC_BASE<Weight, Integer_Type>::TCSC_BASE(uint64_t nnz_, Integer_Type nnzcols_, Integer_Type nnzrows_, int socket_id) {
+TCSC_BASE<Weight, Integer_Type>::TCSC_BASE(const uint64_t nnz_, const Integer_Type nnzcols_, const Integer_Type nnzrows_, const int socket_id) {
     nnz = nnz_;
     nnzcols = nnzcols_;
     nnzrows = nnzrows_;
     if(nnz and nnzcols and nnzrows) {
-        if(numa_available() != -1) {
+        if(Env::numa_allocation) {
             #ifdef HAS_WEIGHT
             A = (Weight*) numa_alloc_onnode(nnz * sizeof(Weight), socket_id);
             memset(A, 0, nnz * sizeof(Weight));
             madvise(A, nnz * sizeof(Weight), MADV_SEQUENTIAL);
             #endif
+            
             IA = (Integer_Type*) numa_alloc_onnode(nnz * sizeof(Integer_Type), socket_id);
             memset(IA, 0, nnz * sizeof(Integer_Type));
             madvise(IA, nnz * sizeof(Integer_Type), MADV_SEQUENTIAL);
+            
             JA = (Integer_Type*) numa_alloc_onnode((nnzcols + 1) * sizeof(Integer_Type), socket_id);
             memset(JA, 0, (nnzcols + 1) * sizeof(Integer_Type));
             madvise(JA, (nnzcols + 1) * sizeof(Integer_Type), MADV_SEQUENTIAL);
@@ -119,9 +122,8 @@ TCSC_BASE<Weight, Integer_Type>::TCSC_BASE(uint64_t nnz_, Integer_Type nnzcols_,
 
 template<typename Weight, typename Integer_Type>
 TCSC_BASE<Weight, Integer_Type>::~TCSC_BASE() {
-    if(nnz and nnzcols and nnzrows) {
-        
-        if(numa_available() != -1) {    
+    if(nnz and nnzcols and nnzrows) {        
+        if(Env::numa_allocation) {    
             #ifdef HAS_WEIGHT
             numa_free(A, (nnz * sizeof(Weight)));
             #endif
@@ -184,7 +186,7 @@ void TCSC_BASE<Weight, Integer_Type>::populate(const std::vector<struct Triple<W
 template<typename Weight, typename Integer_Type>
 struct TCSC_CF_BASE : public Compressed_column<Weight, Integer_Type> {
     public:
-        TCSC_CF_BASE(uint64_t nnz_, Integer_Type nnzcols_, Integer_Type nnzrows_);
+        TCSC_CF_BASE(const uint64_t nnz_,const Integer_Type nnzcols_,const Integer_Type nnzrows_, const int socket_id);
         ~TCSC_CF_BASE();
         virtual void populate(const std::vector<struct Triple<Weight, Integer_Type>>* triples,
                               const Integer_Type tile_height, 
@@ -200,7 +202,8 @@ struct TCSC_CF_BASE : public Compressed_column<Weight, Integer_Type> {
                               const std::vector<Integer_Type>& regular_cols_indices,
                               const std::vector<char>&         regular_cols_bitvector,
                               const std::vector<Integer_Type>& sink_cols_indices,
-                              const std::vector<char>&         sink_cols_bitvector);
+                              const std::vector<char>&         sink_cols_bitvector,
+                              const int socket_id);
                               
         void allocate_local_reg(Integer_Type nnzcols_regulars_local_);
         void allocate_local_src(Integer_Type nnzcols_sources_local_);
@@ -240,128 +243,198 @@ struct TCSC_CF_BASE : public Compressed_column<Weight, Integer_Type> {
 };
 
 template<typename Weight, typename Integer_Type>
-TCSC_CF_BASE<Weight, Integer_Type>::TCSC_CF_BASE(uint64_t nnz_, Integer_Type nnzcols_, Integer_Type nnzrows_) {
+TCSC_CF_BASE<Weight, Integer_Type>::TCSC_CF_BASE(const uint64_t nnz_, const Integer_Type nnzcols_, const Integer_Type nnzrows_, const int socket_id) {
     nnz = nnz_;
     nnzcols = nnzcols_;
     nnzrows = nnzrows_;
     if(nnz and nnzcols and nnzrows) {
-        #ifdef HAS_WEIGHT
-        if((A = (Weight*) mmap(nullptr, nnz * sizeof(Weight), PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0)) == (void*) -1) {    
-            fprintf(stderr, "Error mapping memory\n");
-            exit(1);
+        if(Env::numa_allocation) {
+            #ifdef HAS_WEIGHT
+            A = (Weight*) numa_alloc_onnode(nnz * sizeof(Weight), socket_id);
+            memset(A, 0, nnz * sizeof(Weight));
+            madvise(A, nnz * sizeof(Weight), MADV_SEQUENTIAL);
+            #endif
+            
+            IA = (Integer_Type*) numa_alloc_onnode(nnz * sizeof(Integer_Type), socket_id);
+            memset(IA, 0, nnz * sizeof(Integer_Type));
+            madvise(IA, nnz * sizeof(Integer_Type), MADV_SEQUENTIAL);
+            
+            JA = (Integer_Type*) numa_alloc_onnode((nnzcols + 1) * sizeof(Integer_Type), socket_id);
+            memset(JA, 0, (nnzcols + 1) * sizeof(Integer_Type));
+            madvise(JA, (nnzcols + 1) * sizeof(Integer_Type), MADV_SEQUENTIAL);
+            
+            JC = (Integer_Type*) numa_alloc_onnode(nnzcols * sizeof(Integer_Type), socket_id);
+            memset(JC, 0, nnzcols * sizeof(Integer_Type));
+            madvise(JC, nnzcols * sizeof(Integer_Type), MADV_SEQUENTIAL);
+            
+            IR = (Integer_Type*) numa_alloc_onnode(nnzrows * sizeof(Integer_Type), socket_id);
+            memset(IR, 0, nnzrows * sizeof(Integer_Type));
+            madvise(IR, nnzrows * sizeof(Integer_Type), MADV_SEQUENTIAL);
         }
-        memset(A, 0, nnz * sizeof(Weight));
-        #endif
-        
-        if((IA = (Integer_Type*) mmap(nullptr, nnz * sizeof(Integer_Type), PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0)) == (void*) -1) {    
-            fprintf(stderr, "Error mapping memory\n");
-            exit(1);
+        else {
+            #ifdef HAS_WEIGHT
+            if((A = (Weight*) mmap(nullptr, nnz * sizeof(Weight), PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0)) == (void*) -1) {    
+                fprintf(stderr, "Error mapping memory\n");
+                exit(1);
+            }
+            memset(A, 0, nnz * sizeof(Weight));
+            madvise(A, nnz * sizeof(Weight), MADV_SEQUENTIAL);
+            
+            #endif
+            
+            if((IA = (Integer_Type*) mmap(nullptr, nnz * sizeof(Integer_Type), PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0)) == (void*) -1) {    
+                fprintf(stderr, "Error mapping memory\n");
+                exit(1);
+            }
+            memset(IA, 0, nnz * sizeof(Integer_Type));
+            madvise(IA, nnz * sizeof(Integer_Type), MADV_SEQUENTIAL);
+            
+            if((JA = (Integer_Type*) mmap(nullptr, (nnzcols + 1) * sizeof(Integer_Type), PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0)) == (void*) -1) {    
+                fprintf(stderr, "Error mapping memory\n");
+                exit(1);
+            }
+            memset(JA, 0, (nnzcols + 1) * sizeof(Integer_Type));
+            madvise(JA, (nnzcols + 1) * sizeof(Integer_Type), MADV_SEQUENTIAL);
+            
+            if((JC = (Integer_Type*) mmap(nullptr, nnzcols * sizeof(Integer_Type), PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0)) == (void*) -1) {    
+                fprintf(stderr, "Error mapping memory\n");
+                exit(1);
+            }
+            memset(JC, 0, nnzcols * sizeof(Integer_Type));
+            madvise(JC, nnzcols * sizeof(Integer_Type), MADV_SEQUENTIAL);
+            
+            if((IR = (Integer_Type*) mmap(nullptr, nnzrows * sizeof(Integer_Type), PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0)) == (void*) -1) {    
+                fprintf(stderr, "Error mapping memory\n");
+                exit(1);
+            }
+            memset(IR, 0, nnzrows * sizeof(Integer_Type));
+            madvise(IR, nnzrows * sizeof(Integer_Type), MADV_SEQUENTIAL);
         }
-        memset(IA, 0, nnz * sizeof(Integer_Type));
-        
-        if((JA = (Integer_Type*) mmap(nullptr, (nnzcols + 1) * sizeof(Integer_Type), PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0)) == (void*) -1) {    
-            fprintf(stderr, "Error mapping memory\n");
-            exit(1);
-        }
-        memset(JA, 0, (nnzcols + 1) * sizeof(Integer_Type));
-        
-        if((JC = (Integer_Type*) mmap(nullptr, nnzcols * sizeof(Integer_Type), PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0)) == (void*) -1) {    
-            fprintf(stderr, "Error mapping memory\n");
-            exit(1);
-        }
-        memset(JC, 0, nnzcols * sizeof(Integer_Type));
-        
-        if((IR = (Integer_Type*) mmap(nullptr, nnzrows * sizeof(Integer_Type), PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0)) == (void*) -1) {    
-            fprintf(stderr, "Error mapping memory\n");
-            exit(1);
-        }
-        memset(IR, 0, nnzrows * sizeof(Integer_Type));
     }
 }
 
 template<typename Weight, typename Integer_Type>
 TCSC_CF_BASE<Weight, Integer_Type>::~TCSC_CF_BASE() {
     if(nnz and nnzcols and nnzrows) {
-        #ifdef HAS_WEIGHT
-        if(munmap(A, nnz * sizeof(Weight)) == -1) {
+        if(Env::numa_allocation) {
+            #ifdef HAS_WEIGHT
+            numa_free(A, (nnz * sizeof(Weight)));
+            #endif
+            numa_free(IA, (nnz * sizeof(Integer_Type)));
+            numa_free(JA, ((nnzcols + 1) * sizeof(Integer_Type)));
+            numa_free(JC, (nnzcols * sizeof(Integer_Type)));
+            numa_free(IR, (nnzrows * sizeof(Integer_Type)));
+        }
+        else {
+            #ifdef HAS_WEIGHT
+            if(munmap(A, nnz * sizeof(Weight)) == -1) {
+                fprintf(stderr, "Error unmapping memory\n");
+                exit(1);
+            }
+            #endif
+            if(munmap(IA, nnz * sizeof(Integer_Type)) == -1) {
+                fprintf(stderr, "Error unmapping memory\n");
+                exit(1);
+            }
+            
+            if(munmap(JA, (nnzcols + 1) * sizeof(Integer_Type)) == -1) {
+                fprintf(stderr, "Error unmapping memory\n");
+                exit(1);
+            }
+            
+            if(munmap(JC, nnzcols * sizeof(Integer_Type)) == -1) {
+                fprintf(stderr, "Error unmapping memory\n");
+                exit(1);
+            }
+            
+            if(munmap(IR, nnzrows * sizeof(Integer_Type)) == -1) {
             fprintf(stderr, "Error unmapping memory\n");
             exit(1);
-        }
-        #endif
-        if(munmap(IA, nnz * sizeof(Integer_Type)) == -1) {
-            fprintf(stderr, "Error unmapping memory\n");
-            exit(1);
-        }
-        
-        if(munmap(JA, (nnzcols + 1) * sizeof(Integer_Type)) == -1) {
-            fprintf(stderr, "Error unmapping memory\n");
-            exit(1);
-        }
-        
-        if(munmap(JC, nnzcols * sizeof(Integer_Type)) == -1) {
-            fprintf(stderr, "Error unmapping memory\n");
-            exit(1);
-        }
-        
-        if(munmap(IR, nnzrows * sizeof(Integer_Type)) == -1) {
-        fprintf(stderr, "Error unmapping memory\n");
-        exit(1);
+            }
         }
     }
-
     
     if(nnzcols) {
-        if(munmap(JA_REG_R_NNZ_C, (nnzcols * 2) * sizeof(Integer_Type)) == -1) {
-            fprintf(stderr, "Error unmapping memory\n");
-            exit(1);
+        if(Env::numa_allocation) {
+            numa_free(JA_REG_R_NNZ_C, (nnzcols * 2) * sizeof(Integer_Type));   
+        }
+        else {
+            if(munmap(JA_REG_R_NNZ_C, (nnzcols * 2) * sizeof(Integer_Type)) == -1) {
+                fprintf(stderr, "Error unmapping memory\n");
+                exit(1);
+            }
         }
     }    
    
     if(NC_REG_R_REG_C) {
-        if(munmap(JA_REG_R_REG_C, (NC_REG_R_REG_C * 2) * sizeof(Integer_Type)) == -1) {
-            fprintf(stderr, "Error unmapping memory\n");
-            exit(1);
+        if(Env::numa_allocation) {
+            numa_free(JA_REG_R_REG_C, (NC_REG_R_REG_C * 2) * sizeof(Integer_Type));   
+            numa_free(JC_REG_R_REG_C, NC_REG_R_REG_C * sizeof(Integer_Type));   
         }
+        else {
+            if(munmap(JA_REG_R_REG_C, (NC_REG_R_REG_C * 2) * sizeof(Integer_Type)) == -1) {
+                fprintf(stderr, "Error unmapping memory\n");
+                exit(1);
+            }
         
-        if(munmap(JC_REG_R_REG_C, NC_REG_R_REG_C * sizeof(Integer_Type)) == -1) {
-            fprintf(stderr, "Error unmapping memory\n");
-            exit(1);
+            if(munmap(JC_REG_R_REG_C, NC_REG_R_REG_C * sizeof(Integer_Type)) == -1) {
+                fprintf(stderr, "Error unmapping memory\n");
+                exit(1);
+            }
         }
     }
     
     if(NC_REG_R_SNK_C) {
-        if(munmap(JA_REG_R_SNK_C, (NC_REG_R_SNK_C * 2) * sizeof(Integer_Type)) == -1) {
-            fprintf(stderr, "Error unmapping memory\n");
-            exit(1);
+        if(Env::numa_allocation) {
+            numa_free(JA_REG_R_SNK_C, (NC_REG_R_SNK_C * 2) * sizeof(Integer_Type));   
+            numa_free(JC_REG_R_SNK_C, NC_REG_R_SNK_C * sizeof(Integer_Type));   
         }
-        
-        if(munmap(JC_REG_R_SNK_C, NC_REG_R_SNK_C * sizeof(Integer_Type)) == -1) {
-            fprintf(stderr, "Error unmapping memory\n");
-            exit(1);
+        else {
+            if(munmap(JA_REG_R_SNK_C, (NC_REG_R_SNK_C * 2) * sizeof(Integer_Type)) == -1) {
+                fprintf(stderr, "Error unmapping memory\n");
+                exit(1);
+            }
+            
+            if(munmap(JC_REG_R_SNK_C, NC_REG_R_SNK_C * sizeof(Integer_Type)) == -1) {
+                fprintf(stderr, "Error unmapping memory\n");
+                exit(1);
+            }
         }
     }
 
     if(NC_SRC_R_REG_C) {
-        if(munmap(JA_SRC_R_REG_C, (NC_SRC_R_REG_C * 2) * sizeof(Integer_Type)) == -1) {
-            fprintf(stderr, "Error unmapping memory\n");
-            exit(1);
+        if(Env::numa_allocation) {
+            numa_free(JA_SRC_R_REG_C, (NC_SRC_R_REG_C * 2) * sizeof(Integer_Type));   
+            numa_free(JC_SRC_R_REG_C, NC_SRC_R_REG_C * sizeof(Integer_Type));   
         }
-        
-        if(munmap(JC_SRC_R_REG_C, NC_SRC_R_REG_C * sizeof(Integer_Type)) == -1) {
-            fprintf(stderr, "Error unmapping memory\n");
-            exit(1);
+        else {
+            if(munmap(JA_SRC_R_REG_C, (NC_SRC_R_REG_C * 2) * sizeof(Integer_Type)) == -1) {
+                fprintf(stderr, "Error unmapping memory\n");
+                exit(1);
+            }
+            
+            if(munmap(JC_SRC_R_REG_C, NC_SRC_R_REG_C * sizeof(Integer_Type)) == -1) {
+                fprintf(stderr, "Error unmapping memory\n");
+                exit(1);
+            }
         }
     }
     
     if(NC_SRC_R_SNK_C) {
-        if(munmap(JA_SRC_R_SNK_C, (NC_SRC_R_SNK_C * 2) * sizeof(Integer_Type)) == -1) {
-            fprintf(stderr, "Error unmapping memory\n");
-            exit(1);
+        if(Env::numa_allocation) {
+            numa_free(JA_SRC_R_SNK_C, (NC_SRC_R_SNK_C * 2) * sizeof(Integer_Type));   
+            numa_free(JC_SRC_R_SNK_C, NC_SRC_R_SNK_C * sizeof(Integer_Type));   
         }
-        
-        if(munmap(JC_SRC_R_SNK_C, NC_SRC_R_SNK_C * sizeof(Integer_Type)) == -1) {
-            fprintf(stderr, "Error unmapping memory\n");
-            exit(1);
+        else {
+            if(munmap(JA_SRC_R_SNK_C, (NC_SRC_R_SNK_C * 2) * sizeof(Integer_Type)) == -1) {
+                fprintf(stderr, "Error unmapping memory\n");
+                exit(1);
+            }
+            
+            if(munmap(JC_SRC_R_SNK_C, NC_SRC_R_SNK_C * sizeof(Integer_Type)) == -1) {
+                fprintf(stderr, "Error unmapping memory\n");
+                exit(1);
+            }
         }
     }
     
@@ -382,7 +455,8 @@ void TCSC_CF_BASE<Weight, Integer_Type>::populate(const std::vector<struct Tripl
                                                const std::vector<Integer_Type>& regular_cols_indices,
                                                const std::vector<char>&         regular_cols_bitvector,
                                                const std::vector<Integer_Type>& sink_cols_indices,
-                                               const std::vector<char>&         sink_cols_bitvector) {
+                                               const std::vector<char>&         sink_cols_bitvector,
+                                               const int socket_id) {
     if(not(nnz and nnzcols and nnzrows)) {
         return;
     }        
@@ -477,11 +551,19 @@ void TCSC_CF_BASE<Weight, Integer_Type>::populate(const std::vector<struct Tripl
     }
     
     if(nnzcols) {
-        if((JA_REG_R_NNZ_C = (Integer_Type*) mmap(nullptr, (nnzcols * 2) * sizeof(Integer_Type), PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0)) == (void*) -1) {    
-            fprintf(stderr, "Error mapping memory\n");
-            exit(1);
+        if(Env::numa_allocation) {
+            JA_REG_R_NNZ_C = (Integer_Type*) numa_alloc_onnode((nnzcols * 2) * sizeof(Integer_Type), socket_id);
+            memset(JA_REG_R_NNZ_C, 0, (nnzcols * 2) * sizeof(Integer_Type));
+            madvise(JA_REG_R_NNZ_C, (nnzcols * 2) * sizeof(Integer_Type), MADV_SEQUENTIAL);
         }
-        memset(JA_REG_R_NNZ_C, 0, (nnzcols * 2) * sizeof(Integer_Type));
+        else {        
+            if((JA_REG_R_NNZ_C = (Integer_Type*) mmap(nullptr, (nnzcols * 2) * sizeof(Integer_Type), PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0)) == (void*) -1) {    
+                fprintf(stderr, "Error mapping memory\n");
+                exit(1);
+            }
+            memset(JA_REG_R_NNZ_C, 0, (nnzcols * 2) * sizeof(Integer_Type));
+            madvise(JA_REG_R_NNZ_C, (nnzcols * 2) * sizeof(Integer_Type), MADV_SEQUENTIAL);
+        }
     }
     
     // Regular rows to nnz columns
@@ -549,17 +631,30 @@ void TCSC_CF_BASE<Weight, Integer_Type>::populate(const std::vector<struct Tripl
 
     NC_REG_R_REG_C = l;
     if(NC_REG_R_REG_C) {
-        if((JA_REG_R_REG_C = (Integer_Type*) mmap(nullptr, (NC_REG_R_REG_C * 2) * sizeof(Integer_Type), PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0)) == (void*) -1) {    
-            fprintf(stderr, "Error mapping memory\n");
-            exit(1);
+        if(Env::numa_allocation) {
+            JA_REG_R_REG_C = (Integer_Type*) numa_alloc_onnode((NC_REG_R_REG_C * 2) * sizeof(Integer_Type), socket_id);
+            memset(JA_REG_R_REG_C, 0, (NC_REG_R_REG_C * 2) * sizeof(Integer_Type));
+            madvise(JA_REG_R_REG_C, (NC_REG_R_REG_C * 2) * sizeof(Integer_Type), MADV_SEQUENTIAL);
+            
+            JC_REG_R_REG_C = (Integer_Type*) numa_alloc_onnode((NC_REG_R_REG_C * 2) * sizeof(Integer_Type), socket_id);
+            memset(JC_REG_R_REG_C, 0, NC_REG_R_REG_C * sizeof(Integer_Type));
+            madvise(JC_REG_R_REG_C, NC_REG_R_REG_C * sizeof(Integer_Type), MADV_SEQUENTIAL);
         }
-        memset(JA_REG_R_REG_C, 0, (NC_REG_R_REG_C * 2) * sizeof(Integer_Type));
-        
-        if((JC_REG_R_REG_C = (Integer_Type*) mmap(nullptr, NC_REG_R_REG_C * sizeof(Integer_Type), PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0)) == (void*) -1) {    
-            fprintf(stderr, "Error mapping memory\n");
-            exit(1);
+        else {          
+            if((JA_REG_R_REG_C = (Integer_Type*) mmap(nullptr, (NC_REG_R_REG_C * 2) * sizeof(Integer_Type), PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0)) == (void*) -1) {    
+                fprintf(stderr, "Error mapping memory\n");
+                exit(1);
+            }
+            memset(JA_REG_R_REG_C, 0, (NC_REG_R_REG_C * 2) * sizeof(Integer_Type));
+            madvise(JA_REG_R_REG_C, (NC_REG_R_REG_C * 2) * sizeof(Integer_Type), MADV_SEQUENTIAL);
+            
+            if((JC_REG_R_REG_C = (Integer_Type*) mmap(nullptr, NC_REG_R_REG_C * sizeof(Integer_Type), PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0)) == (void*) -1) {    
+                fprintf(stderr, "Error mapping memory\n");
+                exit(1);
+            }
+            memset(JC_REG_R_REG_C, 0, NC_REG_R_REG_C * sizeof(Integer_Type));
+            madvise(JC_REG_R_REG_C, NC_REG_R_REG_C * sizeof(Integer_Type), MADV_SEQUENTIAL);
         }
-        memset(JC_REG_R_REG_C, 0, NC_REG_R_REG_C * sizeof(Integer_Type));
     }
     
     j1 = 0;
@@ -649,17 +744,30 @@ void TCSC_CF_BASE<Weight, Integer_Type>::populate(const std::vector<struct Tripl
     // Regular rows to sink columns
     NC_REG_R_SNK_C = l;
     if(NC_REG_R_SNK_C) {
-        if((JA_REG_R_SNK_C = (Integer_Type*) mmap(nullptr, (NC_REG_R_SNK_C * 2) * sizeof(Integer_Type), PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0)) == (void*) -1) {    
-            fprintf(stderr, "Error mapping memory\n");
-            exit(1);
+        if(Env::numa_allocation) {
+            JA_REG_R_SNK_C = (Integer_Type*) numa_alloc_onnode((NC_REG_R_SNK_C * 2) * sizeof(Integer_Type), socket_id);
+            memset(JA_REG_R_SNK_C, 0, (NC_REG_R_SNK_C * 2) * sizeof(Integer_Type));
+            madvise(JA_REG_R_SNK_C, (NC_REG_R_SNK_C * 2) * sizeof(Integer_Type), MADV_SEQUENTIAL);
+            
+            JC_REG_R_SNK_C = (Integer_Type*) numa_alloc_onnode((NC_REG_R_SNK_C * 2) * sizeof(Integer_Type), socket_id);
+            memset(JC_REG_R_SNK_C, 0, NC_REG_R_SNK_C * sizeof(Integer_Type));
+            madvise(JC_REG_R_SNK_C, NC_REG_R_SNK_C * sizeof(Integer_Type), MADV_SEQUENTIAL);
         }
-        memset(JA_REG_R_SNK_C, 0, (NC_REG_R_SNK_C * 2) * sizeof(Integer_Type));
-        
-        if((JC_REG_R_SNK_C = (Integer_Type*) mmap(nullptr, NC_REG_R_SNK_C * sizeof(Integer_Type), PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0)) == (void*) -1) {    
-            fprintf(stderr, "Error mapping memory\n");
-            exit(1);
+        else {     
+            if((JA_REG_R_SNK_C = (Integer_Type*) mmap(nullptr, (NC_REG_R_SNK_C * 2) * sizeof(Integer_Type), PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0)) == (void*) -1) {    
+                fprintf(stderr, "Error mapping memory\n");
+                exit(1);
+            }
+            memset(JA_REG_R_SNK_C, 0, (NC_REG_R_SNK_C * 2) * sizeof(Integer_Type));
+            madvise(JA_REG_R_SNK_C, (NC_REG_R_SNK_C * 2) * sizeof(Integer_Type), MADV_SEQUENTIAL);
+            
+            if((JC_REG_R_SNK_C = (Integer_Type*) mmap(nullptr, NC_REG_R_SNK_C * sizeof(Integer_Type), PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0)) == (void*) -1) {    
+                fprintf(stderr, "Error mapping memory\n");
+                exit(1);
+            }
+            memset(JC_REG_R_SNK_C, 0, NC_REG_R_SNK_C * sizeof(Integer_Type));
+            madvise(JC_REG_R_SNK_C, NC_REG_R_SNK_C * sizeof(Integer_Type), MADV_SEQUENTIAL);
         }
-        memset(JC_REG_R_SNK_C, 0, NC_REG_R_SNK_C * sizeof(Integer_Type));
     }
     j1 = 0;
     j2 = 0;
@@ -742,17 +850,30 @@ void TCSC_CF_BASE<Weight, Integer_Type>::populate(const std::vector<struct Tripl
     
     NC_SRC_R_REG_C = k;
     if(NC_SRC_R_REG_C) {
-        if((JA_SRC_R_REG_C = (Integer_Type*) mmap(nullptr, (NC_SRC_R_REG_C * 2) * sizeof(Integer_Type), PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0)) == (void*) -1) {    
-            fprintf(stderr, "Error mapping memory\n");
-            exit(1);
+        if(Env::numa_allocation) {
+            JA_SRC_R_REG_C = (Integer_Type*) numa_alloc_onnode((NC_SRC_R_REG_C * 2) * sizeof(Integer_Type), socket_id);
+            memset(JA_SRC_R_REG_C, 0, (NC_SRC_R_REG_C * 2) * sizeof(Integer_Type));
+            madvise(JA_SRC_R_REG_C, (NC_SRC_R_REG_C * 2) * sizeof(Integer_Type), MADV_SEQUENTIAL);
+            
+            JC_SRC_R_REG_C = (Integer_Type*) numa_alloc_onnode((NC_SRC_R_REG_C * 2) * sizeof(Integer_Type), socket_id);
+            memset(JC_SRC_R_REG_C, 0, NC_SRC_R_REG_C * sizeof(Integer_Type));
+            madvise(JC_SRC_R_REG_C, NC_SRC_R_REG_C * sizeof(Integer_Type), MADV_SEQUENTIAL);
         }
-        memset(JA_SRC_R_REG_C, 0, (NC_SRC_R_REG_C * 2) * sizeof(Integer_Type));
-        
-        if((JC_SRC_R_REG_C = (Integer_Type*) mmap(nullptr, NC_SRC_R_REG_C * sizeof(Integer_Type), PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0)) == (void*) -1) {    
-            fprintf(stderr, "Error mapping memory\n");
-            exit(1);
+        else {  
+            if((JA_SRC_R_REG_C = (Integer_Type*) mmap(nullptr, (NC_SRC_R_REG_C * 2) * sizeof(Integer_Type), PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0)) == (void*) -1) {    
+                fprintf(stderr, "Error mapping memory\n");
+                exit(1);
+            }
+            memset(JA_SRC_R_REG_C, 0, (NC_SRC_R_REG_C * 2) * sizeof(Integer_Type));
+            madvise(JA_SRC_R_REG_C, (NC_SRC_R_REG_C * 2) * sizeof(Integer_Type), MADV_SEQUENTIAL);
+            
+            if((JC_SRC_R_REG_C = (Integer_Type*) mmap(nullptr, NC_SRC_R_REG_C * sizeof(Integer_Type), PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0)) == (void*) -1) {    
+                fprintf(stderr, "Error mapping memory\n");
+                exit(1);
+            }
+            memset(JC_SRC_R_REG_C, 0, NC_SRC_R_REG_C * sizeof(Integer_Type));
+            madvise(JC_SRC_R_REG_C, NC_SRC_R_REG_C * sizeof(Integer_Type), MADV_SEQUENTIAL);
         }
-        memset(JC_SRC_R_REG_C, 0, NC_SRC_R_REG_C * sizeof(Integer_Type));
     }
 
     j1 = 0;
@@ -825,17 +946,30 @@ void TCSC_CF_BASE<Weight, Integer_Type>::populate(const std::vector<struct Tripl
       
     NC_SRC_R_SNK_C = k;
     if(NC_SRC_R_SNK_C) {
-        if((JA_SRC_R_SNK_C = (Integer_Type*) mmap(nullptr, (NC_SRC_R_SNK_C * 2) * sizeof(Integer_Type), PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0)) == (void*) -1) {    
-            fprintf(stderr, "Error mapping memory\n");
-            exit(1);
+        if(Env::numa_allocation) {
+            JA_SRC_R_SNK_C = (Integer_Type*) numa_alloc_onnode((NC_SRC_R_SNK_C * 2) * sizeof(Integer_Type), socket_id);
+            memset(JA_SRC_R_SNK_C, 0, (NC_SRC_R_SNK_C * 2) * sizeof(Integer_Type));
+            madvise(JA_SRC_R_SNK_C, (NC_SRC_R_SNK_C * 2) * sizeof(Integer_Type), MADV_SEQUENTIAL);
+            
+            JC_SRC_R_SNK_C = (Integer_Type*) numa_alloc_onnode((NC_SRC_R_SNK_C * 2) * sizeof(Integer_Type), socket_id);
+            memset(JC_SRC_R_SNK_C, 0, NC_SRC_R_SNK_C * sizeof(Integer_Type));
+            madvise(JC_SRC_R_SNK_C, NC_SRC_R_SNK_C * sizeof(Integer_Type), MADV_SEQUENTIAL);
         }
-        memset(JA_SRC_R_SNK_C, 0, (NC_SRC_R_SNK_C * 2) * sizeof(Integer_Type));
-        
-        if((JC_SRC_R_SNK_C = (Integer_Type*) mmap(nullptr, NC_SRC_R_SNK_C * sizeof(Integer_Type), PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0)) == (void*) -1) {    
-            fprintf(stderr, "Error mapping memory\n");
-            exit(1);
+        else {  
+            if((JA_SRC_R_SNK_C = (Integer_Type*) mmap(nullptr, (NC_SRC_R_SNK_C * 2) * sizeof(Integer_Type), PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0)) == (void*) -1) {    
+                fprintf(stderr, "Error mapping memory\n");
+                exit(1);
+            }
+            memset(JA_SRC_R_SNK_C, 0, (NC_SRC_R_SNK_C * 2) * sizeof(Integer_Type));
+            madvise(JA_SRC_R_SNK_C, (NC_SRC_R_SNK_C * 2) * sizeof(Integer_Type), MADV_SEQUENTIAL);
+            
+            if((JC_SRC_R_SNK_C = (Integer_Type*) mmap(nullptr, NC_SRC_R_SNK_C * sizeof(Integer_Type), PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0)) == (void*) -1) {    
+                fprintf(stderr, "Error mapping memory\n");
+                exit(1);
+            }
+            memset(JC_SRC_R_SNK_C, 0, NC_SRC_R_SNK_C * sizeof(Integer_Type));
+            madvise(JC_SRC_R_SNK_C, NC_SRC_R_SNK_C * sizeof(Integer_Type), MADV_SEQUENTIAL);
         }
-        memset(JC_SRC_R_SNK_C, 0, NC_SRC_R_SNK_C * sizeof(Integer_Type));
     }
     
     
