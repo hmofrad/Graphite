@@ -12,9 +12,6 @@
 #include <vector>
 #include "mpi/types.hpp" 
 #include "mat/tiling.hpp" 
-#include "ds/indexed_sort.hpp"
-#include "ds/vector.hpp"
-#include "ds/segment.hpp"
 #include "ds/numa_vector.hpp"
 #include "mat/hashers.hpp" 
 enum Filtering_type
@@ -1778,8 +1775,6 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::classify_vertices() {
 
 template<typename Weight, typename Integer_Type, typename Fractional_Type>
 void Matrix<Weight, Integer_Type, Fractional_Type>::init_tcsc_cf() {
-    Env::barrier();
-    Env::exit(0);
     std::vector<std::thread> threads;
     for(int i = 0; i < Env::nthreads; i++) {
         threads.push_back(std::thread(&Matrix<Weight, Integer_Type, Fractional_Type>::init_tcsc_cf_threaded, this, i));
@@ -1789,6 +1784,8 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_tcsc_cf() {
         th.join();
     }
     del_classifier();
+    Env::barrier();
+    Env::exit(0);
 }
 
 
@@ -1816,8 +1813,8 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_tcsc_cf_threaded(int ti
         auto& regular_cols_bv_data = regular_cols_bitvector[xi];
         auto& sink_cols_data = sink_cols[xi];
         auto& sink_cols_bv_data = sink_cols_bitvector[xi];
-        tile.compressor = new TCSC_CF_BASE<Weight, Integer_Type>(tile.nedges, c_nitems, r_nitems);
-        tile.compressor->populate(tile.triples, tile_height, tile_width, i_data, iv_data, j_data, jv_data, regular_rows_data, regular_rows_bv_data, source_rows_data, source_rows_bv_data, regular_cols_data, regular_cols_bv_data, sink_cols_data, sink_cols_bv_data);
+        tile.compressor = new TCSC_CF_BASE<Weight, Integer_Type>(tile.nedges, c_nitems, r_nitems, sid);
+        tile.compressor->populate(tile.triples, tile_height, tile_width, i_data, iv_data, j_data, jv_data, regular_rows_data, regular_rows_bv_data, source_rows_data, source_rows_bv_data, regular_cols_data, regular_cols_bv_data, sink_cols_data, sink_cols_bv_data, sid);
         xi++;
         next_row = (((tile.nth + 1) % tiling->rank_ncolgrps) == 0);
         if(next_row) {
