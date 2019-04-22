@@ -1559,7 +1559,6 @@ bool Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
     
     if(tid == 0) {
         Env::print_num("Iteration", iteration);
-        checksum();
     }
     return(converged);   
 }
