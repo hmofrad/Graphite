@@ -1494,8 +1494,8 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::classify_vertices() {
 
     regular_rows.resize(tiling->rank_nrowgrps);
     source_rows.resize(tiling->rank_nrowgrps);
-    regular_cols.resize(tiling->rank_nrowgrps);
-    sink_cols.resize(tiling->rank_nrowgrps);
+    regular_cols.resize(tiling->rank_ncolgrps);
+    sink_cols.resize(tiling->rank_ncolgrps);
     
     for(int32_t k = 0; k < num_owned_segments; k++) { 
         uint32_t io = accu_segment_rows[k];
