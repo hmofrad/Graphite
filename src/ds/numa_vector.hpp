@@ -19,7 +19,7 @@ void allocate_numa_vector(Vector_Type*** data, std::vector<struct blk<Integer_Ty
     int32_t vector_length = blks.size();
     uint64_t nbytes = 0;
     uint64_t alignment = 0;
-    if(numa_available() != -1) {
+    if(Env::numa_allocation) {
         nbytes = vector_length * sizeof(Vector_Type*);
         *data = (Vector_Type**) numa_alloc_onnode(nbytes, Env::socket_id);
         memset(*data, 0, nbytes);
@@ -69,7 +69,7 @@ template<typename Integer_Type, typename Vector_Type>
 void deallocate_numa_vector(Vector_Type*** data, std::vector<struct blk<Integer_Type>> blks){
     int32_t vector_length = blks.size();
     uint64_t nbytes = 0;
-    if(numa_available() != -1) {
+    if(Env::numa_allocation) {
         for(int32_t i = 0; i < vector_length; i++) {
             auto& blk = blks[i];
             if(blk.nitems) {
