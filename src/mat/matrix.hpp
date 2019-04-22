@@ -1830,6 +1830,11 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::del_filter() {
     deallocate_numa_vector<Integer_Type, char>(&J, J_blks);
     deallocate_numa_vector<Integer_Type, Integer_Type>(&JV, JV_blks);
     deallocate_numa_vector<Integer_Type, Integer_Type>(&colgrp_nnz_cols, cgs_blks);
+    if(compression_type == _TCSC_CF_) {
+        deallocate_numa_vector<Integer_Type, Integer_Type>(&rowgrp_regular_rows, rowgrp_regular_rows_blks);
+        deallocate_numa_vector<Integer_Type, Integer_Type>(&rowgrp_source_rows, rowgrp_source_rows_blks);
+        deallocate_numa_vector<Integer_Type, Integer_Type>(&colgrp_sink_cols, colgrp_sink_cols_blks);
+    }
 }
 
 
