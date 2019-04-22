@@ -143,7 +143,6 @@ void Env::init() {
     
     if((numa_available() == -1) or (not numa_allocation)) {
         numa_allocation = false;
-        printf("xxxxxxxxxxxxxxx\n");
     }
     init_threads();
     
