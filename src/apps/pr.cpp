@@ -29,7 +29,7 @@ int main(int argc, char** argv) {
     bool acyclic = false;
     bool parallel_edges = true;
     Tiling_type TT = _NUMA_;
-    Compression_type CT = _TCSC_;
+    Compression_type CT = _TCSC_CF_;
     Hashing_type HT = _NONE_;
     /* Degree execution */
     Graph<wp, ip, fp> G;    
