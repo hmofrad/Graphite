@@ -1055,8 +1055,76 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
                 const Integer_Type ncols = static_cast<TCSC_CF_BASE<Weight, Integer_Type>*>(tile.compressor)->nnzcols;        
                 Integer_Type l;
                 if(activity_filtering and activity_statuses[tile.cg]) {
-                    Env::barrier();
-                    Env::exit(0);
+                    if(iteration == 0) {               
+                        Integer_Type NC_REG_R_SNK_C = static_cast<TCSC_CF_BASE<Weight, Integer_Type>*>(tile.compressor)->NC_REG_R_SNK_C;
+                        if(NC_REG_R_SNK_C) {
+                            Integer_Type* JC_REG_R_SNK_C = static_cast<TCSC_CF_BASE<Weight, Integer_Type>*>(tile.compressor)->JC_REG_R_SNK_C;
+                            Integer_Type* JA_REG_R_SNK_C = static_cast<TCSC_CF_BASE<Weight, Integer_Type>*>(tile.compressor)->JA_REG_R_SNK_C;
+                            for(uint32_t j = 0, k = 0; j < NC_REG_R_SNK_C; j++, k = k + 2) {
+                                l = JC_REG_R_SNK_C[j];
+                                for(uint32_t i = JA_REG_R_SNK_C[k]; i < JA_REG_R_SNK_C[k + 1]; i++) {
+                                    #ifdef HAS_WEIGHT
+                                    Vertex_Methods.combiner(y_data[IA[i]], x_data[l], A[i]);
+                                    #else
+                                    Vertex_Methods.combiner(y_data[IA[i]], x_data[l]);
+                                    #endif
+                                    t_data[IA[i]] = 1;
+                                }
+                            }                    
+                        }
+                    }
+                    if(not converged) {
+                        //if(ncols) {
+                            //Integer_Type* JC_REG_R_NNZ_C = static_cast<TCSC_CF_BASE<Weight, Integer_Type>*>(tile.compressor)->JC_REG_R_NNZ_C;
+                            Integer_Type* JA_REG_R_NNZ_C = static_cast<TCSC_CF_BASE<Weight, Integer_Type>*>(tile.compressor)->JA_REG_R_NNZ_C;
+                            Integer_Type s_nitems = msgs_activity_statuses[tile.jth] - 1;
+                            Integer_Type j = 0;
+                            for(Integer_Type k = 0; k < s_nitems; k++) {
+                                j = xi_data[k] * 2;
+                                //for(uint32_t i = JA[j]; i < JA[j + 1]; i++) {
+                                for(uint32_t i = JA_REG_R_NNZ_C[j]; i < JA_REG_R_NNZ_C[j + 1]; i++) {
+                                    #ifdef HAS_WEIGHT
+                                    Vertex_Methods.combiner(y_data[IA[i]], xv_data[k], A[i]);
+                                    #else
+                                    Vertex_Methods.combiner(y_data[IA[i]], xv_data[k]);
+                                    #endif
+                                    t_data[IA[i]] = 1;
+                                }
+                            }                   
+                        //}
+                    }
+                    else {
+                        Integer_Type NC_SRC_R_REG_C = static_cast<TCSC_CF_BASE<Weight, Integer_Type>*>(tile.compressor)->NC_SRC_R_REG_C;
+                        if(NC_SRC_R_REG_C) {
+                            Integer_Type* JC_SRC_R_REG_C = static_cast<TCSC_CF_BASE<Weight, Integer_Type>*>(tile.compressor)->JC_SRC_R_REG_C;
+                            Integer_Type* JA_SRC_R_REG_C = static_cast<TCSC_CF_BASE<Weight, Integer_Type>*>(tile.compressor)->JA_SRC_R_REG_C;
+                            for(uint32_t j = 0, k = 0; j < NC_SRC_R_REG_C; j++, k = k + 2) {
+                                l = JC_SRC_R_REG_C[j];
+                                for(uint32_t i = JA_SRC_R_REG_C[k]; i < JA_SRC_R_REG_C[k + 1]; i++) {
+                                    #ifdef HAS_WEIGHT
+                                    Vertex_Methods.combiner(y_data[IA[i]], x_data[l], A[i]);
+                                    #else
+                                    Vertex_Methods.combiner(y_data[IA[i]], x_data[l]);
+                                    #endif
+                                }
+                            }                    
+                        }
+                        Integer_Type NC_SRC_R_SNK_C = static_cast<TCSC_CF_BASE<Weight, Integer_Type>*>(tile.compressor)->NC_SRC_R_SNK_C;
+                        if(NC_SRC_R_SNK_C) {
+                            Integer_Type* JC_SRC_R_SNK_C = static_cast<TCSC_CF_BASE<Weight, Integer_Type>*>(tile.compressor)->JC_SRC_R_SNK_C;
+                            Integer_Type* JA_SRC_R_SNK_C = static_cast<TCSC_CF_BASE<Weight, Integer_Type>*>(tile.compressor)->JA_SRC_R_SNK_C;
+                            for(uint32_t j = 0, k = 0; j < NC_SRC_R_SNK_C; j++, k = k + 2) {
+                                l = JC_SRC_R_SNK_C[j];
+                                for(uint32_t i = JA_SRC_R_SNK_C[k]; i < JA_SRC_R_SNK_C[k + 1]; i++) {
+                                    #ifdef HAS_WEIGHT
+                                    Vertex_Methods.combiner(y_data[IA[i]], x_data[l], A[i]);
+                                    #else
+                                    Vertex_Methods.combiner(y_data[IA[i]], x_data[l]);
+                                    #endif
+                                }
+                            }                    
+                        }
+                    }
                 }
                 else { 
                     if(iteration == 0) {               
@@ -1072,26 +1140,30 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
                                     #else
                                     Vertex_Methods.combiner(y_data[IA[i]], x_data[l]);
                                     #endif
+                                    t_data[IA[i]] = 1;
                                 }
                             }                    
                         }
                     }
                     if(not converged) {
-                        Integer_Type NC_REG_R_REG_C = static_cast<TCSC_CF_BASE<Weight, Integer_Type>*>(tile.compressor)->NC_REG_R_REG_C;
-                        if(NC_REG_R_REG_C) {
-                            Integer_Type* JC_REG_R_REG_C = static_cast<TCSC_CF_BASE<Weight, Integer_Type>*>(tile.compressor)->JC_REG_R_REG_C;
-                            Integer_Type* JA_REG_R_REG_C = static_cast<TCSC_CF_BASE<Weight, Integer_Type>*>(tile.compressor)->JA_REG_R_REG_C;
-                            for(uint32_t j = 0, k = 0; j < NC_REG_R_REG_C; j++, k = k + 2) {
-                                l = JC_REG_R_REG_C[j];
-                                for(uint32_t i = JA_REG_R_REG_C[k]; i < JA_REG_R_REG_C[k + 1]; i++) {
-                                    #ifdef HAS_WEIGHT
-                                    Vertex_Methods.combiner(y_data[IA[i]], x_data[l], A[i]);
-                                    #else
-                                    Vertex_Methods.combiner(y_data[IA[i]], x_data[l]);
-                                    #endif
+                        //Integer_Type NC_REG_R_NNZ_C = static_cast<TCSC_CF_BASE<Weight, Integer_Type>*>(tile.compressor)->NC_REG_R_NNZ_C;
+                        //if(NC_REG_R_NNZ_C) {
+                            //Integer_Type* JC_REG_R_NNZ_C = static_cast<TCSC_CF_BASE<Weight, Integer_Type>*>(tile.compressor)->JC_REG_R_NNZ_C;
+                            Integer_Type* JA_REG_R_NNZ_C = static_cast<TCSC_CF_BASE<Weight, Integer_Type>*>(tile.compressor)->JA_REG_R_NNZ_C;
+                            for(uint32_t j = 0, k = 0; j < ncols; j++, k = k + 2) {
+                                //l = j;
+                                if(x_data[j] != Vertex_Methods.infinity()) {
+                                    for(uint32_t i = JA_REG_R_NNZ_C[k]; i < JA_REG_R_NNZ_C[k + 1]; i++) {
+                                        #ifdef HAS_WEIGHT
+                                        Vertex_Methods.combiner(y_data[IA[i]], x_data[j], A[i]);
+                                        #else
+                                        Vertex_Methods.combiner(y_data[IA[i]], x_data[j]);
+                                        #endif
+                                        t_data[IA[i]] = 1;
+                                    }
                                 }
                             }                    
-                        }
+                        //}
                     }
                     else {
                         Integer_Type NC_SRC_R_REG_C = static_cast<TCSC_CF_BASE<Weight, Integer_Type>*>(tile.compressor)->NC_SRC_R_REG_C;
@@ -1254,15 +1326,6 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
         Integer_Type src_nitems = rowgrp_source_rows_blks[tid].nitems; 
         if(apply_depends_on_iter) {
             if(iteration == 0) {
-                /*
-                yi  = accu_segment_rows[tid];
-                auto* y_data = (Fractional_Type*) Y[yi];
-                auto* i_data = (char*) I[yi];
-                auto* iv_data = (Integer_Type*) IV[yi];
-                auto* v_data = (Vertex_State*) V[tid];
-                auto* c_data = (char*) C[tid];
-                Integer_Type v_nitems = tile_height;
-                */
                 for(uint32_t i = 0; i < v_nitems; i++) {
                     Vertex_State& state = v_data[i];
                     Integer_Type j = iv_data[i];
@@ -1273,21 +1336,6 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
                 }
             }
             else {
-                /*
-                yi  = accu_segment_rows[tid];                
-                auto* y_data = (Fractional_Type*) Y[yi];
-                auto* iv_data = (Integer_Type*) IV[yi];
-                auto* IR = (Integer_Type*) rowgrp_nnz_rows[tid];
-                Integer_Type IR_nitems = nnz_row_sizes_loc[yi];
-                auto* v_data = (Vertex_State*) V[tid];
-                auto* c_data = (char*) C[tid];
-                for(Integer_Type j = 0; j < IR_nitems; j++) {
-                    Integer_Type i = IR[j];
-                    Vertex_State& state = v_data[i];
-                    Integer_Type l = iv_data[i];    
-                    c_data[i] = Vertex_Methods.applicator(state, y_data[l], iteration);
-                }
-                */
                 if(not converged) {
                     for(Integer_Type r = 0; r < reg_nitems; r++) {
                         Integer_Type i = regular_rows[r];
@@ -1307,16 +1355,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
             }
         }
         else {
-            if(iteration == 0) {
-                /*
-                yi  = accu_segment_rows[tid];
-                auto* y_data = (Fractional_Type*) Y[yi];
-                auto* i_data = (char*) I[yi];
-                auto* iv_data = (Integer_Type*) IV[yi];
-                auto* v_data = (Vertex_State*) V[tid];
-                auto* c_data = (char*) C[tid];
-                Integer_Type v_nitems = tile_height;
-                */              
+            if(iteration == 0) {            
                 for(uint32_t i = 0; i < v_nitems; i++) {
                     Vertex_State& state = v_data[i];
                     Integer_Type j = iv_data[i];
@@ -1327,17 +1366,6 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
                 }
             }
             else {
-                /*
-                yi  = accu_segment_rows[tid];             
-                auto* y_data = (Fractional_Type*) Y[yi];
-                auto* iv_data = (Integer_Type*) IV[yi];
-                auto* IR = (Integer_Type*) rowgrp_nnz_rows[tid];
-                Integer_Type IR_nitems = nnz_row_sizes_loc[yi];
-                auto* v_data = (Vertex_State*) V[tid];
-                auto* c_data = (char*) C[tid];
-                */
-                
-
                 if(not converged) {
                     for(Integer_Type r = 0; r < reg_nitems; r++) {
                         Integer_Type i = regular_rows[r];
@@ -1360,16 +1388,6 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
     else {
         if(apply_depends_on_iter) {
             if(iteration == 0) {
-                /*
-                yi  = accu_segment_rows[tid];
-                auto* y_data = (Fractional_Type*) Y[yi];
-                auto* i_data = (char*) I[yi];
-                auto* iv_data = (Integer_Type*) IV[yi];
-                auto* v_data = (Vertex_State*) V[tid];
-                auto* c_data = (char*) C[tid];
-                Integer_Type v_nitems = tile_height;
-                */
-                
                 for(uint32_t i = 0; i < v_nitems; i++) {
                     Vertex_State& state = v_data[i];
                     Integer_Type j = iv_data[i]; 
@@ -1380,15 +1398,6 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
                 }
             }
             else {
-                /*
-                yi  = accu_segment_rows[tid];                
-                auto* y_data = (Fractional_Type*) Y[yi];
-                auto* iv_data = (Integer_Type*) IV[yi];
-                auto* regular_rows = (Integer_Type*) rowgrp_nnz_rows[tid];
-                Integer_Type reg_nitems = nnz_row_sizes_loc[yi];
-                auto* v_data = (Vertex_State*) V[tid];
-                auto* c_data = (char*) C[tid];
-                */
                 for(Integer_Type r = 0; r < reg_nnz_nitems; r++) {
                     Integer_Type i = reg_nnz_data[r];
                     Vertex_State& state = v_data[i];
@@ -1399,15 +1408,6 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
         }
         else {
             if(iteration == 0) {
-                /*
-                yi  = accu_segment_rows[tid];
-                auto* y_data = (Fractional_Type*) Y[yi];
-                auto* i_data = (char*) I[yi];
-                auto* iv_data = (Integer_Type*) IV[yi];
-                auto* v_data = (Vertex_State*) V[tid];
-                auto* c_data = (char*) C[tid];
-                Integer_Type v_nitems = tile_height;
-                */
                 for(Integer_Type i = 0; i < v_nitems; i++) {
                     Vertex_State& state = v_data[i];
                     Integer_Type j = iv_data[i];  
@@ -1418,15 +1418,6 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
                 }
             }
             else {
-                /*
-                yi  = accu_segment_rows[tid];             
-                auto* y_data = (Fractional_Type*) Y[yi];
-                auto* iv_data = (Integer_Type*) IV[yi];
-                auto* IR = (Integer_Type*) rowgrp_nnz_rows[tid];
-                Integer_Type IR_nitems = nnz_row_sizes_loc[yi];
-                auto* v_data = (Vertex_State*) V[tid];
-                auto* c_data = (char*) C[tid];
-                */
                 for(Integer_Type r = 0; r < reg_nnz_nitems; r++) {
                     Integer_Type i = reg_nnz_data[r];
                     Vertex_State& state = v_data[i];
