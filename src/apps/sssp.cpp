@@ -22,7 +22,7 @@ int main(int argc, char** argv) {
     }
     std::string file_path = argv[1]; 
     ip num_vertices = std::atoi(argv[2]);
-    ip num_iterations = 0;
+    ip num_iterations = std::atoi(argv[4]);
     ip root = (argc > 3) ? std::atoi(argv[3]) : 0;
     
     bool directed = true;
@@ -31,7 +31,7 @@ int main(int argc, char** argv) {
     bool acyclic = false;
     bool parallel_edges = false;
     Tiling_type TT = _NUMA_;
-    Compression_type CT = _TCSC_;
+    Compression_type CT = _TCSC_CF_;
     Hashing_type HT = _NONE_;
     
     /* Single Source Shortest Path (SSSP) execution*/
