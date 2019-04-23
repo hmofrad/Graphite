@@ -169,7 +169,7 @@ class Vertex_Program
         bool directed;
         bool transpose;
         double activity_filtering_ratio = 0.6;
-        bool activity_filtering = false;
+        bool activity_filtering = true;
         
         bool computation_filering = false;
         Integer_Type** rowgrp_regular_rows;
