@@ -103,7 +103,7 @@ do
 done
 
 strings graphite.out | grep 'Execute time'
-strings graphite.out | grep 'Iterations'
+strings graphite.out | grep 'Number of iterations'
 strings graphite.out | grep 'Value checksum'
 strings graphite.out | grep 'Reachable vertices'
 #strings graphtap.out | grep 'avg'
