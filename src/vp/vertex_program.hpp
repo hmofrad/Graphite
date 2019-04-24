@@ -1603,7 +1603,12 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
     Integer_Type v_nitems = tile_height;
     count = (v_nitems < count) ? v_nitems : count;
     Env::barrier();
-    if(Env::is_master) {
+    
+    uint32_t t = local_tiles_row_order[0];
+    auto pair = A->tile_of_local_tile(t);
+    auto& tile = A->tiles[pair.row][pair.col];
+    if(!tile.kth) {
+    //if(Env::is_master) {
         Triple<Weight, Integer_Type> pair, pair1;
         auto* v_data = (Vertex_State*) V[0];
         for(uint32_t i = 0; i < count; i++) {
