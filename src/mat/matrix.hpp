@@ -1561,8 +1561,8 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::classify_vertices() {
                 MPI_Send(&nitems, 1, TYPE_INT, follower, row_group, Env::MPI_WORLD);
                 MPI_Isend(regular_row.data(), regular_row.size(), TYPE_INT, follower, row_group, Env::MPI_WORLD, &request);
                 out_requests.push_back(request);
-                idx++;
             }
+            idx++;
         }
         else {
             MPI_Recv(&nitems, 1, TYPE_INT, leader, row_group, Env::MPI_WORLD, &status);
@@ -1602,6 +1602,7 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::classify_vertices() {
                 MPI_Isend(source_row.data(), source_row.size(), TYPE_INT, follower, row_group, Env::MPI_WORLD, &request);
                 out_requests.push_back(request);
             }
+            idx++;
         }
         else {
             MPI_Recv(&nitems, 1, TYPE_INT, leader, row_group, Env::MPI_WORLD, &status);
