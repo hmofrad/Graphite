@@ -684,6 +684,7 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_matrix() {
         for(int32_t t: local_tiles_row_order_t[i]) {
             pair = tile_of_local_tile(t);
             auto& tile = tiles[pair.row][pair.col];
+            tile.thread = i;
             rowgrp_owner_thread[tile.ith] = i;
         }
     }
@@ -706,6 +707,8 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_matrix() {
     for(uint32_t i = 0; i < tiling->rank_ncolgrps; i++) {
         colgrp_owner_thread_segments[colgrp_owner_thread[i]].push_back(i);
     }
+    
+    
     
     Env::barrier();
     if(Env::is_master) {
