@@ -90,8 +90,11 @@ class Env {
         static std::vector<int> core_ids_unique;
         static std::vector<int> ranks; 
         static struct topology network;
-        static long int L1_CACHE_LINE_SIZE;
+        static long L1_CACHE_LINE_SIZE;
         static bool numa_allocation;
+        static bool cache_alignment;
+        static bool memory_prefetching;
+        
 };
 
 MPI_Comm Env::MPI_WORLD;
@@ -128,6 +131,8 @@ std::vector<int> Env::ranks;
 struct topology Env::network;
 long int Env::L1_CACHE_LINE_SIZE = 0;
 bool Env::numa_allocation = true;
+bool Env::cache_alignment = true;
+bool Env::memory_prefetching = true;
 
 
 void Env::init() {
