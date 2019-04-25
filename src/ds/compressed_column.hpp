@@ -637,7 +637,7 @@ void TCSC_CF_BASE<Weight, Integer_Type>::populate(const std::vector<struct Tripl
             memset(JA_REG_R_REG_C, 0, (NC_REG_R_REG_C * 2) * sizeof(Integer_Type));
             madvise(JA_REG_R_REG_C, (NC_REG_R_REG_C * 2) * sizeof(Integer_Type), MADV_SEQUENTIAL);
             
-            JC_REG_R_REG_C = (Integer_Type*) numa_alloc_onnode((NC_REG_R_REG_C * 2) * sizeof(Integer_Type), socket_id);
+            JC_REG_R_REG_C = (Integer_Type*) numa_alloc_onnode(NC_REG_R_REG_C * sizeof(Integer_Type), socket_id);
             memset(JC_REG_R_REG_C, 0, NC_REG_R_REG_C * sizeof(Integer_Type));
             madvise(JC_REG_R_REG_C, NC_REG_R_REG_C * sizeof(Integer_Type), MADV_SEQUENTIAL);
         }
@@ -750,7 +750,7 @@ void TCSC_CF_BASE<Weight, Integer_Type>::populate(const std::vector<struct Tripl
             memset(JA_REG_R_SNK_C, 0, (NC_REG_R_SNK_C * 2) * sizeof(Integer_Type));
             madvise(JA_REG_R_SNK_C, (NC_REG_R_SNK_C * 2) * sizeof(Integer_Type), MADV_SEQUENTIAL);
             
-            JC_REG_R_SNK_C = (Integer_Type*) numa_alloc_onnode((NC_REG_R_SNK_C * 2) * sizeof(Integer_Type), socket_id);
+            JC_REG_R_SNK_C = (Integer_Type*) numa_alloc_onnode(NC_REG_R_SNK_C * sizeof(Integer_Type), socket_id);
             memset(JC_REG_R_SNK_C, 0, NC_REG_R_SNK_C * sizeof(Integer_Type));
             madvise(JC_REG_R_SNK_C, NC_REG_R_SNK_C * sizeof(Integer_Type), MADV_SEQUENTIAL);
         }
@@ -856,7 +856,7 @@ void TCSC_CF_BASE<Weight, Integer_Type>::populate(const std::vector<struct Tripl
             memset(JA_SRC_R_REG_C, 0, (NC_SRC_R_REG_C * 2) * sizeof(Integer_Type));
             madvise(JA_SRC_R_REG_C, (NC_SRC_R_REG_C * 2) * sizeof(Integer_Type), MADV_SEQUENTIAL);
             
-            JC_SRC_R_REG_C = (Integer_Type*) numa_alloc_onnode((NC_SRC_R_REG_C * 2) * sizeof(Integer_Type), socket_id);
+            JC_SRC_R_REG_C = (Integer_Type*) numa_alloc_onnode(NC_SRC_R_REG_C * sizeof(Integer_Type), socket_id);
             memset(JC_SRC_R_REG_C, 0, NC_SRC_R_REG_C * sizeof(Integer_Type));
             madvise(JC_SRC_R_REG_C, NC_SRC_R_REG_C * sizeof(Integer_Type), MADV_SEQUENTIAL);
         }
