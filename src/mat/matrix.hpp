@@ -1423,6 +1423,7 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_compression() {
             printf("INFO(rank=%d): Edge compression: Triply Compressed Sparse Column (TCSC) - Computation Filtering\n", Env::rank);
         classify_vertices();
         init_tcsc_cf();
+        del_classifier();
     }
     else {
         fprintf(stderr, "ERROR(rank=%d): Edge compression: Invalid compression type\n", Env::rank);
@@ -1577,7 +1578,7 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::classify_vertices() {
     in_requests.clear();
     MPI_Waitall(out_requests.size(), out_requests.data(), MPI_STATUSES_IGNORE);
     out_requests.clear();
-    
+
     regular_rows_bitvector.resize(tiling->rank_nrowgrps);
     for(uint32_t i = 0; i < tiling->rank_nrowgrps; i++)
         regular_rows_bitvector[i].resize(tile_height);
@@ -1787,7 +1788,6 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_tcsc_cf() {
     for(std::thread& th: threads) {
         th.join();
     }
-    del_classifier();
 }
 
 
@@ -1850,40 +1850,48 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::del_classifier() {
         regular_rows_bitvector[i].clear();
         regular_rows_bitvector[i].shrink_to_fit();
     }
+    /*
     regular_rows.clear();
     regular_rows.shrink_to_fit();    
     regular_rows_bitvector.clear();
     regular_rows_bitvector.shrink_to_fit();    
+    */
     for(uint32_t i = 0; i < tiling->rank_nrowgrps; i++) {
         source_rows[i].clear();
         source_rows[i].shrink_to_fit();
         source_rows_bitvector[i].clear();
         source_rows_bitvector[i].shrink_to_fit();
     }
+    /*
     source_rows.clear();
     source_rows.shrink_to_fit();
     source_rows_bitvector.clear();
     source_rows_bitvector.shrink_to_fit();
+    */
     for(uint32_t i = 0; i < tiling->rank_ncolgrps; i++) {
         regular_cols[i].clear();
         regular_cols[i].shrink_to_fit();
         regular_cols_bitvector[i].clear();
         regular_cols_bitvector[i].shrink_to_fit();
     }
+    /*
     regular_cols.clear();
     regular_cols.shrink_to_fit();
     regular_cols_bitvector.clear();
     regular_cols_bitvector.shrink_to_fit();
+    */
     for(uint32_t i = 0; i < tiling->rank_ncolgrps; i++) {
         sink_cols[i].clear();
         sink_cols[i].shrink_to_fit();
         sink_cols_bitvector[i].clear();
         sink_cols_bitvector[i].shrink_to_fit();
     }
+    /*
     sink_cols.clear();
     sink_cols.shrink_to_fit();
     sink_cols_bitvector.clear();
     sink_cols_bitvector.shrink_to_fit();
+    */
 }
 
 
