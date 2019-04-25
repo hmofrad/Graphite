@@ -12,8 +12,11 @@
 #include <vector>
 #include "mpi/types.hpp" 
 #include "mat/tiling.hpp" 
-#include "ds/numa_vector.hpp"
-#include "mat/hashers.hpp" 
+#include "mat/hashers.hpp"
+
+#include "ds/numa_vector.hpp" 
+
+
 enum Filtering_type
 {
   _ROWS_,
