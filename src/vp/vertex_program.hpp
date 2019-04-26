@@ -625,19 +625,22 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
                 const Integer_Type* IA   = static_cast<TCSC_CF_BASE<Weight, Integer_Type>*>(tile.compressor)->IA;
                 const Integer_Type* JA   = static_cast<TCSC_CF_BASE<Weight, Integer_Type>*>(tile.compressor)->JA;    
                 const Integer_Type ncols = static_cast<TCSC_CF_BASE<Weight, Integer_Type>*>(tile.compressor)->nnzcols;        
-                
+                /*
                 if(num_iterations == 1) {
-                    for(uint32_t j = 0; j < ncols; j++) {
-                        for(uint32_t i = JA[j]; i < JA[j + 1]; i++) {
-                            #ifdef HAS_WEIGHT
-                            Vertex_Methods.combiner(y_data[IA[i]], x_data[j], A[i]);
-                            #else
-                            Vertex_Methods.combiner(y_data[IA[i]], x_data[j]);
-                            #endif
+                    if(not converged) {
+                        for(uint32_t j = 0; j < ncols; j++) {
+                            for(uint32_t i = JA[j]; i < JA[j + 1]; i++) {
+                                #ifdef HAS_WEIGHT
+                                Vertex_Methods.combiner(y_data[IA[i]], x_data[j], A[i]);
+                                #else
+                                Vertex_Methods.combiner(y_data[IA[i]], x_data[j]);
+                                #endif
+                            }
                         }
                     }
                 }
                 else {
+                */    
                     Integer_Type l;
                     if(iteration == 0) {               
                         Integer_Type NC_REG_R_SNK_C = static_cast<TCSC_CF_BASE<Weight, Integer_Type>*>(tile.compressor)->NC_REG_R_SNK_C;
@@ -706,7 +709,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
                             }                    
                         }
                     }
-                }
+                //}
             }
         }
         
