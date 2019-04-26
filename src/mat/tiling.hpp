@@ -46,6 +46,7 @@ Tiling::Tiling(uint32_t nranks_, uint32_t ntiles_, uint32_t nrowgrps_, uint32_t 
     assert(rank_ntiles * nranks == ntiles);
     
     if (tiling_type == Tiling_type::_2D_) {
+        Env::shuffle_ranks();
         integer_factorize(nranks, rowgrp_nranks, colgrp_nranks);
         assert(rowgrp_nranks * colgrp_nranks == nranks);
         rank_nrowgrps = nrowgrps / colgrp_nranks;
