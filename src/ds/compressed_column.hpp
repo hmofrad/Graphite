@@ -10,6 +10,8 @@
 
 #include <sys/mman.h>
 #include <cstring> 
+
+#include "ds/base_allocator.hpp"
  
 enum Compression_type
 {
@@ -64,11 +66,16 @@ struct TCSC_BASE : public Compressed_column<Weight, Integer_Type> {
         Integer_Type nnzrows;
         #ifdef HAS_WEIGHT
         Weight* A;  // WEIGHT
+        struct blk<Integer_Type> A_blk;
         #endif
         Integer_Type* IA; // ROW_IDX
         Integer_Type* JA; // COL_PTR
         Integer_Type* JC; // COL_IDX
         Integer_Type* IR; // ROW_PTR
+        struct blk<Integer_Type> IA_blk;
+        struct blk<Integer_Type> JA_blk;
+        struct blk<Integer_Type> JC_blk;
+        struct blk<Integer_Type> IR_blk;
         /* JC and IR are allocted per row and column groups in matrix.hpp */
 };
 
@@ -78,8 +85,21 @@ TCSC_BASE<Weight, Integer_Type>::TCSC_BASE(const uint64_t nnz_, const Integer_Ty
     nnzcols = nnzcols_;
     nnzrows = nnzrows_;
     if(nnz and nnzcols and nnzrows) {
+        #ifdef HAS_WEIGHT
+        A_blk.nitems = nnz;
+        A_blk.socket_id = socket_id;
+        allocate<Integer_Type, Weight>(&A, A_blk, Env::numa_allocation,  Env::cache_alignment, Env::L1_CACHE_LINE_SIZE, Env::memory_prefetching);
+        #endif
+        IA_blk.nitems = nnz;
+        IA_blk.socket_id = socket_id;
+        allocate<Integer_Type, Integer_Type>(&IA, IA_blk, Env::numa_allocation,  Env::cache_alignment, Env::L1_CACHE_LINE_SIZE, Env::memory_prefetching);
+        JA_blk.nitems = nnzcols + 1;
+        JA_blk.socket_id = socket_id;
+        allocate<Integer_Type, Integer_Type>(&JA, JA_blk, Env::numa_allocation,  Env::cache_alignment, Env::L1_CACHE_LINE_SIZE, Env::memory_prefetching);
+        
+        /*
         if(Env::numa_allocation) {
-            #ifdef HAS_WEIGHT
+            #ifdef HAS_WEIGHT    
             A = (Weight*) numa_alloc_onnode(nnz * sizeof(Weight), socket_id);
             memset(A, 0, nnz * sizeof(Weight));
             madvise(A, nnz * sizeof(Weight), MADV_SEQUENTIAL);
@@ -116,13 +136,20 @@ TCSC_BASE<Weight, Integer_Type>::TCSC_BASE(const uint64_t nnz_, const Integer_Ty
             }
             memset(JA, 0, (nnzcols + 1) * sizeof(Integer_Type));
             madvise(JA, (nnzcols + 1) * sizeof(Integer_Type), MADV_SEQUENTIAL);
-        }            
+        }   
+        */    
     }
 }
 
 template<typename Weight, typename Integer_Type>
 TCSC_BASE<Weight, Integer_Type>::~TCSC_BASE() {
-    if(nnz and nnzcols and nnzrows) {        
+    if(nnz and nnzcols and nnzrows) { 
+        #ifdef HAS_WEIGHT    
+        deallocate<Integer_Type, Weight>(&A, A_blk, Env::numa_allocation);
+        #endif
+        deallocate<Integer_Type, Integer_Type>(&IA, IA_blk, Env::numa_allocation);
+        deallocate<Integer_Type, Integer_Type>(&JA, JA_blk, Env::numa_allocation);
+        /*
         if(Env::numa_allocation) {    
             #ifdef HAS_WEIGHT
             numa_free(A, (nnz * sizeof(Weight)));
@@ -147,6 +174,7 @@ TCSC_BASE<Weight, Integer_Type>::~TCSC_BASE() {
                 exit(1);
             }
         }
+        */
     }        
 }
 
@@ -204,12 +232,6 @@ struct TCSC_CF_BASE : public Compressed_column<Weight, Integer_Type> {
                               const std::vector<Integer_Type>& sink_cols_indices,
                               const std::vector<char>&         sink_cols_bitvector,
                               const int socket_id);
-                              
-        void allocate_local_reg(Integer_Type nnzcols_regulars_local_);
-        void allocate_local_src(Integer_Type nnzcols_sources_local_);
-        void allocate_local_src_reg(Integer_Type nnzcols_sources_regulars_local_);
-        void allocate_local_reg_snk(Integer_Type nnzcols_regulars_sinks_local_);
-        void allocate_local_src_snk(Integer_Type nnzcols_sources_sinks_local_);
         uint64_t nnz;
         Integer_Type nnzcols;
         Integer_Type nnzcols_regulars;
@@ -221,6 +243,7 @@ struct TCSC_CF_BASE : public Compressed_column<Weight, Integer_Type> {
         Integer_Type nnzrows;
         #ifdef HAS_WEIGHT
         Weight* A;  // WEIGHT
+        struct blk<Integer_Type> A_blk;
         #endif
         Integer_Type* IA; // ROW_IDX
         Integer_Type* JA; // COL_PTR
@@ -241,6 +264,20 @@ struct TCSC_CF_BASE : public Compressed_column<Weight, Integer_Type> {
         Integer_Type  NC_SRC_R_SNK_C;
         Integer_Type* JA_SRC_R_SNK_C;
         Integer_Type* JC_SRC_R_SNK_C;
+        struct blk<Integer_Type> IA_blk;
+        struct blk<Integer_Type> JA_blk;
+        struct blk<Integer_Type> JC_blk;
+        struct blk<Integer_Type> IR_blk;
+        struct blk<Integer_Type> JA_REG_R_NNZ_C_blk;
+        struct blk<Integer_Type> JC_REG_R_NNZ_C_blk;
+        struct blk<Integer_Type> JA_REG_R_REG_C_blk;
+        struct blk<Integer_Type> JC_REG_R_REG_C_blk;
+        struct blk<Integer_Type> JA_REG_R_SNK_C_blk;
+        struct blk<Integer_Type> JC_REG_R_SNK_C_blk;
+        struct blk<Integer_Type> JA_SRC_R_REG_C_blk;
+        struct blk<Integer_Type> JC_SRC_R_REG_C_blk;
+        struct blk<Integer_Type> JA_SRC_R_SNK_C_blk;
+        struct blk<Integer_Type> JC_SRC_R_SNK_C_blk;
 };
 
 template<typename Weight, typename Integer_Type>
@@ -249,6 +286,25 @@ TCSC_CF_BASE<Weight, Integer_Type>::TCSC_CF_BASE(const uint64_t nnz_, const Inte
     nnzcols = nnzcols_;
     nnzrows = nnzrows_;
     if(nnz and nnzcols and nnzrows) {
+        #ifdef HAS_WEIGHT
+        A_blk.nitems = nnz;
+        A_blk.socket_id = socket_id;
+        allocate<Integer_Type, Weight>(&A, A_blk, Env::numa_allocation,  Env::cache_alignment, Env::L1_CACHE_LINE_SIZE, Env::memory_prefetching);
+        #endif
+        IA_blk.nitems = nnz;
+        IA_blk.socket_id = socket_id;
+        allocate<Integer_Type, Integer_Type>(&IA, IA_blk, Env::numa_allocation,  Env::cache_alignment, Env::L1_CACHE_LINE_SIZE, Env::memory_prefetching);
+        JA_blk.nitems = nnzcols + 1;
+        JA_blk.socket_id = socket_id;
+        allocate<Integer_Type, Integer_Type>(&JA, JA_blk, Env::numa_allocation,  Env::cache_alignment, Env::L1_CACHE_LINE_SIZE, Env::memory_prefetching);
+        JC_blk.nitems = nnzcols;
+        JC_blk.socket_id = socket_id;
+        allocate<Integer_Type, Integer_Type>(&JC, JC_blk, Env::numa_allocation,  Env::cache_alignment, Env::L1_CACHE_LINE_SIZE, Env::memory_prefetching);
+        IR_blk.nitems = nnzrows;
+        IR_blk.socket_id = socket_id;
+        allocate<Integer_Type, Integer_Type>(&IR, IR_blk, Env::numa_allocation,  Env::cache_alignment, Env::L1_CACHE_LINE_SIZE, Env::memory_prefetching);
+        
+        /*
         if(Env::numa_allocation) {
             #ifdef HAS_WEIGHT
             A = (Weight*) numa_alloc_onnode(nnz * sizeof(Weight), socket_id);
@@ -311,12 +367,32 @@ TCSC_CF_BASE<Weight, Integer_Type>::TCSC_CF_BASE(const uint64_t nnz_, const Inte
             memset(IR, 0, nnzrows * sizeof(Integer_Type));
             madvise(IR, nnzrows * sizeof(Integer_Type), MADV_SEQUENTIAL);
         }
+        */
     }
 }
 
 template<typename Weight, typename Integer_Type>
 TCSC_CF_BASE<Weight, Integer_Type>::~TCSC_CF_BASE() {
     if(nnz and nnzcols and nnzrows) {
+        #ifdef HAS_WEIGHT    
+        deallocate<Integer_Type, Weight>(&A, A_blk, Env::numa_allocation);
+        #endif
+        deallocate<Integer_Type, Integer_Type>(&IA, IA_blk, Env::numa_allocation);
+        deallocate<Integer_Type, Integer_Type>(&JA, JA_blk, Env::numa_allocation);
+        deallocate<Integer_Type, Integer_Type>(&JC, JC_blk, Env::numa_allocation);
+        deallocate<Integer_Type, Integer_Type>(&IR, IR_blk, Env::numa_allocation);
+        
+        deallocate<Integer_Type, Integer_Type>(&JA_REG_R_NNZ_C, JA_REG_R_NNZ_C_blk, Env::numa_allocation);
+        deallocate<Integer_Type, Integer_Type>(&JA_REG_R_REG_C, JA_REG_R_REG_C_blk, Env::numa_allocation);
+        deallocate<Integer_Type, Integer_Type>(&JC_REG_R_REG_C, JC_REG_R_REG_C_blk, Env::numa_allocation);
+        deallocate<Integer_Type, Integer_Type>(&JA_REG_R_SNK_C, JA_REG_R_SNK_C_blk, Env::numa_allocation);
+        deallocate<Integer_Type, Integer_Type>(&JC_REG_R_SNK_C, JC_REG_R_SNK_C_blk, Env::numa_allocation);
+        deallocate<Integer_Type, Integer_Type>(&JA_SRC_R_REG_C, JA_SRC_R_REG_C_blk, Env::numa_allocation);
+        deallocate<Integer_Type, Integer_Type>(&JC_SRC_R_REG_C, JC_SRC_R_REG_C_blk, Env::numa_allocation);
+        deallocate<Integer_Type, Integer_Type>(&JA_SRC_R_SNK_C, JA_SRC_R_SNK_C_blk, Env::numa_allocation);
+        deallocate<Integer_Type, Integer_Type>(&JC_SRC_R_SNK_C, JC_SRC_R_SNK_C_blk, Env::numa_allocation);
+        
+        /*
         if(Env::numa_allocation) {
             #ifdef HAS_WEIGHT
             numa_free(A, (nnz * sizeof(Weight)));
@@ -353,8 +429,10 @@ TCSC_CF_BASE<Weight, Integer_Type>::~TCSC_CF_BASE() {
             exit(1);
             }
         }
+        */
     }
     
+    /*
     if(NC_REG_R_NNZ_C) {
         if(Env::numa_allocation) {
             numa_free(JA_REG_R_NNZ_C, (NC_REG_R_NNZ_C * 2) * sizeof(Integer_Type));   
@@ -366,7 +444,7 @@ TCSC_CF_BASE<Weight, Integer_Type>::~TCSC_CF_BASE() {
             }
         }
     }    
-   
+    
     if(NC_REG_R_REG_C) {
         if(Env::numa_allocation) {
             numa_free(JA_REG_R_REG_C, (NC_REG_R_REG_C * 2) * sizeof(Integer_Type));   
@@ -438,6 +516,7 @@ TCSC_CF_BASE<Weight, Integer_Type>::~TCSC_CF_BASE() {
             }
         }
     }
+    */
     
 }
 
@@ -550,7 +629,12 @@ void TCSC_CF_BASE<Weight, Integer_Type>::populate(const std::vector<struct Tripl
             r.shrink_to_fit();
         }
     }
+    
     NC_REG_R_NNZ_C = nnzcols;
+    JA_REG_R_NNZ_C_blk.nitems = NC_REG_R_NNZ_C;
+    JA_REG_R_NNZ_C_blk.socket_id = socket_id;
+    allocate<Integer_Type, Integer_Type>(&JA_REG_R_NNZ_C, JA_REG_R_NNZ_C_blk, Env::numa_allocation,  Env::cache_alignment, Env::L1_CACHE_LINE_SIZE, Env::memory_prefetching);
+    /*
     if(NC_REG_R_NNZ_C) {
         if(Env::numa_allocation) {
             JA_REG_R_NNZ_C = (Integer_Type*) numa_alloc_onnode((NC_REG_R_NNZ_C * 2) * sizeof(Integer_Type), socket_id);
@@ -566,7 +650,7 @@ void TCSC_CF_BASE<Weight, Integer_Type>::populate(const std::vector<struct Tripl
             madvise(JA_REG_R_NNZ_C, (NC_REG_R_NNZ_C * 2) * sizeof(Integer_Type), MADV_SEQUENTIAL);
         }
     }
-    
+    */
     // Regular rows to nnz columns
     k = 0;
     l = 0;   
@@ -631,6 +715,14 @@ void TCSC_CF_BASE<Weight, Integer_Type>::populate(const std::vector<struct Tripl
     }
 
     NC_REG_R_REG_C = l;
+    JA_REG_R_REG_C_blk.nitems = NC_REG_R_REG_C * 2;
+    JA_REG_R_REG_C_blk.socket_id = socket_id;
+    allocate<Integer_Type, Integer_Type>(&JA_REG_R_REG_C, JA_REG_R_REG_C_blk, Env::numa_allocation,  Env::cache_alignment, Env::L1_CACHE_LINE_SIZE, Env::memory_prefetching);
+    JC_REG_R_REG_C_blk.nitems = NC_REG_R_REG_C;
+    JC_REG_R_REG_C_blk.socket_id = socket_id;
+    allocate<Integer_Type, Integer_Type>(&JC_REG_R_REG_C, JC_REG_R_REG_C_blk, Env::numa_allocation,  Env::cache_alignment, Env::L1_CACHE_LINE_SIZE, Env::memory_prefetching);
+    
+    /*
     if(NC_REG_R_REG_C) {
         if(Env::numa_allocation) {
             JA_REG_R_REG_C = (Integer_Type*) numa_alloc_onnode((NC_REG_R_REG_C * 2) * sizeof(Integer_Type), socket_id);
@@ -657,7 +749,7 @@ void TCSC_CF_BASE<Weight, Integer_Type>::populate(const std::vector<struct Tripl
             madvise(JC_REG_R_REG_C, NC_REG_R_REG_C * sizeof(Integer_Type), MADV_SEQUENTIAL);
         }
     }
-    
+    */
     j1 = 0;
     j2 = 0;
     k = 0;
@@ -744,6 +836,14 @@ void TCSC_CF_BASE<Weight, Integer_Type>::populate(const std::vector<struct Tripl
 
     // Regular rows to sink columns
     NC_REG_R_SNK_C = l;
+    JA_REG_R_SNK_C_blk.nitems = NC_REG_R_SNK_C * 2;
+    JA_REG_R_SNK_C_blk.socket_id = socket_id;
+    allocate<Integer_Type, Integer_Type>(&JA_REG_R_SNK_C, JA_REG_R_SNK_C_blk, Env::numa_allocation,  Env::cache_alignment, Env::L1_CACHE_LINE_SIZE, Env::memory_prefetching);
+    JC_REG_R_SNK_C_blk.nitems = NC_REG_R_SNK_C;
+    JC_REG_R_SNK_C_blk.socket_id = socket_id;
+    allocate<Integer_Type, Integer_Type>(&JC_REG_R_SNK_C, JC_REG_R_SNK_C_blk, Env::numa_allocation,  Env::cache_alignment, Env::L1_CACHE_LINE_SIZE, Env::memory_prefetching);
+    
+    /*
     if(NC_REG_R_SNK_C) {
         if(Env::numa_allocation) {
             JA_REG_R_SNK_C = (Integer_Type*) numa_alloc_onnode((NC_REG_R_SNK_C * 2) * sizeof(Integer_Type), socket_id);
@@ -770,6 +870,7 @@ void TCSC_CF_BASE<Weight, Integer_Type>::populate(const std::vector<struct Tripl
             madvise(JC_REG_R_SNK_C, NC_REG_R_SNK_C * sizeof(Integer_Type), MADV_SEQUENTIAL);
         }
     }
+    */
     j1 = 0;
     j2 = 0;
     k = 0;
@@ -850,6 +951,13 @@ void TCSC_CF_BASE<Weight, Integer_Type>::populate(const std::vector<struct Tripl
     }
     
     NC_SRC_R_REG_C = k;
+    JA_SRC_R_REG_C_blk.nitems = NC_SRC_R_REG_C * 2;
+    JA_SRC_R_REG_C_blk.socket_id = socket_id;
+    allocate<Integer_Type, Integer_Type>(&JA_SRC_R_REG_C, JA_SRC_R_REG_C_blk, Env::numa_allocation,  Env::cache_alignment, Env::L1_CACHE_LINE_SIZE, Env::memory_prefetching);
+    JC_SRC_R_REG_C_blk.nitems = NC_SRC_R_REG_C;
+    JC_SRC_R_REG_C_blk.socket_id = socket_id;
+    allocate<Integer_Type, Integer_Type>(&JC_SRC_R_REG_C, JC_SRC_R_REG_C_blk, Env::numa_allocation,  Env::cache_alignment, Env::L1_CACHE_LINE_SIZE, Env::memory_prefetching);
+    /*
     if(NC_SRC_R_REG_C) {
         if(Env::numa_allocation) {
             JA_SRC_R_REG_C = (Integer_Type*) numa_alloc_onnode((NC_SRC_R_REG_C * 2) * sizeof(Integer_Type), socket_id);
@@ -876,7 +984,7 @@ void TCSC_CF_BASE<Weight, Integer_Type>::populate(const std::vector<struct Tripl
             madvise(JC_SRC_R_REG_C, NC_SRC_R_REG_C * sizeof(Integer_Type), MADV_SEQUENTIAL);
         }
     }
-
+    */
     j1 = 0;
     j2 = 0;
     k = 0;
@@ -946,6 +1054,13 @@ void TCSC_CF_BASE<Weight, Integer_Type>::populate(const std::vector<struct Tripl
     }
       
     NC_SRC_R_SNK_C = k;
+    JA_SRC_R_SNK_C_blk.nitems = NC_SRC_R_SNK_C * 2;
+    JA_SRC_R_SNK_C_blk.socket_id = socket_id;
+    allocate<Integer_Type, Integer_Type>(&JA_SRC_R_SNK_C, JA_SRC_R_SNK_C_blk, Env::numa_allocation,  Env::cache_alignment, Env::L1_CACHE_LINE_SIZE, Env::memory_prefetching);
+    JC_SRC_R_SNK_C_blk.nitems = NC_SRC_R_SNK_C;
+    JC_SRC_R_SNK_C_blk.socket_id = socket_id;
+    allocate<Integer_Type, Integer_Type>(&JC_SRC_R_SNK_C, JC_SRC_R_SNK_C_blk, Env::numa_allocation,  Env::cache_alignment, Env::L1_CACHE_LINE_SIZE, Env::memory_prefetching);
+    /*
     if(NC_SRC_R_SNK_C) {
         if(Env::numa_allocation) {
             JA_SRC_R_SNK_C = (Integer_Type*) numa_alloc_onnode((NC_SRC_R_SNK_C * 2) * sizeof(Integer_Type), socket_id);
@@ -972,7 +1087,7 @@ void TCSC_CF_BASE<Weight, Integer_Type>::populate(const std::vector<struct Tripl
             madvise(JC_SRC_R_SNK_C, NC_SRC_R_SNK_C * sizeof(Integer_Type), MADV_SEQUENTIAL);
         }
     }
-    
+    */
     
     j1 = 0;
     j2 = 0;
