@@ -14,7 +14,7 @@
 #include "mat/tiling.hpp" 
 #include "mat/hashers.hpp"
 
-#include "ds/numa_vector.hpp" 
+#include "ds/vector.hpp" 
 
 
 enum Filtering_type
