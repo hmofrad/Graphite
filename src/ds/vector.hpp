@@ -1,11 +1,11 @@
 /*
- * numa_vector.hpp: NUMA-aware vector storage implementaion
+ * vector.hpp: Vector storage implementaion
  * (c) Mohammad Hasanzadeh Mofrad, 2019
  * (e) m.hasanzadeh.mofrad@gmail.com 
  */
 
-#ifndef NUMA_VECTOR_HPP
-#define NUMA_VECTOR_HPP
+#ifndef VECTOR_HPP
+#define VECTOR_HPP
 
 
 #include "ds/base_allocator.hpp"
