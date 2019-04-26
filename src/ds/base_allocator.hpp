@@ -24,8 +24,10 @@ void allocate(Vector_Type** ptr, struct blk<Integer_Type>& blk, const bool numa_
     uint64_t alignment = 0;
     if(blk.nitems) {
         nbytes = blk.nitems * sizeof(Vector_Type);
-        alignment += (cache_line_size - (nbytes % cache_line_size));
-        nbytes += alignment;
+        if(cache_alignment) {
+            alignment += (cache_line_size - (nbytes % cache_line_size));
+            nbytes += alignment;
+        }
         blk.nbytes = nbytes;
         if(numa_allocation) {
             if((*ptr = (Vector_Type*) numa_alloc_onnode(nbytes, blk.socket_id)) == nullptr) {
