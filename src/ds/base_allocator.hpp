@@ -8,6 +8,13 @@
 #ifndef BASE_ALLOCATOR_HPP
 #define BASE_ALLOCATOR_HPP
 
+template<typename Integer_Type>
+struct blk {
+    Integer_Type nitems;
+    uint64_t nbytes;
+    int socket_id;
+};
+
 template<typename Integer_Type, typename Vector_Type>
 void allocate(Vector_Type** ptr, struct blk<Integer_Type>& blk, const bool numa_allocation, const bool cache_alignment, const long cache_line_size, const bool memory_prefetching) {
     *ptr = nullptr;
