@@ -631,7 +631,7 @@ void TCSC_CF_BASE<Weight, Integer_Type>::populate(const std::vector<struct Tripl
     }
     
     NC_REG_R_NNZ_C = nnzcols;
-    JA_REG_R_NNZ_C_blk.nitems = NC_REG_R_NNZ_C;
+    JA_REG_R_NNZ_C_blk.nitems = NC_REG_R_NNZ_C * 2;
     JA_REG_R_NNZ_C_blk.socket_id = socket_id;
     allocate<Integer_Type, Integer_Type>(&JA_REG_R_NNZ_C, JA_REG_R_NNZ_C_blk, Env::numa_allocation,  Env::cache_alignment, Env::L1_CACHE_LINE_SIZE, Env::memory_prefetching);
     /*
