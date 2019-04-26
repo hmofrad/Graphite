@@ -7,12 +7,6 @@
 #ifndef NUMA_VECTOR_HPP
 #define NUMA_VECTOR_HPP
 
-template<typename Integer_Type>
-struct blk {
-    Integer_Type nitems;
-    uint64_t nbytes;
-    int socket_id;
-};
 
 #include "ds/base_allocator.hpp"
 
@@ -33,7 +27,6 @@ void allocate_numa_vector(Vector_Type*** data, std::vector<struct blk<Integer_Ty
     }
     if(status) {
         memset(*data, 0, nbytes);
-        
         for(int32_t i = 0; i < vector_length; i++) {
             auto& blk = blks[i];
             allocate<Integer_Type, Vector_Type>(&(*data)[i], blk, Env::numa_allocation,  Env::cache_alignment, Env::L1_CACHE_LINE_SIZE, Env::memory_prefetching);
@@ -55,12 +48,10 @@ void deallocate_numa_vector(Vector_Type*** data, std::vector<struct blk<Integer_
     }
     uint64_t nbytes = vector_length * sizeof(Vector_Type*);
     memset(*data, 0, nbytes);  
-    
     if(Env::numa_allocation) {    
         numa_free(*data, nbytes);   
         if(*data == nullptr)
             status = false;
-        
     }
     else {
         if(munmap(*data, nbytes) == -1)
