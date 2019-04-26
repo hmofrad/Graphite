@@ -1853,48 +1853,40 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::del_classifier() {
         regular_rows_bitvector[i].clear();
         regular_rows_bitvector[i].shrink_to_fit();
     }
-    /*
     regular_rows.clear();
     regular_rows.shrink_to_fit();    
     regular_rows_bitvector.clear();
     regular_rows_bitvector.shrink_to_fit();    
-    */
     for(uint32_t i = 0; i < tiling->rank_nrowgrps; i++) {
         source_rows[i].clear();
         source_rows[i].shrink_to_fit();
         source_rows_bitvector[i].clear();
         source_rows_bitvector[i].shrink_to_fit();
     }
-    /*
     source_rows.clear();
     source_rows.shrink_to_fit();
     source_rows_bitvector.clear();
     source_rows_bitvector.shrink_to_fit();
-    */
     for(uint32_t i = 0; i < tiling->rank_ncolgrps; i++) {
         regular_cols[i].clear();
         regular_cols[i].shrink_to_fit();
         regular_cols_bitvector[i].clear();
         regular_cols_bitvector[i].shrink_to_fit();
     }
-    /*
     regular_cols.clear();
     regular_cols.shrink_to_fit();
     regular_cols_bitvector.clear();
     regular_cols_bitvector.shrink_to_fit();
-    */
     for(uint32_t i = 0; i < tiling->rank_ncolgrps; i++) {
         sink_cols[i].clear();
         sink_cols[i].shrink_to_fit();
         sink_cols_bitvector[i].clear();
         sink_cols_bitvector[i].shrink_to_fit();
     }
-    /*
     sink_cols.clear();
     sink_cols.shrink_to_fit();
     sink_cols_bitvector.clear();
     sink_cols_bitvector.shrink_to_fit();
-    */
 }
 
 
