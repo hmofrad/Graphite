@@ -11,7 +11,8 @@
 #include <numeric>
 
 #include "mpi/types.hpp" 
-#include "ds/numa_vector.hpp"
+
+#include "ds/vector.hpp"
 
 struct State { State() {}; };
 
