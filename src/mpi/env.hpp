@@ -152,7 +152,7 @@ void Env::init() {
     
     if(required != provided) {
         printf("WARN(rank=%d): Failure to enable MPI_THREAD_MULTIPLE(%d) for multithreading\n", rank, provided); 
-        nthreads = 1;
+        //nthreads = 1;
     }
     
     MPI_WORLD = MPI_COMM_WORLD;
@@ -184,13 +184,20 @@ void Env::init_threads() {
             printf("INFO(rank=%d): nsockets = %d, and nthreads per socket= %d\n", rank, nsockets, ncores_per_socket);
     }
     else {
+        omp_set_dynamic(0);
+        /*
         nthreads = 1;
         ncores = 1;
         nsockets = 1;
-        omp_set_dynamic(0);
         omp_set_num_threads(nthreads);
         ncores_per_socket = nthreads / nsockets;
         nsegments = nranks * nthreads;
+        */
+        nthreads = omp_get_max_threads();
+        ncores = nthreads;
+        nsockets = 1;
+        ncores_per_socket = ncores / nsockets;
+        nsegments = nranks;
         printf("WARN(rank=%d): Failure to enable NUMA-aware memory allocation\n", rank);
     }
     
@@ -200,8 +207,7 @@ void Env::init_threads() {
     {
         int tid = omp_get_thread_num();
         core_ids[tid] = sched_getcpu();
-        if(core_ids[tid] == -1)
-        {
+        if(core_ids[tid] == -1) {
             fprintf(stderr, "sched_getcpu() returns a negative CPU number");
             core_ids[tid] = 0;
         }
@@ -220,7 +226,7 @@ int Env::set_thread_affinity(int thread_id) {
     CPU_ZERO(&cpuset);
     CPU_SET(cid, &cpuset);
     pthread_t current_thread = pthread_self();    
-   return pthread_setaffinity_np(current_thread, sizeof(cpu_set_t), &cpuset);
+   return(pthread_setaffinity_np(current_thread, sizeof(cpu_set_t), &cpuset));
 }
 
 int Env::socket_of_cpu(int cpu_id) {
