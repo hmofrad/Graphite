@@ -223,8 +223,12 @@ Matrix<Weight, Integer_Type, Fractional_Type>::Matrix(Integer_Type nrows_,
     hashing_type = hashing_type_;
     if (hashing_type == _NONE_)
         hasher = new NullHasher();
-    else if (hashing_type == _BUCKET_)
-        hasher = new SimpleBucketHasher(nrows, Env::nsegments);
+    else if (hashing_type == _BUCKET_) {
+        if(tiling_type_ == _2DGP_)
+            hasher = new SimpleBucketHasher(nrows, Env::nranks);
+        else
+            hasher = new SimpleBucketHasher(nrows, Env::nsegments);
+    }
     
     // Initialize matrix
     init_matrix();
@@ -296,7 +300,10 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_matrix() {
             auto& tile = tiles[i][j];
             tile.rg = i;
             tile.cg = j;
-            if(tiling->tiling_type == Tiling_type::_2D_) {
+            if(tiling->tiling_type == Tiling_type::_2DGP_) {
+                tile.rank = (i % tiling->colgrp_nranks) * tiling->rowgrp_nranks + (j % tiling->rowgrp_nranks);
+            }
+            else if(tiling->tiling_type == Tiling_type::_2D_) {
                 tile.rank = (i % tiling->colgrp_nranks) * tiling->rowgrp_nranks + (j % tiling->rowgrp_nranks);
             }
             else if(tiling->tiling_type == Tiling_type::_NUMA_) {
@@ -724,6 +731,7 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_matrix() {
     }
     print("rank");
     Env::barrier();
+    Env::exit(0);
 }
 
 template<typename Weight, typename Integer_Type, typename Fractional_Type>
