@@ -54,7 +54,7 @@ class Graph {
         Matrix<Weight, Integer_Type, Fractional_Type>* A;
         void init_graph(std::string filepath_, Integer_Type nrows_, Integer_Type ncols_, 
                bool directed_, bool transpose_, bool self_loops_, bool acyclic_,
-               bool parallel_edges_, Tiling_type tiling_type, Compression_type compression_type_,
+               bool parallel_edges_, Tiling_type tiling_type_, Compression_type compression_type_,
                Hashing_type hashing_type_);
         void parread_text();
         void parread_binary();
@@ -104,17 +104,30 @@ void Graph<Weight, Integer_Type, Fractional_Type>::init_graph(std::string filepa
     self_loops = self_loops_;
     acyclic = acyclic_;
     parallel_edges = parallel_edges_;
-    uint32_t ntiles_ = Env::nsegments * Env::nsegments;
-    while(nrows % Env::nsegments)
-        nrows++;
-    ncols = nrows;
+    uint32_t ntiles_ = 0;
+    if(tiling_type_ == _2DGP_) {
+        Env::nsegments = 1;
+        ntiles_ = Env::nranks * Env::nranks;
+        while(nrows % Env::nranks)
+            nrows++;
+        ncols = nrows;    
+    }
+    else {
+        ntiles_ = Env::nsegments * Env::nsegments;
+        while(nrows % Env::nsegments)
+            nrows++;
+        ncols = nrows;
+    }
     
     // Hasher
     hashing_type = hashing_type_;
     if (hashing_type == _NONE_)
         hasher = new NullHasher();
     else if (hashing_type == _BUCKET_) {
-        hasher = new SimpleBucketHasher(nrows, Env::nsegments);
+        if(tiling_type_ == _2DGP_)
+            hasher = new SimpleBucketHasher(nrows, Env::nranks);
+        else
+            hasher = new SimpleBucketHasher(nrows, Env::nsegments);
     }
     
     // Initialize matrix
