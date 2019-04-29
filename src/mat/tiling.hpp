@@ -11,8 +11,9 @@
 #include <cmath>
  
 enum Tiling_type {
-    _2D_,
-    _NUMA_
+    _2DGP_,  // GraphPad
+    _2D_,  // 2D
+    _NUMA_ // 2D with NUMA order
 };
 
 class Tiling {    
@@ -45,7 +46,7 @@ Tiling::Tiling(uint32_t nranks_, uint32_t ntiles_, uint32_t nrowgrps_, uint32_t 
     tiling_type = tiling_type_;
     assert(rank_ntiles * nranks == ntiles);
     
-    if (tiling_type == Tiling_type::_2D_) {
+    if ((tiling_type == Tiling_type::_2D_) or (tiling_type == Tiling_type::_2DGP_)) {
         Env::shuffle_ranks();
         integer_factorize(nranks, rowgrp_nranks, colgrp_nranks);
         assert(rowgrp_nranks * colgrp_nranks == nranks);
@@ -58,9 +59,9 @@ Tiling::Tiling(uint32_t nranks_, uint32_t ntiles_, uint32_t nrowgrps_, uint32_t 
         //colgrp_nranks = Env::nmachines * Env::nsockets;
         //rowgrp_nranks = Env::machine_nranks;
         //colgrp_nranks = Env::nmachines;
-        // Affinity 
+        Env::shuffle_ranks();
         if(not Env::get_init_status())
-            bool ret = Env::affinity(); 
+            bool ret = Env::affinity(); // Affinity 
         integer_factorize(nranks, rowgrp_nranks, colgrp_nranks);
         assert(rowgrp_nranks * colgrp_nranks == nranks);
         rank_nrowgrps = nrowgrps / colgrp_nranks;
