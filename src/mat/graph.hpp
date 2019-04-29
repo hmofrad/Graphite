@@ -104,20 +104,15 @@ void Graph<Weight, Integer_Type, Fractional_Type>::init_graph(std::string filepa
     self_loops = self_loops_;
     acyclic = acyclic_;
     parallel_edges = parallel_edges_;
-    uint32_t ntiles_ = 0;
-    if(tiling_type_ == _2DGP_) {
-        Env::nsegments = 1;
-        ntiles_ = Env::nranks * Env::nranks;
-        while(nrows % Env::nranks)
-            nrows++;
-        ncols = nrows;    
-    }
-    else {
-        ntiles_ = Env::nsegments * Env::nsegments;
-        while(nrows % Env::nsegments)
-            nrows++;
-        ncols = nrows;
-    }
+    
+    if(tiling_type_ == _2DGP_)
+        Env::nsegments = Env::nranks;
+    
+    uint32_t ntiles_ = Env::nsegments * Env::nsegments;
+    
+    while(nrows % Env::nsegments)
+        nrows++;
+    ncols = nrows;    
     
     // Hasher
     hashing_type = hashing_type_;
