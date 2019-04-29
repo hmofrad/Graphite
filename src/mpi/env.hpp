@@ -134,7 +134,6 @@ bool Env::numa_allocation = true;
 bool Env::cache_alignment = true;
 bool Env::memory_prefetching = true;
 
-
 void Env::init() {
     int required = MPI_THREAD_MULTIPLE;
     int provided = -1;
@@ -236,7 +235,7 @@ int Env::socket_of_thread(int thread_id) {
 
 bool Env::affinity() {   
     bool enabled = true;
-    shuffle_ranks();
+    //shuffle_ranks();
     // Get information about cores a rank owns
     std::vector<int> core_ids_all = std::vector<int>(nranks * nthreads);
     MPI_Allgather(core_ids.data(), nthreads, MPI_INT, core_ids_all.data(), nthreads, MPI_INT, MPI_WORLD); 
@@ -397,8 +396,7 @@ void Env::colgrps_init(std::vector<int32_t>& colgrps_ranks, int32_t colgrps_nran
     }
 }
 
-void Env::shuffle_ranks()
-{
+void Env::shuffle_ranks() {
   std::vector<int> ranks(nranks);
   if (is_master)
   {
@@ -443,7 +441,6 @@ void Env::finalize() {
         MPI_Group_free(&rowgrps_groups[i]);
         MPI_Comm_free(&rowgrps_comms[i]);
     }
-        
 
     for(int i = 0; i < Env::nthreads; i++) {
         MPI_Group_free(&colgrps_groups_[i]);
