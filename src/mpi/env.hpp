@@ -77,6 +77,10 @@ class Env {
         static int nranks_rg;
         static std::vector<MPI_Group> colgrps_groups_, colgrps_groups;
         static std::vector<MPI_Comm> colgrps_comms;  
+        static MPI_Group rowgrps_group_, rowgrps_group;
+        static MPI_Comm rowgrps_comm;
+        static MPI_Group colgrps_group_, colgrps_group;
+        static MPI_Comm colgrps_comm;  
         static int rank_cg;
         static int nranks_cg;
         static char core_name[]; // Core name = hostname of MPI rank
@@ -126,6 +130,13 @@ std::vector<MPI_Comm> Env::rowgrps_comms;
 std::vector<MPI_Group> Env::colgrps_groups_;
 std::vector<MPI_Group> Env::colgrps_groups;
 std::vector<MPI_Comm> Env::colgrps_comms; 
+
+MPI_Group Env::rowgrps_group_;
+MPI_Group Env::rowgrps_group;
+MPI_Comm Env::rowgrps_comm; 
+MPI_Group Env::colgrps_group_;
+MPI_Group Env::colgrps_group;
+MPI_Comm Env::colgrps_comm; 
 
 std::vector<int> Env::ranks;
 struct topology Env::network;
@@ -385,6 +396,8 @@ void Env::grps_init(std::vector<int32_t>& grps_ranks, int grps_nranks, int& grps
 }
 
 void Env::rowgrps_init(std::vector<int32_t>& rowgrps_ranks, int32_t rowgrps_nranks, uint32_t rank_nrowgrps) {
+    grps_init(rowgrps_ranks, rowgrps_nranks, rank_rg, nranks_rg, rowgrps_group_, rowgrps_group, rowgrps_comm);
+    
     rowgrps_groups_.resize(rank_nrowgrps);
     rowgrps_groups.resize(rank_nrowgrps);
     rowgrps_comms.resize(rank_nrowgrps);
@@ -394,10 +407,12 @@ void Env::rowgrps_init(std::vector<int32_t>& rowgrps_ranks, int32_t rowgrps_nran
 }
 
 void Env::colgrps_init(std::vector<int32_t>& colgrps_ranks, int32_t colgrps_nranks) {
+    grps_init(colgrps_ranks, colgrps_nranks, rank_cg, nranks_cg, colgrps_group_, colgrps_group, colgrps_comm);  
+    
     colgrps_groups_.resize(Env::nthreads);
     colgrps_groups.resize(Env::nthreads);
     colgrps_comms.resize(Env::nthreads);
-    for(int i = 0; i < Env::nthreads; i++) {
+    for(int i = 0; i < Env::nthreads; i++) {    
         grps_init(colgrps_ranks, colgrps_nranks, rank_cg, nranks_cg, colgrps_groups_[i], colgrps_groups[i], colgrps_comms[i]);  
     }
 }
