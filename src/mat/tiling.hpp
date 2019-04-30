@@ -47,7 +47,8 @@ Tiling::Tiling(uint32_t nranks_, uint32_t ntiles_, uint32_t nrowgrps_, uint32_t 
     assert(rank_ntiles * nranks == ntiles);
     
     if ((tiling_type == Tiling_type::_2D_) or (tiling_type == Tiling_type::_2DGP_)) {
-        Env::shuffle_ranks();
+        if(not Env::get_init_status())
+            Env::shuffle_ranks();
         integer_factorize(nranks, rowgrp_nranks, colgrp_nranks);
         assert(rowgrp_nranks * colgrp_nranks == nranks);
         rank_nrowgrps = nrowgrps / colgrp_nranks;
@@ -59,9 +60,11 @@ Tiling::Tiling(uint32_t nranks_, uint32_t ntiles_, uint32_t nrowgrps_, uint32_t 
         //colgrp_nranks = Env::nmachines * Env::nsockets;
         //rowgrp_nranks = Env::machine_nranks;
         //colgrp_nranks = Env::nmachines;
-        Env::shuffle_ranks();
-        if(not Env::get_init_status())
+        
+        if(not Env::get_init_status()) {
+            Env::shuffle_ranks();
             bool ret = Env::affinity(); // Affinity 
+        }
         integer_factorize(nranks, rowgrp_nranks, colgrp_nranks);
         assert(rowgrp_nranks * colgrp_nranks == nranks);
         rank_nrowgrps = nrowgrps / colgrp_nranks;
