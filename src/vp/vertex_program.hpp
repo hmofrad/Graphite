@@ -1,5 +1,5 @@
 /*
- * vertex.hpp: Vertex program implementation
+ * vertex_program.hpp: Vertex program implementation
  * (c) Mohammad Hasanzadeh Mofrad, 2019
  * (e) m.hasanzadeh.mofrad@gmail.com 
  */
@@ -13,6 +13,7 @@
 #include "mpi/types.hpp" 
 
 #include "ds/vector.hpp"
+
 
 struct State { State() {}; };
 
@@ -48,19 +49,27 @@ class Vertex_Program
         bool already_initialized = false;
         bool check_for_convergence = false;
         bool converged = false;
-        void init_stationary(int tid);
-        void init_nonstationary(int tid);
-        void init_vectors();
-        void bcast_stationary(int tid);
-        void bcast_nonstationary(int tid);
-        void combine_2d_stationary(int tid);
-        void combine_2d_nonstationary(int tid);
-        void apply_stationary(int tid);
-        void apply_nonstationary(int tid);
+        
+        void function_stationary_2dgp();
+        void init_stationary_2dgp();
+        void bcast_stationary_2dgp();
+        void combine_2d_stationary_2dgp();
+        void apply_stationary_2dgp();
+        bool has_converged_2dgp();
 
         void thread_function_stationary(int tid);
+        void init_vectors();
+        void init_stationary(int tid);
+        void bcast_stationary(int tid);
+        void combine_2d_stationary(int tid);
+        void apply_stationary(int tid);
+        
         void thread_function_nonstationary(int tid);
-
+        void init_nonstationary(int tid);
+        void bcast_nonstationary(int tid);
+        void combine_2d_nonstationary(int tid);
+        void apply_nonstationary(int tid);
+        
         bool has_converged(int tid);
         
         Integer_Type get_vid(Integer_Type index, int32_t segment);
@@ -180,6 +189,9 @@ class Vertex_Program
         std::vector<struct blk<Integer_Type>> rowgrp_source_rows_blks;
         std::vector<struct blk<Integer_Type>> colgrp_sink_cols_blks;
         
+        MPI_Comm rowgrps_communicator;
+        MPI_Comm colgrps_communicator;
+        
         std::vector<MPI_Comm> rowgrps_communicators;
         std::vector<MPI_Comm> colgrps_communicators;
         
@@ -197,6 +209,8 @@ class Vertex_Program
         std::vector<double> execute_time;
         #endif
 };
+
+#include "vp/vertex_program_2dgp.hpp"
 
 /* Support or row-wise tile processing designated to original matrix and 
    column-wise tile processing designated to transpose of the matrix. */                
@@ -280,6 +294,9 @@ Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_Metho
     accu_segment_rows = Graph.A->accu_segment_rows;
     accu_segment_cols = Graph.A->accu_segment_cols;
     
+    rowgrps_communicator = Env::rowgrps_comm;
+    colgrps_communicator = Env::colgrps_comm;
+    
     rowgrps_communicators = Env::rowgrps_comms;
     colgrps_communicators = Env::colgrps_comms;
     
@@ -302,13 +319,18 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
     t1 = Env::clock();
     
     if(stationary) {
-        std::vector<std::thread> threads;
-        for(int i = 0; i < Env::nthreads; i++) {
-            threads.push_back(std::thread(&Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_Methods_Impl>::thread_function_stationary, this, i));
-        }
-        
-        for(std::thread& th: threads) {
-            th.join();
+        if(tiling_type == _2DGP_) {
+            function_stationary_2dgp();
+        } 
+        else {
+            std::vector<std::thread> threads;
+            for(int i = 0; i < Env::nthreads; i++) {
+                threads.push_back(std::thread(&Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_Methods_Impl>::thread_function_stationary, this, i));
+            }
+            
+            for(std::thread& th: threads) {
+                th.join();
+            }
         }
     }
     else {
@@ -466,9 +488,8 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
        
     if(stationary) {   
         init_vectors();
-        #pragma omp parallel 
-        {
-            int tid = omp_get_thread_num();
+        if(tiling_type == _2DGP_) {
+            int tid = 0;
             uint32_t yi = accu_segment_rows[tid];
             auto* i_data = (char*) I[yi];
             auto* v_data = (Vertex_State*) V[tid];
@@ -477,6 +498,22 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
                 Vertex_State& state = v_data[i]; 
                 if(i_data[i]) {
                     c_data[i] = Vertex_Methods.initializer(get_vid(i, owned_segments[tid]), state, (const State&) VProgram.V[tid][i]);
+                }
+            }
+        }
+        else {
+            #pragma omp parallel 
+            {
+                int tid = omp_get_thread_num();
+                uint32_t yi = accu_segment_rows[tid];
+                auto* i_data = (char*) I[yi];
+                auto* v_data = (Vertex_State*) V[tid];
+                auto* c_data = (char*) C[tid];
+                for(uint32_t i = 0; i < tile_height; i++) {
+                    Vertex_State& state = v_data[i]; 
+                    if(i_data[i]) {
+                        c_data[i] = Vertex_Methods.initializer(get_vid(i, owned_segments[tid]), state, (const State&) VProgram.V[tid][i]);
+                    }
                 }
             }
         }
@@ -493,7 +530,6 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
     Env::print_time("Init", elapsed_time);
     init_time.push_back(elapsed_time);
     #endif
-
 }
 
 template<typename Weight, typename Integer_Type, typename Fractional_Type, typename Vertex_State, typename Vertex_Methods_Impl>
@@ -504,11 +540,11 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
         t1 = Env::clock();
     }
     #endif
-    
+
     if(tid == 0) {
         init_vectors();
     }
-    
+
     pthread_barrier_wait(&p_barrier);
     auto* v_data = (Vertex_State*) V[tid];
     auto* c_data = (char*) C[tid];
@@ -626,7 +662,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
                 const Integer_Type* IA   = static_cast<TCSC_CF_BASE<Weight, Integer_Type>*>(tile.compressor)->IA;
                 const Integer_Type* JA   = static_cast<TCSC_CF_BASE<Weight, Integer_Type>*>(tile.compressor)->JA;    
                 const Integer_Type ncols = static_cast<TCSC_CF_BASE<Weight, Integer_Type>*>(tile.compressor)->nnzcols;        
-                /*
+                
                 if(num_iterations == 1) {
                     if(not converged) {
                         for(uint32_t j = 0; j < ncols; j++) {
@@ -640,8 +676,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
                         }
                     }
                 }
-                else {
-                */    
+                else {   
                     Integer_Type l;
                     if(iteration == 0) {               
                         Integer_Type NC_REG_R_SNK_C = static_cast<TCSC_CF_BASE<Weight, Integer_Type>*>(tile.compressor)->NC_REG_R_SNK_C;
@@ -710,7 +745,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
                             }                    
                         }
                     }
-                //}
+                }
             }
         }
         
