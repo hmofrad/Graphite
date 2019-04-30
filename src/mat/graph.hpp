@@ -334,8 +334,9 @@ template<typename Weight, typename Integer_Type, typename Fractional_Type>
 void Graph<Weight, Integer_Type, Fractional_Type>::parread_binary() {
     uint64_t nedges_local_r = 0;
     uint64_t nedges_global = 0;
-    std::vector<uint64_t> nedges_local_t(Env::nthreads, 0);    
-    std::vector<std::vector<struct Triple<Weight, Integer_Type>>> triples_for_threads(Env::nthreads);
+    int nthreads = Env::nthreads;
+    std::vector<uint64_t> nedges_local_t(nthreads, 0);    
+    std::vector<std::vector<struct Triple<Weight, Integer_Type>>> triples_for_threads(nthreads);
     #pragma omp parallel reduction(+:nedges_local_r)
     {
         // Open graph file.
@@ -355,7 +356,7 @@ void Graph<Weight, Integer_Type, Fractional_Type>::parread_binary() {
         endpos = (Env::rank == Env::nranks - 1) ? filesize : offset + share;
         fin.seekg(offset, std::ios_base::beg);
         
-        int nthreads = omp_get_num_threads();
+        //int nthreads = omp_get_num_threads();
         int tid = omp_get_thread_num();
         uint64_t triples_range = endpos - offset;
         uint64_t share_t = (triples_range / nthreads) / sizeof(Triple<Weight, Integer_Type>) * sizeof(Triple<Weight, Integer_Type>);
@@ -414,7 +415,7 @@ void Graph<Weight, Integer_Type, Fractional_Type>::parread_binary() {
     }        
     
     int s = 0;
-    for(int i = 0; i < Env::nthreads; i++) {
+    for(int i = 0; i < nthreads; i++) {
         auto& triples = triples_for_threads[i]; 
         for(auto& triple: triples) {
             A->insert(triple);
