@@ -361,8 +361,13 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_matrix() {
     num_owned_segments = nrowgrps / Env::nranks;
     if(tiling->tiling_type == Tiling_type::_2DGP_)
         assert(num_owned_segments == 1);
-    else
+    else {
+        if(numa_available() == -1) {
+            Env::nthreads = 1;
+            omp_set_num_threads(Env::nthreads);
+        }
         assert(num_owned_segments == Env::nthreads);  
+    }
         
     for (uint32_t i = 0; i < nrowgrps; i++) {
         for (uint32_t j = i; j < ncolgrps; j++) { 
