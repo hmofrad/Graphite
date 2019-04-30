@@ -50,15 +50,9 @@ class Vertex_Program
         bool check_for_convergence = false;
         bool converged = false;
         
-        void function_stationary_2dgp();
-        void init_stationary_2dgp();
-        void bcast_stationary_2dgp();
-        void combine_2d_stationary_2dgp();
-        void apply_stationary_2dgp();
-        bool has_converged_2dgp();
+        
 
         void thread_function_stationary(int tid);
-        void init_vectors();
         void init_stationary(int tid);
         void bcast_stationary(int tid);
         void combine_2d_stationary(int tid);
@@ -70,7 +64,22 @@ class Vertex_Program
         void combine_2d_nonstationary(int tid);
         void apply_nonstationary(int tid);
         
+        void init_vectors();
         bool has_converged(int tid);
+        
+        void function_stationary_2dgp();
+        void init_stationary_2dgp();
+        void bcast_stationary_2dgp();
+        void combine_2d_stationary_2dgp();
+        void apply_stationary_2dgp();
+        
+        void function_nonstationary_2dgp();
+        void init_nonstationary_2dgp();
+        void bcast_nonstationary_2dgp();
+        void combine_2d_nonstationary_2dgp();
+        void apply_nonstationary_2dgp();
+        
+        bool has_converged_2dgp();
         
         Integer_Type get_vid(Integer_Type index, int32_t segment);
         
@@ -334,13 +343,18 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
         }
     }
     else {
-        std::vector<std::thread> threads;
-        for(int i = 0; i < Env::nthreads; i++) {
-            threads.push_back(std::thread(&Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_Methods_Impl>::thread_function_nonstationary, this, i));
-        }
-        
-        for(std::thread& th: threads) {
-            th.join();
+        if(tiling_type == _2DGP_) {
+            function_nonstationary_2dgp();
+        } 
+        else {
+            std::vector<std::thread> threads;
+            for(int i = 0; i < Env::nthreads; i++) {
+                threads.push_back(std::thread(&Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_Methods_Impl>::thread_function_nonstationary, this, i));
+            }
+            
+            for(std::thread& th: threads) {
+                th.join();
+            }
         }
     }
     
