@@ -4,7 +4,7 @@
 # Email (e) m.hasanzadeh.mofrad@gmail.com
 # make TIMING=-DTIMING to enable time counters
 
-TIMING = -DTIMING
+#TIMING = -DTIMING
 
 CXX = g++
 MPI_CXX = mpicxx
