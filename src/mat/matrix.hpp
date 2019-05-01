@@ -48,15 +48,17 @@ struct Tile2D {
 
 template<typename Weight, typename Integer_Type, typename Fractional_Type>
 void Tile2D<Weight, Integer_Type, Fractional_Type>::allocate_triples() {
-    if (!triples)
+    if(!triples)
         triples = new std::vector<struct Triple<Weight, Integer_Type>>;
 }
 template<typename Weight, typename Integer_Type, typename Fractional_Type>
 void Tile2D<Weight, Integer_Type, Fractional_Type>::free_triples() {
-    triples->clear();
-    triples->shrink_to_fit();
-    delete triples;
-    triples = nullptr;
+    if(!triples) {
+        triples->clear();
+        triples->shrink_to_fit();
+        delete triples;
+        triples = nullptr;
+    }
 }
  
 template<typename Weight, typename Integer_Type, typename Fractional_Type>
@@ -819,7 +821,7 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_tiles() {
         }
         tile.nedges = tile.triples->size();
     }
-    balance();
+    //balance();
 }
 
 
