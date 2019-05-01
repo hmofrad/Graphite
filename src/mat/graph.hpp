@@ -421,11 +421,11 @@ void Graph<Weight, Integer_Type, Fractional_Type>::parread_binary() {
             A->insert(triple);
         }
     }
-    
+    MPI_Barrier(MPI_COMM_WORLD);
     MPI_Allreduce(&nedges_local_r, &nedges_global, 1, MPI_UNSIGNED_LONG, MPI_SUM, Env::MPI_WORLD);
     assert(nedges == nedges_global);
-    
     MPI_Barrier(MPI_COMM_WORLD);
+    
     if(Env::is_master)
         printf("\nINFO(rank=%d): %s: Read %lu edges\n", Env::rank, filepath.c_str(), nedges);
     
