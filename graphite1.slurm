@@ -102,8 +102,8 @@ for I in "${II[@]}";
     done
 done
 
-strings graphtap1.out | grep 'Execute time'
-#strings graphtap1.out | grep 'Iterations'
-#strings graphtap1.out | grep 'Value checksum'
-#strings graphtap1.out | grep 'Reachable vertices'
+strings graphite1.out | grep 'Execute time'
+#strings graphite1.out | grep 'Iterations'
+#strings graphite1.out | grep 'Value checksum'
+#strings graphite1.out | grep 'Reachable vertices'
 
