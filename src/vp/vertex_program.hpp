@@ -190,7 +190,7 @@ class Vertex_Program
         double activity_filtering_ratio = 0.6;
         bool activity_filtering = true;
         
-        bool computation_filering = false;
+        bool computation_filtering = false;
         Integer_Type** rowgrp_regular_rows;
         Integer_Type** rowgrp_source_rows;
         Integer_Type** colgrp_sink_cols;
@@ -245,7 +245,7 @@ Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_Metho
     
     compression_type = A->compression_type;
     if(compression_type == _TCSC_CF_ and directed) {
-        computation_filering = true;
+        computation_filtering = true;
         rowgrp_regular_rows = Graph.A->rowgrp_regular_rows;
         rowgrp_source_rows = Graph.A->rowgrp_source_rows;
         colgrp_sink_cols = Graph.A->colgrp_sink_cols;
@@ -825,7 +825,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
     auto* v_data = (Vertex_State*) V[tid];
     auto* c_data = (char*) C[tid];
 
-    if(computation_filering) {
+    if(computation_filtering) {
         /*
         Integer_Type i = 0;
         Integer_Type j = 0;
@@ -1385,7 +1385,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
     auto* v_data = (Vertex_State*) V[tid];
     auto* c_data = (char*) C[tid];
     Integer_Type v_nitems = tile_height;
-    if(computation_filering) {
+    if(computation_filtering) {
         auto* regular_rows = (Integer_Type*) rowgrp_regular_rows[tid];
         Integer_Type reg_nitems = rowgrp_regular_rows_blks[tid].nitems; 
         auto* source_rows = (Integer_Type*) rowgrp_source_rows[tid];
@@ -1531,7 +1531,7 @@ bool Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
         auto* c_data = (char*) C[tid];
         auto* iv_data = (Integer_Type*) IV[yi];        
         convergence_vec[tid] = 0;   
-        if(computation_filering) {
+        if(computation_filtering) {
             auto* regular_rows = (Integer_Type*) rowgrp_regular_rows[tid];
             Integer_Type reg_nitems = rowgrp_regular_rows_blks[tid].nitems;
             for(Integer_Type r = 0; r < reg_nitems; r++) {
@@ -1574,7 +1574,7 @@ bool Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
     pthread_barrier_wait(&p_barrier);
     
     if(converged){
-        if(computation_filering) { 
+        if(computation_filtering) { 
             if(stationary) {
                 combine_2d_stationary(tid);
                 apply_stationary(tid);
