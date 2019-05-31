@@ -31,8 +31,8 @@ int main(int argc, char** argv) {
     bool acyclic = false;
     bool parallel_edges = false;
     Tiling_type TT = _NUMA_;
-    Compression_type CT = _TCSC_CF_;
-    Hashing_type HT = _NONE_;
+    Compression_type CT = _TCSC_;
+    Hashing_type HT = _BUCKET_;
     
     /* Single Source Shortest Path (SSSP) execution*/
     bool stationary = false;
