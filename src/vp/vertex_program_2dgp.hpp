@@ -295,7 +295,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
     auto* v_data = (Vertex_State*) V[tid];
     auto* c_data = (char*) C[tid];
 
-    if(computation_filering) {
+    if(computation_filtering) {
         if(not converged) {
             auto* regular_rows = (Integer_Type*) rowgrp_regular_rows[tid];
             Integer_Type reg_nitems = rowgrp_regular_rows_blks[tid].nitems;
@@ -835,7 +835,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
     auto* v_data = (Vertex_State*) V[tid];
     auto* c_data = (char*) C[tid];
     Integer_Type v_nitems = tile_height;
-    if(computation_filering) {
+    if(computation_filtering) {
         auto* regular_rows = (Integer_Type*) rowgrp_regular_rows[tid];
         Integer_Type reg_nitems = rowgrp_regular_rows_blks[tid].nitems; 
         auto* source_rows = (Integer_Type*) rowgrp_source_rows[tid];
@@ -966,7 +966,7 @@ bool Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
         auto* c_data = (char*) C[tid];
         auto* iv_data = (Integer_Type*) IV[yi];        
         convergence_vec[tid] = 0;   
-        if(computation_filering) {
+        if(computation_filtering) {
             auto* regular_rows = (Integer_Type*) rowgrp_regular_rows[tid];
             Integer_Type reg_nitems = rowgrp_regular_rows_blks[tid].nitems;
             for(Integer_Type r = 0; r < reg_nitems; r++) {
@@ -1007,7 +1007,7 @@ bool Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
     
         
     if(converged){
-        if(computation_filering) { 
+        if(computation_filtering) { 
             if(stationary) {
                 combine_2d_stationary_2dgp();
                 apply_stationary_2dgp();
