@@ -30,7 +30,7 @@ int main(int argc, char** argv) {
     bool parallel_edges = false;
     Tiling_type TT = _NUMA_;
     Compression_type CT = _TCSC_; 
-    Hashing_type HT = _NONE_;
+    Hashing_type HT = _BUCKET_;
     /* Breadth First Search (BFS) execution */
     bool stationary = false;
     // Engine requirement for nonstationary algorithms on directed graphs
