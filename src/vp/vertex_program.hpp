@@ -217,6 +217,7 @@ class Vertex_Program
         std::vector<double> convergence_time;
         std::vector<double> execute_time;
         #endif
+        double execute_without_init_time;
 };
 
 #include "vp/vertex_program_2dgp.hpp"
@@ -361,6 +362,8 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
     t2 = Env::clock();
     elapsed_time = t2 - t1;
     Env::print_time("Execute", elapsed_time);
+    Env::print_time("Execute1", execute_without_init_time);
+    
     #ifdef TIMING
     execute_time.push_back(elapsed_time);
     times();
@@ -894,11 +897,22 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
     if(not already_initialized)
         init_stationary(tid);   
     
+    double t1, t2;
+    if(tid == 0) {
+        t1 = Env::clock();
+    }
+    
     do {
         bcast_stationary(tid);
         combine_2d_stationary(tid);
         apply_stationary(tid);
-    } while(not has_converged(tid));     
+    } while(not has_converged(tid));
+    
+    if(tid == 0) {
+        t2 = Env::clock();
+        execute_without_init_time = t2 - t1;
+    }    
+    
 }
 
 template<typename Weight, typename Integer_Type, typename Fractional_Type, typename Vertex_State, typename Vertex_Methods_Impl>
@@ -1509,11 +1523,21 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
     if(not already_initialized)
         init_nonstationary(tid);
     
+        double t1, t2;
+    if(tid == 0) {
+        t1 = Env::clock();
+    }
+    
     do {
         bcast_nonstationary(tid);
         combine_2d_nonstationary(tid);
         apply_nonstationary(tid);
     } while(not has_converged(tid));
+    
+    if(tid == 0) {
+        t2 = Env::clock();
+        execute_without_init_time = t2 - t1;
+    } 
 }
 
 template<typename Weight, typename Integer_Type, typename Fractional_Type, typename Vertex_State, typename Vertex_Methods_Impl>
@@ -1735,6 +1759,8 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
         stats(convergence_time, sum, mean, std_dev);
         std::cout << "INFO(rank=" << Env::rank << "): " << "Converge time (sum: avg +/- std_dev): " << sum << ": " << mean  << " +/- " << std_dev << " seconds" << std::endl;
         std::cout << "INFO(rank=" << Env::rank << "): " << "Execute time: " << execute_time[0] << " seconds" << std::endl;
+        
+        
         
         //std::cout << "DETAILED TIMING " << init_time[0] * 1e3;
         //stats(bcast_time, sum, mean, std_dev);
