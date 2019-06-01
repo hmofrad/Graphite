@@ -53,13 +53,13 @@ class Vertex_Program
         
 
         void thread_function_stationary(int tid);
-        void init_stationary(int tid);
+        void init_stationary();
         void bcast_stationary(int tid);
         void combine_2d_stationary(int tid);
         void apply_stationary(int tid);
         
         void thread_function_nonstationary(int tid);
-        void init_nonstationary(int tid);
+        void init_nonstationary();
         void bcast_nonstationary(int tid);
         void combine_2d_nonstationary(int tid);
         void apply_nonstationary(int tid);
@@ -325,6 +325,15 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
     if(!num_iterations)
         check_for_convergence = true; 
     
+    if(not already_initialized) {
+        if(stationary)
+            init_stationary();   
+        else
+            init_nonstationary();   
+    }
+   
+    
+    
     double t1, t2, elapsed_time;
     t1 = Env::clock();
     
@@ -362,7 +371,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
     t2 = Env::clock();
     elapsed_time = t2 - t1;
     Env::print_time("Execute", elapsed_time);
-    Env::print_time("Execute1", execute_without_init_time);
+    //Env::print_time("Execute", execute_without_init_time);
     
     #ifdef TIMING
     execute_time.push_back(elapsed_time);
@@ -550,34 +559,39 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
 }
 
 template<typename Weight, typename Integer_Type, typename Fractional_Type, typename Vertex_State, typename Vertex_Methods_Impl>
-void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_Methods_Impl>::init_stationary(int tid) {
+void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_Methods_Impl>::init_stationary() {
     #ifdef TIMING
     double t1, t2, elapsed_time;
-    if(tid == 0) {
+    //if(tid == 0) {
         t1 = Env::clock();
-    }
+    //}
     #endif
 
-    if(tid == 0) {
+    //if(tid == 0) {
         init_vectors();
-    }
+    //}
 
-    pthread_barrier_wait(&p_barrier);
-    auto* v_data = (Vertex_State*) V[tid];
-    auto* c_data = (char*) C[tid];
-    for(uint32_t i = 0; i < tile_height; i++) {
-        Vertex_State& state = v_data[i]; 
-        c_data[i] = Vertex_Methods.initializer(get_vid(i, owned_segments[tid]), state);
+    //pthread_barrier_wait(&p_barrier);
+    #pragma omp parallel 
+    {
+        int tid = omp_get_thread_num();
+        auto* v_data = (Vertex_State*) V[tid];
+        auto* c_data = (char*) C[tid];
+        for(uint32_t i = 0; i < tile_height; i++) {
+            Vertex_State& state = v_data[i]; 
+            c_data[i] = Vertex_Methods.initializer(get_vid(i, owned_segments[tid]), state);
+        }
     }
-    pthread_barrier_wait(&p_barrier);
+        
+    //pthread_barrier_wait(&p_barrier);
     
     #ifdef TIMING
-    if(tid == 0) {
+    //if(tid == 0) {
         t2 = Env::clock();
         elapsed_time = t2 - t1;
         Env::print_time("Init", elapsed_time);
         init_time.push_back(elapsed_time);
-    }
+    //}
     #endif
 }
 
@@ -894,13 +908,13 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
 template<typename Weight, typename Integer_Type, typename Fractional_Type, typename Vertex_State, typename Vertex_Methods_Impl>
 void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_Methods_Impl>::thread_function_stationary(int tid) {
     int ret = Env::set_thread_affinity(tid);
-    if(not already_initialized)
-        init_stationary(tid);   
+    //if(not already_initialized)
+    //    init_stationary(tid);   
     
-    double t1, t2;
-    if(tid == 0) {
-        t1 = Env::clock();
-    }
+    //double t1, t2;
+    //if(tid == 0) {
+    //    t1 = Env::clock();
+    //}
     
     do {
         bcast_stationary(tid);
@@ -908,50 +922,54 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
         apply_stationary(tid);
     } while(not has_converged(tid));
     
-    if(tid == 0) {
-        t2 = Env::clock();
-        execute_without_init_time = t2 - t1;
-    }    
+    //if(tid == 0) {
+    //    t2 = Env::clock();
+    //    execute_without_init_time = t2 - t1;
+    //}    
     
 }
 
 template<typename Weight, typename Integer_Type, typename Fractional_Type, typename Vertex_State, typename Vertex_Methods_Impl>
-void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_Methods_Impl>::init_nonstationary(int tid) {
+void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_Methods_Impl>::init_nonstationary() {
     #ifdef TIMING
     double t1, t2, elapsed_time;
-    if(tid == 0) {
+    //if(tid == 0) {
         t1 = Env::clock();
-    }
+    //}
     #endif    
     
-    if(tid == 0) {  
+    //if(tid == 0) {  
         init_vectors();
         // Activity vectors
         activity_statuses.resize(ncolgrps);
         msgs_activity_statuses.resize(rank_ncolgrps);
         accus_activity_statuses.resize(Env::nthreads, std::vector<Integer_Type>(rowgrp_nranks - 1));
+    //}
+    //pthread_barrier_wait(&p_barrier);
+    #pragma omp parallel 
+    {
+        int tid = omp_get_thread_num();
+        auto* v_data = (Vertex_State*) V[tid];
+        auto* c_data = (char*) C[tid];
+        for(uint32_t i = 0; i < tile_height; i++) {
+            Vertex_State& state = v_data[i]; 
+            c_data[i] = Vertex_Methods.initializer(get_vid(i, owned_segments[tid]), state);
+        }
+        for(int32_t i: rowgrp_owner_thread_segments[tid]) {
+            auto* y_data = (Fractional_Type*) Y[i];
+            Integer_Type y_nitems = nnz_row_sizes_loc[i];
+            for(uint32_t j = 0; j < y_nitems; j++)
+                y_data[j] = Vertex_Methods.infinity();
+        }
     }
-    pthread_barrier_wait(&p_barrier);
-    auto* v_data = (Vertex_State*) V[tid];
-    auto* c_data = (char*) C[tid];
-    for(uint32_t i = 0; i < tile_height; i++) {
-        Vertex_State& state = v_data[i]; 
-        c_data[i] = Vertex_Methods.initializer(get_vid(i, owned_segments[tid]), state);
-    }
-    for(int32_t i: rowgrp_owner_thread_segments[tid]) {
-        auto* y_data = (Fractional_Type*) Y[i];
-        Integer_Type y_nitems = nnz_row_sizes_loc[i];
-        for(uint32_t j = 0; j < y_nitems; j++)
-            y_data[j] = Vertex_Methods.infinity();
-    }
-    pthread_barrier_wait(&p_barrier);
+    //pthread_barrier_wait(&p_barrier);
     #ifdef TIMING
-    if(tid == 0) {
+    //if(tid == 0) {
         t2 = Env::clock();
         elapsed_time = t2 - t1;
         Env::print_time("Init", elapsed_time);
         init_time.push_back(elapsed_time);
-    }
+    //}
     #endif 
 }
 
@@ -1520,13 +1538,13 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
 template<typename Weight, typename Integer_Type, typename Fractional_Type, typename Vertex_State, typename Vertex_Methods_Impl>
 void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_Methods_Impl>::thread_function_nonstationary(int tid) {
     int ret = Env::set_thread_affinity(tid);
-    if(not already_initialized)
-        init_nonstationary(tid);
+    //if(not already_initialized)
+    //    init_nonstationary(tid);
     
-        double t1, t2;
-    if(tid == 0) {
-        t1 = Env::clock();
-    }
+    //double t1, t2;
+    //if(tid == 0) {
+    //    t1 = Env::clock();
+    //}
     
     do {
         bcast_nonstationary(tid);
@@ -1534,10 +1552,10 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
         apply_nonstationary(tid);
     } while(not has_converged(tid));
     
-    if(tid == 0) {
-        t2 = Env::clock();
-        execute_without_init_time = t2 - t1;
-    } 
+    //if(tid == 0) {
+    //    t2 = Env::clock();
+    //    execute_without_init_time = t2 - t1;
+    //} 
 }
 
 template<typename Weight, typename Integer_Type, typename Fractional_Type, typename Vertex_State, typename Vertex_Methods_Impl>
