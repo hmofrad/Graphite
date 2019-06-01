@@ -217,7 +217,7 @@ class Vertex_Program
         std::vector<double> convergence_time;
         std::vector<double> execute_time;
         #endif
-        double execute_without_init_time;
+        //double execute_without_init_time;
 };
 
 #include "vp/vertex_program_2dgp.hpp"
