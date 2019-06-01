@@ -7,7 +7,7 @@
 #SBATCH --ntasks-per-node=2
 #SBATCH --ntasks-per-socket=1
 #SBATCH --cpus-per-task=14
-##SBATCH --mem=50000
+#SBATCH --mem=150000
 #SBATCH --time=01:00:00
 #SBATCH --cluster=mpi
 #SBATCH --partition=opa-high-mem
