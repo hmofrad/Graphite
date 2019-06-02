@@ -24,7 +24,7 @@ int main(int argc, char** argv) {
     ip num_vertices = std::atoi(argv[2]);
     ip num_iterations = (argc > 3) ? (uint32_t) atoi(argv[3]) : 0;
     bool directed = true;
-    bool transpose = false;
+    bool transpose = true;
     bool self_loops = true;
     bool acyclic = false;
     bool parallel_edges = true;
@@ -38,16 +38,30 @@ int main(int argc, char** argv) {
     bool stationary = true;
     bool gather_depends_on_apply = false;
     bool apply_depends_on_iter  = false;
-    Deg_Program<wp, ip, fp> V(G, stationary, gather_depends_on_apply, apply_depends_on_iter);
+    Ordering_type OT = _COL_;
+    Deg_Program<wp, ip, fp> V(G, stationary, gather_depends_on_apply, apply_depends_on_iter, OT);
     V.execute(1);
     V.checksum();
+    
+    OT = _ROW_;
+    PR_Program<wp, ip, fp> VR(G, stationary, gather_depends_on_apply, apply_depends_on_iter, OT);
+    VR.initialize(V);
+    V.free();
+    VR.execute(num_iterations); // Vertex execution
+    VR.checksum();
+    VR.display();
+    VR.free();
+    G.free();
+    
+    /*
     G.free_mat();
     Env::barrier();
-    
+
     transpose = true;
     Graph<wp, ip, fp> GR;    
     GR.load(file_path, num_vertices, num_vertices, directed, transpose, self_loops, acyclic, parallel_edges, TT, CT, HT);
-    PR_Program<wp, ip, fp> VR(GR, stationary, gather_depends_on_apply, apply_depends_on_iter);
+    OT = _ROW_;
+    PR_Program<wp, ip, fp> VR(GR, stationary, gather_depends_on_apply, apply_depends_on_iter, OT);
     VR.initialize(V);
     V.free();
     G.free_graph();
@@ -56,6 +70,8 @@ int main(int argc, char** argv) {
     VR.display();
     VR.free();
     GR.free();    
+    */
+    
     double time2 = Env::clock();
     Env::print_time("PageRank end-to-end", time2 - time1);
     Env::finalize();
