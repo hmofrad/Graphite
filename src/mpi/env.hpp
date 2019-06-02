@@ -20,9 +20,9 @@
 
 #include <mpi.h>
 #include <omp.h>
-//#include <numa.h>
+#include <numa.h>
 #include <thread>
-#include </ihome/rmelhem/moh18/numactl/libnuma/usr/local/include/numa.h>        
+//#include </ihome/rmelhem/moh18/numactl/libnuma/usr/local/include/numa.h>        
 
 struct topology {
     int nmachines;
@@ -58,7 +58,7 @@ class Env {
                               int& grps_rank_, int& grps_nranks_, MPI_Group& grps_group_, 
                               MPI_Group& grps_group, MPI_Comm& grps_comm);
         static void rowgrps_init(std::vector<int32_t>& rowgrps_ranks, int32_t rowgrps_nranks, uint32_t rank_nrowgrps);
-        static void colgrps_init(std::vector<int32_t>& colgrps_ranks, int32_t colgrps_nranks);               
+        static void colgrps_init(std::vector<int32_t>& colgrps_ranks, int32_t colgrps_nranks, uint32_t rank_ncolgrps);               
         static double clock();
         static void   print_time(std::string preamble, double time);
         static void   print_num(std::string preamble, uint32_t num);
@@ -337,7 +337,7 @@ bool Env::affinity() {
         if(is_master)
             printf("WARN(rank=%d): Failure to enable 2D NUMA tiling. Falling back to 2D machine level tiling\n", rank);
     }
-    
+    /*
     Env::barrier();
     if(!Env::rank) {
         for(auto& machine: network.machines) {
@@ -369,6 +369,7 @@ bool Env::affinity() {
         printf("\n");
     }
     Env::barrier();
+    */
     return(enabled);
 }
 
@@ -406,13 +407,18 @@ void Env::rowgrps_init(std::vector<int32_t>& rowgrps_ranks, int32_t rowgrps_nran
     }
 }
 
-void Env::colgrps_init(std::vector<int32_t>& colgrps_ranks, int32_t colgrps_nranks) {
+void Env::colgrps_init(std::vector<int32_t>& colgrps_ranks, int32_t colgrps_nranks, uint32_t rank_ncolgrps) {
     grps_init(colgrps_ranks, colgrps_nranks, rank_cg, nranks_cg, colgrps_group_, colgrps_group, colgrps_comm);  
     
-    colgrps_groups_.resize(Env::nthreads);
-    colgrps_groups.resize(Env::nthreads);
-    colgrps_comms.resize(Env::nthreads);
-    for(int i = 0; i < Env::nthreads; i++) {    
+    //colgrps_groups_.resize(Env::nthreads);
+    //colgrps_groups.resize(Env::nthreads);
+    //colgrps_comms.resize(Env::nthreads);
+    //for(int i = 0; i < Env::nthreads; i++) {    
+    
+    colgrps_groups_.resize(rank_ncolgrps);
+    colgrps_groups.resize(rank_ncolgrps);
+    colgrps_comms.resize(rank_ncolgrps);
+    for(uint32_t i = 0; i < rank_ncolgrps; i++) {    
         grps_init(colgrps_ranks, colgrps_nranks, rank_cg, nranks_cg, colgrps_groups_[i], colgrps_groups[i], colgrps_comms[i]);  
     }
 }
