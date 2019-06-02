@@ -17,6 +17,12 @@
 
 struct State { State() {}; };
 
+enum Ordering_type
+{
+  _ROW_,
+  _COL_
+};
+
 
 template<typename Weight, typename Integer_Type, typename Fractional_Type, typename Vertex_State, typename Vertex_Methods_Impl>
 class Vertex_Program
@@ -24,7 +30,7 @@ class Vertex_Program
     public:
         Vertex_Program(Graph<Weight, Integer_Type, Fractional_Type> &Graph,
                         bool stationary_ = false, bool gather_depends_on_apply_ = false, 
-                        bool apply_depends_on_iter_ = false);
+                        bool apply_depends_on_iter_ = false, Ordering_type = _ROW_);
         ~Vertex_Program();
         Vertex_Methods_Impl Vertex_Methods;
         Vertex_Program(Vertex_Methods_Impl const &VMs) : Vertex_Methods(VMs) { };
@@ -207,6 +213,7 @@ class Vertex_Program
         pthread_barrier_t p_barrier;
         ReversibleHasher *hasher;
         Compression_type compression_type;
+        Ordering_type ordering_type;
         #ifdef TIMING
         void times();
         void stats(std::vector<double> &vec, double &sum, double &mean, double &std_dev);
@@ -227,7 +234,7 @@ class Vertex_Program
 template<typename Weight, typename Integer_Type, typename Fractional_Type, typename Vertex_State, typename Vertex_Methods_Impl>
 Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_Methods_Impl>::Vertex_Program(
          Graph<Weight,Integer_Type, Fractional_Type> &Graph, bool stationary_, 
-         bool gather_depends_on_apply_, bool apply_depends_on_iter_) {
+         bool gather_depends_on_apply_, bool apply_depends_on_iter_, Ordering_type ordering_type_) {
 
     A = Graph.A;
     directed = A->directed;
@@ -239,80 +246,149 @@ Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_Metho
     leader_ranks = A->leader_ranks;
     owned_segments = Graph.A->owned_segments;
     owned_segments_all = Graph.A->owned_segments_all;
-    rowgrp_owner_thread_segments = Graph.A->rowgrp_owner_thread_segments;
-    colgrp_owner_thread_segments = Graph.A->colgrp_owner_thread_segments;
-    rowgrp_owner_thread = Graph.A->rowgrp_owner_thread;
-    colgrp_owner_thread = Graph.A->colgrp_owner_thread;
-    
-    compression_type = A->compression_type;
-    if(compression_type == _TCSC_CF_ and directed and stationary) {
-        computation_filtering = true;
-        rowgrp_regular_rows = Graph.A->rowgrp_regular_rows;
-        rowgrp_source_rows = Graph.A->rowgrp_source_rows;
-        colgrp_sink_cols = Graph.A->colgrp_sink_cols;
-        rowgrp_regular_rows_blks = Graph.A->rowgrp_regular_rows_blks;
-        rowgrp_source_rows_blks = Graph.A->rowgrp_source_rows_blks;
-        colgrp_sink_cols_blks = Graph.A->colgrp_sink_cols_blks;
-    }
-    
+    ordering_type = ordering_type_;
     hasher = A->hasher;
+    compression_type = A->compression_type;
+    num_owned_segments = Graph.A->num_owned_segments;
+    
     convergence_vec.resize(Env::nthreads);
-    pthread_barrier_init(&p_barrier, NULL, Env::nthreads);
-
-    nrows = A->nrows;
-    ncols = A->ncols;
-    nrowgrps = A->nrowgrps;
-    ncolgrps = A->ncolgrps;
-    rowgrp_nranks = A->tiling->rowgrp_nranks;
-    colgrp_nranks = A->tiling->colgrp_nranks;
-    rank_nrowgrps = A->tiling->rank_nrowgrps;
-    rank_ncolgrps = A->tiling->rank_ncolgrps;
-    tile_height = A->tile_height;
-    tile_width = A->tile_width;
-    local_row_segments = A->local_row_segments;
-    local_col_segments = A->local_col_segments;
-    all_rowgrp_ranks_accu_seg = A->all_rowgrp_ranks_accu_seg;
-    follower_rowgrp_ranks_rg = A->follower_rowgrp_ranks_rg;
-    follower_rowgrp_ranks_accu_seg_rg = A->follower_rowgrp_ranks_accu_seg_rg;
-    leader_ranks_cg = A->leader_ranks_cg;
-    follower_colgrp_ranks_cg = A->follower_colgrp_ranks_cg;
-    follower_colgrp_ranks = A->follower_colgrp_ranks;
-    local_tiles_row_order = A->local_tiles_row_order;
-    local_tiles_col_order = A->local_tiles_col_order;
-    follower_rowgrp_ranks = A->follower_rowgrp_ranks;
-    follower_rowgrp_ranks_accu_seg = A->follower_rowgrp_ranks_accu_seg;
-    all_rowgrp_ranks = A->all_rowgrp_ranks;
-    nnz_row_sizes_loc = A->nnz_row_sizes_loc;
-    nnz_col_sizes_loc = A->nnz_col_sizes_loc;
-    nnz_row_sizes_all = A->nnz_row_sizes_all;
-    nnz_col_sizes_all = A->nnz_col_sizes_all;
-        
-    I = Graph.A->I;
-    IV = Graph.A->IV;
-    J = Graph.A->J;
-    JV = Graph.A->JV;
-    rowgrp_nnz_rows = Graph.A->rowgrp_nnz_rows;
-    colgrp_nnz_cols = Graph.A->colgrp_nnz_cols;
-                
     out_requests_t.resize(Env::nthreads);
     in_requests_t.resize(Env::nthreads);
-
-    num_owned_segments = Graph.A->num_owned_segments;
-    local_tiles_row_order_t = Graph.A->local_tiles_row_order_t;
-    local_tiles_col_order_t = Graph.A->local_tiles_col_order_t;
-        
-    accu_segment_rows = Graph.A->accu_segment_rows;
-    accu_segment_cols = Graph.A->accu_segment_cols;
     
-    rowgrps_communicator = Env::rowgrps_comm;
-    colgrps_communicator = Env::colgrps_comm;
-    
-    rowgrps_communicators = Env::rowgrps_comms;
-    colgrps_communicators = Env::colgrps_comms;
-    
+    pthread_barrier_init(&p_barrier, NULL, Env::nthreads);
     TYPE_DOUBLE = Types<Weight, Integer_Type, Fractional_Type>::get_data_type();
     TYPE_INT = Types<Weight, Integer_Type, Integer_Type>::get_data_type();
     TYPE_CHAR = Types<Weight, Integer_Type, char>::get_data_type();
+    
+    if(compression_type == _TCSC_CF_ and directed and stationary) {
+        computation_filtering = true;
+    }
+    
+    if(ordering_type == _ROW_) {
+        nrows = A->nrows;
+        ncols = A->ncols;
+        nrowgrps = A->nrowgrps;
+        ncolgrps = A->ncolgrps;
+        rowgrp_nranks = A->tiling->rowgrp_nranks;
+        colgrp_nranks = A->tiling->colgrp_nranks;
+        rank_nrowgrps = A->tiling->rank_nrowgrps;
+        rank_ncolgrps = A->tiling->rank_ncolgrps;
+        tile_height = A->tile_height;
+        tile_width = A->tile_width;
+        local_row_segments = A->local_row_segments;
+        local_col_segments = A->local_col_segments;
+        all_rowgrp_ranks_accu_seg = A->all_rowgrp_ranks_accu_seg;
+        follower_rowgrp_ranks_rg = A->follower_rowgrp_ranks_rg;
+        follower_rowgrp_ranks_accu_seg_rg = A->follower_rowgrp_ranks_accu_seg_rg;
+        leader_ranks_cg = A->leader_ranks_cg;
+        follower_colgrp_ranks_cg = A->follower_colgrp_ranks_cg;
+        follower_colgrp_ranks = A->follower_colgrp_ranks;
+        local_tiles_row_order = A->local_tiles_row_order;
+        local_tiles_col_order = A->local_tiles_col_order;
+        follower_rowgrp_ranks = A->follower_rowgrp_ranks;
+        follower_rowgrp_ranks_accu_seg = A->follower_rowgrp_ranks_accu_seg;
+        all_rowgrp_ranks = A->all_rowgrp_ranks;
+        nnz_row_sizes_loc = A->nnz_row_sizes_loc;
+        nnz_col_sizes_loc = A->nnz_col_sizes_loc;
+        nnz_row_sizes_all = A->nnz_row_sizes_all;
+        nnz_col_sizes_all = A->nnz_col_sizes_all;
+            
+        I = Graph.A->I;
+        IV = Graph.A->IV;
+        J = Graph.A->J;
+        JV = Graph.A->JV;
+        rowgrp_nnz_rows = Graph.A->rowgrp_nnz_rows;
+        colgrp_nnz_cols = Graph.A->colgrp_nnz_cols;
+                    
+        if(computation_filtering) {
+            rowgrp_regular_rows = Graph.A->rowgrp_regular_rows;
+            rowgrp_source_rows = Graph.A->rowgrp_source_rows;
+            colgrp_sink_cols = Graph.A->colgrp_sink_cols;
+            rowgrp_regular_rows_blks = Graph.A->rowgrp_regular_rows_blks;
+            rowgrp_source_rows_blks = Graph.A->rowgrp_source_rows_blks;
+            colgrp_sink_cols_blks = Graph.A->colgrp_sink_cols_blks;
+        }
+        
+        rowgrp_owner_thread_segments = Graph.A->rowgrp_owner_thread_segments;
+        colgrp_owner_thread_segments = Graph.A->colgrp_owner_thread_segments;
+        rowgrp_owner_thread = Graph.A->rowgrp_owner_thread;
+        colgrp_owner_thread = Graph.A->colgrp_owner_thread;
+
+        
+        local_tiles_row_order_t = Graph.A->local_tiles_row_order_t;
+        local_tiles_col_order_t = Graph.A->local_tiles_col_order_t;
+            
+        accu_segment_rows = Graph.A->accu_segment_rows;
+        accu_segment_cols = Graph.A->accu_segment_cols;
+        
+        rowgrps_communicator = Env::rowgrps_comm;
+        colgrps_communicator = Env::colgrps_comm;
+        
+        rowgrps_communicators = Env::rowgrps_comms;
+        colgrps_communicators = Env::colgrps_comms;
+    }
+    else {
+        nrows = A->ncols;
+        ncols = A->nrows;
+        nrowgrps = A->ncolgrps;
+        ncolgrps = A->nrowgrps;
+        rowgrp_nranks = A->tiling->colgrp_nranks;
+        colgrp_nranks = A->tiling->rowgrp_nranks;
+        rank_nrowgrps = A->tiling->rank_ncolgrps;
+        rank_ncolgrps = A->tiling->rank_nrowgrps;
+        tile_height = A->tile_width;
+        tile_width = A->tile_height;
+        local_row_segments = A->local_col_segments;
+        local_col_segments = A->local_row_segments;
+        all_rowgrp_ranks_accu_seg = A->all_colgrp_ranks_accu_seg;
+        follower_rowgrp_ranks_rg = A->follower_colgrp_ranks_cg;
+        follower_rowgrp_ranks_accu_seg_rg = A->follower_colgrp_ranks_accu_seg_cg;
+        leader_ranks_cg = A->leader_ranks_rg;
+        follower_colgrp_ranks_cg = A->follower_rowgrp_ranks_rg;
+        follower_colgrp_ranks = A->follower_rowgrp_ranks;
+        local_tiles_row_order = A->local_tiles_col_order;
+        local_tiles_col_order = A->local_tiles_row_order;
+        follower_rowgrp_ranks = A->follower_colgrp_ranks;
+        follower_rowgrp_ranks_accu_seg = A->follower_colgrp_ranks_accu_seg;
+        all_rowgrp_ranks = A->all_colgrp_ranks;
+        nnz_row_sizes_loc = A->nnz_col_sizes_loc;
+        nnz_col_sizes_loc = A->nnz_row_sizes_loc;
+        nnz_row_sizes_all = A->nnz_col_sizes_all;
+        nnz_col_sizes_all = A->nnz_row_sizes_all;
+            
+        I = Graph.A->J;
+        IV = Graph.A->JV;
+        J = Graph.A->I;
+        JV = Graph.A->IV;
+        rowgrp_nnz_rows = Graph.A->colgrp_nnz_cols;
+        colgrp_nnz_cols = Graph.A->rowgrp_nnz_rows;
+                    
+        if(computation_filtering) {
+            rowgrp_regular_rows = Graph.A->rowgrp_regular_rows;
+            rowgrp_source_rows = Graph.A->colgrp_sink_cols;
+            colgrp_sink_cols = Graph.A->rowgrp_source_rows;
+            rowgrp_regular_rows_blks = Graph.A->rowgrp_regular_rows_blks;
+            rowgrp_source_rows_blks = Graph.A->colgrp_sink_cols_blks;
+            colgrp_sink_cols_blks = Graph.A->rowgrp_source_rows_blks;
+        }
+
+        rowgrp_owner_thread_segments = Graph.A->colgrp_owner_thread_segments;
+        colgrp_owner_thread_segments = Graph.A->rowgrp_owner_thread_segments;
+        rowgrp_owner_thread = Graph.A->colgrp_owner_thread;
+        colgrp_owner_thread = Graph.A->rowgrp_owner_thread;
+        
+        local_tiles_row_order_t = Graph.A->local_tiles_col_order_t;
+        local_tiles_col_order_t = Graph.A->local_tiles_row_order_t;
+            
+        accu_segment_rows = Graph.A->accu_segment_cols;
+        accu_segment_cols = Graph.A->accu_segment_rows;
+        
+        rowgrps_communicator = Env::colgrps_comm;
+        colgrps_communicator = Env::rowgrps_comm;
+        
+        rowgrps_communicators = Env::colgrps_comms;
+        colgrps_communicators = Env::rowgrps_comms;
+    }
 }
 
 template<typename Weight, typename Integer_Type, typename Fractional_Type, typename Vertex_State, typename Vertex_Methods_Impl>
@@ -659,9 +735,18 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
     for(uint32_t t: local_tiles_row_order_t[tid]) {
         auto pair = A->tile_of_local_tile(t);
         auto &tile = A->tiles[pair.row][pair.col];
-        tile_th = tile.nth;
-        pair_idx = pair.row;
-        yi = tile.ith;
+        if(ordering_type == _ROW_) {
+            tile_th = tile.nth;
+            pair_idx = pair.row;
+            yi = tile.ith;
+        }
+        else {
+            tile_th = tile.mth;
+            pair_idx = pair.col;
+            yi = tile.jth;
+        }          
+        
+        //yi = tile.ith;
         auto* y_data = (Fractional_Type*) Y[yi];
         Integer_Type y_nitems = nnz_row_sizes_loc[yi];
         const auto* x_data = (Fractional_Type*) X[xi];
@@ -674,15 +759,28 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
                 const Integer_Type* IA   = static_cast<TCSC_BASE<Weight, Integer_Type>*>(tile.compressor)->IA;
                 const Integer_Type* JA   = static_cast<TCSC_BASE<Weight, Integer_Type>*>(tile.compressor)->JA;    
                 const Integer_Type ncols = static_cast<TCSC_BASE<Weight, Integer_Type>*>(tile.compressor)->nnzcols;  
-                
-                for(uint32_t j = 0; j < ncols; j++) {
-                    for(uint32_t i = JA[j]; i < JA[j + 1]; i++) {
-                        #ifdef HAS_WEIGHT
-                        Vertex_Methods.combiner(y_data[IA[i]], x_data[j], A[i]);
-                        #else
-                        Vertex_Methods.combiner(y_data[IA[i]], x_data[j]);
-                        #endif
+                if(ordering_type == _ROW_) {
+                    for(uint32_t j = 0; j < ncols; j++) {
+                        for(uint32_t i = JA[j]; i < JA[j + 1]; i++) {
+                            #ifdef HAS_WEIGHT
+                            Vertex_Methods.combiner(y_data[IA[i]], x_data[j], A[i]);
+                            #else
+                            Vertex_Methods.combiner(y_data[IA[i]], x_data[j]);
+                            #endif
+                        }
                     }
+                }
+                else {
+                    for(uint32_t j = 0; j < ncols; j++) {
+                        for(uint32_t i = JA[j]; i < JA[j + 1]; i++) {
+                            #ifdef HAS_WEIGHT
+                            Vertex_Methods.combiner(y_data[j], x_data[IA[i]], A[i]);   
+                            #else
+                            Vertex_Methods.combiner(y_data[j], x_data[IA[i]]);
+                            //Vertex_Methods.combiner(y_data[0], x_data[0]);
+                            #endif
+                        }
+                    }       
                 }
             }
         }            
@@ -698,96 +796,123 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
                 
                 if(num_iterations == 1) {
                     if(not converged) {
-                        for(uint32_t j = 0; j < ncols; j++) {
-                            for(uint32_t i = JA[j]; i < JA[j + 1]; i++) {
-                                #ifdef HAS_WEIGHT
-                                Vertex_Methods.combiner(y_data[IA[i]], x_data[j], A[i]);
-                                #else
-                                Vertex_Methods.combiner(y_data[IA[i]], x_data[j]);
-                                #endif
+                        if(ordering_type == _ROW_) {
+                            for(uint32_t j = 0; j < ncols; j++) {
+                                for(uint32_t i = JA[j]; i < JA[j + 1]; i++) {
+                                    #ifdef HAS_WEIGHT
+                                    Vertex_Methods.combiner(y_data[IA[i]], x_data[j], A[i]);
+                                    #else
+                                    Vertex_Methods.combiner(y_data[IA[i]], x_data[j]);
+                                    #endif
+                                }
                             }
+                        }
+                        else {
+                            for(uint32_t j = 0; j < ncols; j++) {
+                                for(uint32_t i = JA[j]; i < JA[j + 1]; i++) {
+                                    #ifdef HAS_WEIGHT
+                                    Vertex_Methods.combiner(y_data[j], x_data[IA[i]], A[i]);   
+                                    #else
+                                    Vertex_Methods.combiner(y_data[j], x_data[IA[i]]);
+                                    #endif
+                                }
+                            }                            
                         }
                     }
                 }
                 else {   
-                    Integer_Type l;
-                    if(iteration == 0) {               
-                        Integer_Type NC_REG_R_SNK_C = static_cast<TCSC_CF_BASE<Weight, Integer_Type>*>(tile.compressor)->NC_REG_R_SNK_C;
-                        if(NC_REG_R_SNK_C) {
-                            Integer_Type* JC_REG_R_SNK_C = static_cast<TCSC_CF_BASE<Weight, Integer_Type>*>(tile.compressor)->JC_REG_R_SNK_C;
-                            Integer_Type* JA_REG_R_SNK_C = static_cast<TCSC_CF_BASE<Weight, Integer_Type>*>(tile.compressor)->JA_REG_R_SNK_C;
-                            for(uint32_t j = 0, k = 0; j < NC_REG_R_SNK_C; j++, k = k + 2) {
-                                l = JC_REG_R_SNK_C[j];
-                                for(uint32_t i = JA_REG_R_SNK_C[k]; i < JA_REG_R_SNK_C[k + 1]; i++) {
-                                    #ifdef HAS_WEIGHT
-                                    Vertex_Methods.combiner(y_data[IA[i]], x_data[l], A[i]);
-                                    #else
-                                    Vertex_Methods.combiner(y_data[IA[i]], x_data[l]);
-                                    #endif
-                                }
-                            }                    
+                    if(ordering_type == _ROW_) {    
+                        Integer_Type l;
+                        if(iteration == 0) {               
+                            Integer_Type NC_REG_R_SNK_C = static_cast<TCSC_CF_BASE<Weight, Integer_Type>*>(tile.compressor)->NC_REG_R_SNK_C;
+                            if(NC_REG_R_SNK_C) {
+                                Integer_Type* JC_REG_R_SNK_C = static_cast<TCSC_CF_BASE<Weight, Integer_Type>*>(tile.compressor)->JC_REG_R_SNK_C;
+                                Integer_Type* JA_REG_R_SNK_C = static_cast<TCSC_CF_BASE<Weight, Integer_Type>*>(tile.compressor)->JA_REG_R_SNK_C;
+                                for(uint32_t j = 0, k = 0; j < NC_REG_R_SNK_C; j++, k = k + 2) {
+                                    l = JC_REG_R_SNK_C[j];
+                                    for(uint32_t i = JA_REG_R_SNK_C[k]; i < JA_REG_R_SNK_C[k + 1]; i++) {
+                                        #ifdef HAS_WEIGHT
+                                        Vertex_Methods.combiner(y_data[IA[i]], x_data[l], A[i]);
+                                        #else
+                                        Vertex_Methods.combiner(y_data[IA[i]], x_data[l]);
+                                        #endif
+                                    }
+                                }                    
+                            }
                         }
-                    }
-                    if(not converged) {
-                        Integer_Type NC_REG_R_REG_C = static_cast<TCSC_CF_BASE<Weight, Integer_Type>*>(tile.compressor)->NC_REG_R_REG_C;
-                        if(NC_REG_R_REG_C) {
-                            Integer_Type* JC_REG_R_REG_C = static_cast<TCSC_CF_BASE<Weight, Integer_Type>*>(tile.compressor)->JC_REG_R_REG_C;
-                            Integer_Type* JA_REG_R_REG_C = static_cast<TCSC_CF_BASE<Weight, Integer_Type>*>(tile.compressor)->JA_REG_R_REG_C;
-                            for(uint32_t j = 0, k = 0; j < NC_REG_R_REG_C; j++, k = k + 2) {
-                                l = JC_REG_R_REG_C[j];
-                                for(uint32_t i = JA_REG_R_REG_C[k]; i < JA_REG_R_REG_C[k + 1]; i++) {
-                                    #ifdef HAS_WEIGHT
-                                    Vertex_Methods.combiner(y_data[IA[i]], x_data[l], A[i]);
-                                    #else
-                                    Vertex_Methods.combiner(y_data[IA[i]], x_data[l]);
-                                    #endif
-                                }
-                            }                    
+                        if(not converged) {
+                            Integer_Type NC_REG_R_REG_C = static_cast<TCSC_CF_BASE<Weight, Integer_Type>*>(tile.compressor)->NC_REG_R_REG_C;
+                            if(NC_REG_R_REG_C) {
+                                Integer_Type* JC_REG_R_REG_C = static_cast<TCSC_CF_BASE<Weight, Integer_Type>*>(tile.compressor)->JC_REG_R_REG_C;
+                                Integer_Type* JA_REG_R_REG_C = static_cast<TCSC_CF_BASE<Weight, Integer_Type>*>(tile.compressor)->JA_REG_R_REG_C;
+                                for(uint32_t j = 0, k = 0; j < NC_REG_R_REG_C; j++, k = k + 2) {
+                                    l = JC_REG_R_REG_C[j];
+                                    for(uint32_t i = JA_REG_R_REG_C[k]; i < JA_REG_R_REG_C[k + 1]; i++) {
+                                        #ifdef HAS_WEIGHT
+                                        Vertex_Methods.combiner(y_data[IA[i]], x_data[l], A[i]);
+                                        #else
+                                        Vertex_Methods.combiner(y_data[IA[i]], x_data[l]);
+                                        #endif
+                                    }
+                                }                    
+                            }
+                        }
+                        else {
+                            Integer_Type NC_SRC_R_REG_C = static_cast<TCSC_CF_BASE<Weight, Integer_Type>*>(tile.compressor)->NC_SRC_R_REG_C;
+                            if(NC_SRC_R_REG_C) {
+                                Integer_Type* JC_SRC_R_REG_C = static_cast<TCSC_CF_BASE<Weight, Integer_Type>*>(tile.compressor)->JC_SRC_R_REG_C;
+                                Integer_Type* JA_SRC_R_REG_C = static_cast<TCSC_CF_BASE<Weight, Integer_Type>*>(tile.compressor)->JA_SRC_R_REG_C;
+                                for(uint32_t j = 0, k = 0; j < NC_SRC_R_REG_C; j++, k = k + 2) {
+                                    l = JC_SRC_R_REG_C[j];
+                                    for(uint32_t i = JA_SRC_R_REG_C[k]; i < JA_SRC_R_REG_C[k + 1]; i++) {
+                                        #ifdef HAS_WEIGHT
+                                        Vertex_Methods.combiner(y_data[IA[i]], x_data[l], A[i]);
+                                        #else
+                                        Vertex_Methods.combiner(y_data[IA[i]], x_data[l]);
+                                        #endif
+                                    }
+                                }                    
+                            }
+                            
+                            Integer_Type NC_SRC_R_SNK_C = static_cast<TCSC_CF_BASE<Weight, Integer_Type>*>(tile.compressor)->NC_SRC_R_SNK_C;
+                            if(NC_SRC_R_REG_C) {
+                                Integer_Type* JC_SRC_R_SNK_C = static_cast<TCSC_CF_BASE<Weight, Integer_Type>*>(tile.compressor)->JC_SRC_R_SNK_C;
+                                Integer_Type* JA_SRC_R_SNK_C = static_cast<TCSC_CF_BASE<Weight, Integer_Type>*>(tile.compressor)->JA_SRC_R_SNK_C;
+                                for(uint32_t j = 0, k = 0; j < NC_SRC_R_SNK_C; j++, k = k + 2) {
+                                    l = JC_SRC_R_SNK_C[j];
+                                    for(uint32_t i = JA_SRC_R_SNK_C[k]; i < JA_SRC_R_SNK_C[k + 1]; i++) {
+                                        #ifdef HAS_WEIGHT
+                                        Vertex_Methods.combiner(y_data[IA[i]], x_data[l], A[i]);
+                                        #else
+                                        Vertex_Methods.combiner(y_data[IA[i]], x_data[l]);
+                                        #endif
+                                    }
+                                }                    
+                            }
                         }
                     }
                     else {
-                        Integer_Type NC_SRC_R_REG_C = static_cast<TCSC_CF_BASE<Weight, Integer_Type>*>(tile.compressor)->NC_SRC_R_REG_C;
-                        if(NC_SRC_R_REG_C) {
-                            Integer_Type* JC_SRC_R_REG_C = static_cast<TCSC_CF_BASE<Weight, Integer_Type>*>(tile.compressor)->JC_SRC_R_REG_C;
-                            Integer_Type* JA_SRC_R_REG_C = static_cast<TCSC_CF_BASE<Weight, Integer_Type>*>(tile.compressor)->JA_SRC_R_REG_C;
-                            for(uint32_t j = 0, k = 0; j < NC_SRC_R_REG_C; j++, k = k + 2) {
-                                l = JC_SRC_R_REG_C[j];
-                                for(uint32_t i = JA_SRC_R_REG_C[k]; i < JA_SRC_R_REG_C[k + 1]; i++) {
-                                    #ifdef HAS_WEIGHT
-                                    Vertex_Methods.combiner(y_data[IA[i]], x_data[l], A[i]);
-                                    #else
-                                    Vertex_Methods.combiner(y_data[IA[i]], x_data[l]);
-                                    #endif
-                                }
-                            }                    
-                        }
-                        
-                        Integer_Type NC_SRC_R_SNK_C = static_cast<TCSC_CF_BASE<Weight, Integer_Type>*>(tile.compressor)->NC_SRC_R_SNK_C;
-                        if(NC_SRC_R_REG_C) {
-                            Integer_Type* JC_SRC_R_SNK_C = static_cast<TCSC_CF_BASE<Weight, Integer_Type>*>(tile.compressor)->JC_SRC_R_SNK_C;
-                            Integer_Type* JA_SRC_R_SNK_C = static_cast<TCSC_CF_BASE<Weight, Integer_Type>*>(tile.compressor)->JA_SRC_R_SNK_C;
-                            for(uint32_t j = 0, k = 0; j < NC_SRC_R_SNK_C; j++, k = k + 2) {
-                                l = JC_SRC_R_SNK_C[j];
-                                for(uint32_t i = JA_SRC_R_SNK_C[k]; i < JA_SRC_R_SNK_C[k + 1]; i++) {
-                                    #ifdef HAS_WEIGHT
-                                    Vertex_Methods.combiner(y_data[IA[i]], x_data[l], A[i]);
-                                    #else
-                                    Vertex_Methods.combiner(y_data[IA[i]], x_data[l]);
-                                    #endif
-                                }
-                            }                    
-                        }
-                    }
+                        fprintf(stderr, "Not implemented\n");
+                        Env::exit(0);
+                    }   
                 }
             }
         }
         
-        
+        //if(!Env::rank) {
+        //    printf("%d %d %d %lu", tile_th, pair_idx, yi, rowgrps_communicators.size());
+        //}
         xi++;
         communication = (((tile_th + 1) % rank_ncolgrps) == 0);
         if(communication) {
-            leader = tile.leader_rank_rg_rg;
-            my_rank = Env::rank_rg;
+            if(ordering_type == _ROW_) {
+                leader = tile.leader_rank_rg_rg;
+                my_rank = Env::rank_rg;
+            }
+            else {
+                leader = tile.leader_rank_cg_cg;
+                my_rank = Env::rank_cg;
+            }
             if(leader == my_rank) {
                 for(uint32_t j = 0; j < rowgrp_nranks - 1; j++) {                        
                     follower = follower_rowgrp_ranks_rg[j];
