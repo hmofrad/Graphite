@@ -105,8 +105,8 @@ void Graph<Weight, Integer_Type, Fractional_Type>::init_graph(std::string filepa
     acyclic = acyclic_;
     parallel_edges = parallel_edges_;
     
-    if(tiling_type_ == _2DGP_)
-        Env::nsegments = Env::nranks;
+    //if(tiling_type_ == _2DGP_)
+    //    Env::nsegments = Env::nranks;
     
     uint32_t ntiles_ = Env::nsegments * Env::nsegments;
     
@@ -119,9 +119,9 @@ void Graph<Weight, Integer_Type, Fractional_Type>::init_graph(std::string filepa
     if (hashing_type == _NONE_)
         hasher = new NullHasher();
     else if (hashing_type == _BUCKET_) {
-        if(tiling_type_ == _2DGP_)
-            hasher = new SimpleBucketHasher(nrows, Env::nranks);
-        else
+        //if(tiling_type_ == _2DGP_)
+          //  hasher = new SimpleBucketHasher(nrows, Env::nranks);
+        //else
             hasher = new SimpleBucketHasher(nrows, Env::nsegments);
     }
     
