@@ -512,7 +512,8 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_matrix() {
 
     if(not Env::get_init_status()) {
         Env::rowgrps_init(all_rowgrp_ranks, tiling->rowgrp_nranks, tiling->rank_nrowgrps);
-        Env::colgrps_init(all_colgrp_ranks, tiling->colgrp_nranks);
+        //Env::colgrps_init(all_colgrp_ranks, tiling->colgrp_nranks);
+        Env::colgrps_init(all_colgrp_ranks, tiling->colgrp_nranks, tiling->rank_ncolgrps);
         Env::set_init_status();
     }
     // Which column index in my rowgrps is mine when I'm the accumulator
