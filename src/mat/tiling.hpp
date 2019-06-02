@@ -11,7 +11,7 @@
 #include <cmath>
  
 enum Tiling_type {
-    _2DGP_,  // GraphPad
+    //_2DGP_,  // GraphPad
     _2D_,  // 2D
     _NUMA_ // 2D with NUMA order
 };
@@ -46,7 +46,8 @@ Tiling::Tiling(uint32_t nranks_, uint32_t ntiles_, uint32_t nrowgrps_, uint32_t 
     tiling_type = tiling_type_;
     assert(rank_ntiles * nranks == ntiles);
     
-    if ((tiling_type == Tiling_type::_2D_) or (tiling_type == Tiling_type::_2DGP_)) {
+    //if ((tiling_type == Tiling_type::_2D_) or (tiling_type == Tiling_type::_2DGP_)) {
+    if (tiling_type == Tiling_type::_2D_) {
         if(not Env::get_init_status())
             Env::shuffle_ranks();
         integer_factorize(nranks, rowgrp_nranks, colgrp_nranks);
