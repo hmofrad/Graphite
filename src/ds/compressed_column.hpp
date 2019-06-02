@@ -23,7 +23,7 @@ template<typename Weight, typename Integer_Type>
 struct Compressed_column {
     public:
         virtual ~Compressed_column() {}
-        virtual void populate(const std::vector<struct Triple<Weight, Integer_Type>>* triples,
+        virtual void populate(const std::vector<struct Triple<Weight, Integer_Type>>& triples,
                               const Integer_Type tile_height, 
                               const Integer_Type tile_width,
                               const char*         nnzrows_bitvector,
@@ -31,7 +31,7 @@ struct Compressed_column {
                               const char*         nnzcols_bitvector,
                               const Integer_Type* nnzcols_indices) {};
                               
-        virtual void populate(const std::vector<struct Triple<Weight, Integer_Type>>* triples,
+        virtual void populate(const std::vector<struct Triple<Weight, Integer_Type>>& triples,
                               const Integer_Type tile_height, 
                               const Integer_Type tile_width,    
                               const char*         nnzrows_bitvector,
@@ -54,7 +54,7 @@ struct TCSC_BASE : public Compressed_column<Weight, Integer_Type> {
     public:
         TCSC_BASE(const uint64_t nnz_, const Integer_Type nnzcols_, const Integer_Type nnzrows_, const int socket_id = 0);
         ~TCSC_BASE();
-        virtual void populate(const std::vector<struct Triple<Weight, Integer_Type>>* triples,
+        virtual void populate(const std::vector<struct Triple<Weight, Integer_Type>>& triples,
                               const Integer_Type tile_height, 
                               const Integer_Type tile_width,    
                               const char*         nnzrows_bitvector,
@@ -179,7 +179,7 @@ TCSC_BASE<Weight, Integer_Type>::~TCSC_BASE() {
 }
 
 template<typename Weight, typename Integer_Type>
-void TCSC_BASE<Weight, Integer_Type>::populate(const std::vector<struct Triple<Weight, Integer_Type>>* triples,
+void TCSC_BASE<Weight, Integer_Type>::populate(const std::vector<struct Triple<Weight, Integer_Type>>& triples,
                                                const Integer_Type tile_height, 
                                                const Integer_Type tile_width,                
                                                const char*         nnzrows_bitvector,
@@ -191,7 +191,7 @@ void TCSC_BASE<Weight, Integer_Type>::populate(const std::vector<struct Triple<W
         Integer_Type i = 0; // Row Index
         Integer_Type j = 1; // Col index
         JA[0] = 0;
-        for (auto& triple : *triples) {
+        for (auto& triple : triples) {
             pair  = {(triple.row % tile_height), (triple.col % tile_width)};
             while((j - 1) != nnzcols_indices[pair.col]) {
                 j++;
@@ -216,7 +216,7 @@ struct TCSC_CF_BASE : public Compressed_column<Weight, Integer_Type> {
     public:
         TCSC_CF_BASE(const uint64_t nnz_,const Integer_Type nnzcols_,const Integer_Type nnzrows_, const int socket_id);
         ~TCSC_CF_BASE();
-        virtual void populate(const std::vector<struct Triple<Weight, Integer_Type>>* triples,
+        virtual void populate(const std::vector<struct Triple<Weight, Integer_Type>>& triples,
                               const Integer_Type tile_height, 
                               const Integer_Type tile_width,                
                               const char*         nnzrows_bitvector,
@@ -521,7 +521,7 @@ TCSC_CF_BASE<Weight, Integer_Type>::~TCSC_CF_BASE() {
 }
 
 template<typename Weight, typename Integer_Type>
-void TCSC_CF_BASE<Weight, Integer_Type>::populate(const std::vector<struct Triple<Weight, Integer_Type>>* triples,
+void TCSC_CF_BASE<Weight, Integer_Type>::populate(const std::vector<struct Triple<Weight, Integer_Type>>& triples,
                                                const Integer_Type tile_height, 
                                                const Integer_Type tile_width,                
                                                const char*         nnzrows_bitvector,
@@ -545,7 +545,7 @@ void TCSC_CF_BASE<Weight, Integer_Type>::populate(const std::vector<struct Tripl
     Integer_Type i = 0; // Row Index
     Integer_Type j = 1; // Col index
     JA[0] = 0;
-    for (auto& triple : *triples) {
+    for (auto& triple : triples) {
         pair  = {(triple.row % tile_height), (triple.col % tile_width)};
         while((j - 1) != nnzcols_indices[pair.col]) {
             j++;
