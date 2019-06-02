@@ -27,7 +27,7 @@ template<typename Weight, typename Integer_Type, typename Fractional_Type>
 struct Tile2D { 
     template <typename Weight_, typename Integer_Type_, typename Fractional_Type_>
     friend class Matrix;
-    std::vector<struct Triple<Weight, Integer_Type>>* triples;
+    std::vector<struct Triple<Weight, Integer_Type>> triples;
     struct Compressed_column<Weight, Integer_Type>* compressor = nullptr;
     uint32_t rg, cg; // Row group, Column group
     uint32_t ith, jth, nth; // ith row, jth column, nth local row order tile,
@@ -46,19 +46,19 @@ struct Tile2D {
     std::vector<struct Compressed_column<Weight, Integer_Type>*> compressor_t;
 };
 
-template<typename Weight, typename Integer_Type, typename Fractional_Type>
-void Tile2D<Weight, Integer_Type, Fractional_Type>::allocate_triples() {
-    if(!triples)
-        triples = new std::vector<struct Triple<Weight, Integer_Type>>;
-}
+//template<typename Weight, typename Integer_Type, typename Fractional_Type>
+//void Tile2D<Weight, Integer_Type, Fractional_Type>::allocate_triples() {
+//    if(!triples)
+        //triples = new std::vector<struct Triple<Weight, Integer_Type>>;
+//}
 template<typename Weight, typename Integer_Type, typename Fractional_Type>
 void Tile2D<Weight, Integer_Type, Fractional_Type>::free_triples() {
-    if(triples) {
-        triples->clear();
-        triples->shrink_to_fit();
-        delete triples;
-        triples = nullptr;
-    }
+    //if(triples) {
+        triples.clear();
+        triples.shrink_to_fit();
+    //    delete triples;
+    //    triples = nullptr;
+    //}
 }
  
 template<typename Weight, typename Integer_Type, typename Fractional_Type>
@@ -195,10 +195,11 @@ class Matrix {
         void classify_vertices();
         void init_tcsc_cf();
         void init_tcsc_cf_threaded(int tid);
-        void init_tcsc_2dgp();
-        void init_tcsc_threaded_2dgp(int tid);
-        void init_tcsc_cf_2dgp();
-        void init_tcsc_cf_threaded_2dgp(int tid);
+        
+        //void init_tcsc_2dgp();
+        //void init_tcsc_threaded_2dgp(int tid);
+        //void init_tcsc_cf_2dgp();
+        //void init_tcsc_cf_threaded_2dgp(int tid);
         void del_triples_t();
 ;
         void del_compression();
@@ -211,7 +212,7 @@ class Matrix {
         void filter_vertices(Filtering_type filtering_type_);
 };
 
-#include "mat/matrix_2dgp.hpp"
+//#include "mat/matrix_2dgp.hpp"
 
 template<typename Weight, typename Integer_Type, typename Fractional_Type>
 Matrix<Weight, Integer_Type, Fractional_Type>::Matrix(Integer_Type nrows_, 
@@ -236,9 +237,9 @@ Matrix<Weight, Integer_Type, Fractional_Type>::Matrix(Integer_Type nrows_,
     if (hashing_type == _NONE_)
         hasher = new NullHasher();
     else if (hashing_type == _BUCKET_) {
-        if(tiling_type_ == _2DGP_)
-            hasher = new SimpleBucketHasher(nrows, Env::nranks);
-        else
+        //if(tiling_type_ == _2DGP_)
+        //    hasher = new SimpleBucketHasher(nrows, Env::nranks);
+        //else
             hasher = new SimpleBucketHasher(nrows, Env::nsegments);
     }
     
@@ -296,7 +297,7 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::insert(const struct Triple<W
         printf("rank=%d: Invalid entry for tile[%d][%d]=[%d %d]\n", Env::rank, pair.row, pair.col, triple.row, triple.col);
         Env::exit(0);
     }
-    tiles[pair.row][pair.col].triples->push_back(triple);
+    tiles[pair.row][pair.col].triples.push_back(triple);
 }
 
 template<typename Weight, typename Integer_Type, typename Fractional_Type>
@@ -312,10 +313,11 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_matrix() {
             auto& tile = tiles[i][j];
             tile.rg = i;
             tile.cg = j;
-            if(tiling->tiling_type == Tiling_type::_2DGP_) {
-                tile.rank = (i % tiling->colgrp_nranks) * tiling->rowgrp_nranks + (j % tiling->rowgrp_nranks);
-            }
-            else if(tiling->tiling_type == Tiling_type::_2D_) {
+            //if(tiling->tiling_type == Tiling_type::_2DGP_) {
+            //    tile.rank = (i % tiling->colgrp_nranks) * tiling->rowgrp_nranks + (j % tiling->rowgrp_nranks);
+            //}
+            //else 
+            if(tiling->tiling_type == Tiling_type::_2D_) {
                 tile.rank = (i % tiling->colgrp_nranks) * tiling->rowgrp_nranks + (j % tiling->rowgrp_nranks);
             }
             else if(tiling->tiling_type == Tiling_type::_NUMA_) {
@@ -344,7 +346,7 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_matrix() {
             tile.nth = (tile.ith * tiling->rank_ncolgrps) + tile.jth;
             tile.mth = (tile.jth * tiling->rank_nrowgrps) + tile.ith;
                         
-            tile.allocate_triples();
+            //tile.allocate_triples();
         }
     }
 
@@ -361,15 +363,15 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_matrix() {
        If there is more MPI ranks than the number of segments,
        use count vector to enforce the numbwe of owned segments*/
     num_owned_segments = nrowgrps / Env::nranks;
-    if(tiling->tiling_type == Tiling_type::_2DGP_)
-        assert(num_owned_segments == 1);
-    else {
+    //if(tiling->tiling_type == Tiling_type::_2DGP_)
+    //    assert(num_owned_segments == 1);
+    //else {
         if(numa_available() == -1) {
             Env::nthreads = 1;
             omp_set_num_threads(Env::nthreads);
         }
         assert(num_owned_segments == Env::nthreads);  
-    }
+    //}
         
     for (uint32_t i = 0; i < nrowgrps; i++) {
         for (uint32_t j = i; j < ncolgrps; j++) { 
@@ -810,7 +812,7 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_tiles() {
     for(uint32_t t: local_tiles_row_order) {
         auto pair = tile_of_local_tile(t);
         auto& tile = tiles[pair.row][pair.col];
-        std::vector<struct Triple<Weight, Integer_Type>>& triples = *(tile.triples);
+        std::vector<struct Triple<Weight, Integer_Type>>& triples = tile.triples;
         if(triples.size()) {
             std::sort(triples.begin(), triples.end(), f_col);
             /* remove parallel edges (duplicates), necessary for triangle couting */
@@ -819,7 +821,7 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_tiles() {
                 triples.erase(last, triples.end());
             }
         }
-        tile.nedges = tile.triples->size();
+        tile.nedges = tile.triples.size();
     }
     //balance();
 }
@@ -830,7 +832,7 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_tiles() {
 */
 template<typename Weight, typename Integer_Type, typename Fractional_Type>
 void Matrix<Weight, Integer_Type, Fractional_Type>::distribute() {
-    MPI_Barrier(MPI_COMM_WORLD);
+    //MPI_Barrier(MPI_COMM_WORLD);
     if(Env::is_master)
         printf("INFO(rank=%d): Edge distribution: Distributing edges among %d ranks\n", Env::rank, Env::nranks);     
     
@@ -845,8 +847,8 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::distribute() {
     for (uint32_t i = 0; i < nrowgrps; i++) {
         for (uint32_t j = 0; j < ncolgrps; j++) {
             auto& tile = tiles[i][j];
-            if(tile.triples->size() > 0)
-                nedges_start_local += tile.triples->size();
+            if(tile.triples.size() > 0)
+                nedges_start_local += tile.triples.size();
         }
     }
 
@@ -862,7 +864,7 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::distribute() {
             auto& tile = tiles[i][j];
             if(tile.rank != Env::rank) {
                 auto& outbox = outboxes[tile.rank];
-                outbox.insert(outbox.end(), tile.triples->begin(), tile.triples->end());
+                outbox.insert(outbox.end(), tile.triples.begin(), tile.triples.end());
                 tile.free_triples();
             }
         }
@@ -901,8 +903,8 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::distribute() {
         for (uint32_t j = 0; j < ncolgrps; j++) {
             auto& tile = tiles[i][j];
             if(tile.rank == Env::rank) {
-                std::vector<struct Triple<Weight, Integer_Type>>& triples = *(tile.triples);
-                nedges_end_local += triples.size();
+                //std::vector<struct Triple<Weight, Integer_Type>>& triples = tile.triples;
+                nedges_end_local += tile.triples.size();
             }
         }
     }    
@@ -1245,7 +1247,7 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::filter_vertices(Filtering_ty
         auto& f_data = F[fi][fo];
         Integer_Type f_nitems = tile_length;
         if(filtering_type_ == _ROWS_) {
-            for (auto& triple : *(tile.triples)) {
+            for (auto& triple : tile.triples) {
                 test(triple);
                 auto pair1 = rebase(triple);
                 if(!f_data[pair1.row])
@@ -1253,7 +1255,7 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::filter_vertices(Filtering_ty
             }
         }
         else if(filtering_type_ == _COLS_) {
-            for (auto& triple : *(tile.triples)) {
+            for (auto& triple : tile.triples) {
                 test(triple);
                 auto pair1 = rebase(triple);
                 if(!f_data[pair1.col]) {
@@ -1446,18 +1448,18 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_compression() {
     if(compression_type == _TCSC_){
         if(Env::is_master)
             printf("INFO(rank=%d): Edge compression: Triply Compressed Sparse Column (TCSC)\n", Env::rank);
-        if(tiling->tiling_type == _2DGP_)
-            init_tcsc_2dgp();
-        else
+        //if(tiling->tiling_type == _2DGP_)
+        //    init_tcsc_2dgp();
+        //else
             init_tcsc();
     }
     else if(compression_type == _TCSC_CF_){
         if(Env::is_master)
             printf("INFO(rank=%d): Edge compression: Triply Compressed Sparse Column (TCSC) - Computation Filtering\n", Env::rank);
         classify_vertices();
-        if(tiling->tiling_type == _2DGP_)
-            init_tcsc_cf_2dgp();
-        else
+        //if(tiling->tiling_type == _2DGP_)
+        //    init_tcsc_cf_2dgp();
+        //else
             init_tcsc_cf();
         del_classifier();
     }
@@ -1496,7 +1498,7 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_tcsc_threaded(int tid) 
         auto* iv_data = (Integer_Type*) IV[yi];
         auto* j_data = (char*) J[xi];
         auto* jv_data = (Integer_Type*) JV[xi];
-        tile.compressor = new TCSC_BASE<Weight, Integer_Type>(tile.triples->size(), c_nitems, r_nitems, sid);
+        tile.compressor = new TCSC_BASE<Weight, Integer_Type>(tile.triples.size(), c_nitems, r_nitems, sid);
         tile.compressor->populate(tile.triples, tile_height, tile_width, i_data, iv_data, j_data, jv_data);
         xi++;
         next_row = (((tile.nth + 1) % tiling->rank_ncolgrps) == 0);
