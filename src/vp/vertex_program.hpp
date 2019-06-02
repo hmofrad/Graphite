@@ -220,7 +220,7 @@ class Vertex_Program
         //double execute_without_init_time;
 };
 
-#include "vp/vertex_program_2dgp.hpp"
+//#include "vp/vertex_program_2dgp.hpp"
 
 /* Support or row-wise tile processing designated to original matrix and 
    column-wise tile processing designated to transpose of the matrix. */                
@@ -245,7 +245,7 @@ Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_Metho
     colgrp_owner_thread = Graph.A->colgrp_owner_thread;
     
     compression_type = A->compression_type;
-    if(compression_type == _TCSC_CF_ and directed) {
+    if(compression_type == _TCSC_CF_ and directed and stationary) {
         computation_filtering = true;
         rowgrp_regular_rows = Graph.A->rowgrp_regular_rows;
         rowgrp_source_rows = Graph.A->rowgrp_source_rows;
@@ -338,10 +338,10 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
     t1 = Env::clock();
     
     if(stationary) {
-        if(tiling_type == _2DGP_) {
-            function_stationary_2dgp();
-        } 
-        else {
+        //if(tiling_type == _2DGP_) {
+        //    function_stationary_2dgp();
+        //} 
+        //else {
             std::vector<std::thread> threads;
             for(int i = 0; i < Env::nthreads; i++) {
                 threads.push_back(std::thread(&Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_Methods_Impl>::thread_function_stationary, this, i));
@@ -350,13 +350,13 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
             for(std::thread& th: threads) {
                 th.join();
             }
-        }
+        //}
     }
     else {
-        if(tiling_type == _2DGP_) {
-            function_nonstationary_2dgp();
-        } 
-        else {
+        //if(tiling_type == _2DGP_) {
+        //    function_nonstationary_2dgp();
+        //} 
+        //else {
             std::vector<std::thread> threads;
             for(int i = 0; i < Env::nthreads; i++) {
                 threads.push_back(std::thread(&Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_Methods_Impl>::thread_function_nonstationary, this, i));
@@ -365,7 +365,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
             for(std::thread& th: threads) {
                 th.join();
             }
-        }
+        //}
     }
     
     t2 = Env::clock();
@@ -514,6 +514,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
        
     if(stationary) {   
         init_vectors();
+        /*
         if(tiling_type == _2DGP_) {
             int tid = 0;
             uint32_t yi = accu_segment_rows[tid];
@@ -528,6 +529,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
             }
         }
         else {
+            */
             #pragma omp parallel 
             {
                 int tid = omp_get_thread_num();
@@ -542,7 +544,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
                     }
                 }
             }
-        }
+        //}
     }
     else {
         fprintf(stderr, "ERROR(rank=%d): Not implemented\n", Env::rank);
@@ -1101,7 +1103,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
         const auto* xi_data = (Integer_Type*) XI[xi];
         auto* t_data = (char*) T[yi];
         
-        if(compression_type == _TCSC_) {
+        //if(compression_type == _TCSC_) {
             const uint64_t nnz = static_cast<TCSC_BASE<Weight, Integer_Type>*>(tile.compressor)->nnz;
             if(nnz) {
                 #ifdef HAS_WEIGHT
@@ -1141,7 +1143,8 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
                     }
                 }
             }
-        }
+        //}
+        /*
         else {    
             const uint64_t nnz = static_cast<TCSC_CF_BASE<Weight, Integer_Type>*>(tile.compressor)->nnz;
             if(nnz) {
@@ -1298,7 +1301,7 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
                 }
             }
         }
-                
+        */       
         xi++;
         communication = (((tile_th + 1) % rank_ncolgrps) == 0);
         if(communication) {
