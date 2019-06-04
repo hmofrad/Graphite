@@ -20,7 +20,7 @@
 
 #include <mpi.h>
 #include <omp.h>
-//#include <numa.h>
+#include <numa.h>
 #include <thread>
 #include </ihome/rmelhem/moh18/numactl/libnuma/usr/local/include/numa.h>        
 
