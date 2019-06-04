@@ -63,7 +63,7 @@ template<typename Weight, typename Integer_Type, typename Fractional_Type>
 class PR_Program : public Vertex_Program<Weight, Integer_Type, Fractional_Type, PR_State, PR_Methods_Impl> {
     public: 
         using Vertex_Program<Weight, Integer_Type, Fractional_Type, PR_State, PR_Methods_Impl>::Vertex_Program;        
-        /*
+        
         virtual bool initializer(Integer_Type vid, PR_State& state, const State& other) {
             state.degree = ((const Deg_State&) other).degree;
             state.rank = alpha; //  Not necessary
@@ -87,6 +87,5 @@ class PR_Program : public Vertex_Program<Weight, Integer_Type, Fractional_Type, 
             state.rank = alpha + (1.0 - alpha) * y;
             return (fabs(state.rank - tmp) > tol);         
         }
-        */
 };
 #endif
