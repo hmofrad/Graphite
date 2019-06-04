@@ -93,6 +93,11 @@ class BFS_Program : public Vertex_Program<Weight, Integer_Type, Fractional_Type,
         Integer_Type root = 0;
         using Vertex_Program<Weight, Integer_Type, Fractional_Type, BFS_State, BFS_Methods_Impl>::Vertex_Program;
 
+        void set_root1(ip root_) { 
+            root = root_; 
+        };
+
+
         virtual bool initializer(Integer_Type vid, BFS_State& state) {
             if(vid == root) {
                 state.vid = vid;
