@@ -164,7 +164,7 @@ class Matrix {
         std::vector<int32_t> follower_colgrp_ranks_accu_seg_cg;
         int32_t owned_segment, accu_segment_rg, accu_segment_cg, accu_segment_row, accu_segment_col;
         std::vector<int32_t> owned_segments, accu_segments, accu_segment_rows, accu_segment_cols;
-        std::vector<int32_t> owned_segments_row, owned_segments_col;
+        //std::vector<int32_t> owned_segments_row, owned_segments_col;
         int32_t num_owned_segments;
         std::vector<int32_t> owned_segments_all;
         std::vector<int32_t> owned_segments_thread, accu_segments_rows_thread, accu_segments_cols_thread, tid_thread, rowgrp_owner_thread, colgrp_owner_thread;
@@ -511,9 +511,12 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_matrix() {
        the methadata required for processing them in vertex program */
 
     if(not Env::get_init_status()) {
+        //uint32_t ncommunicators = (tiling->rank_nrowgrps >= tiling->rank_ncolgrps) ? tiling->rank_nrowgrps : tiling->rank_ncolgrps;
+        
         Env::rowgrps_init(all_rowgrp_ranks, tiling->rowgrp_nranks, tiling->rank_nrowgrps);
         //Env::colgrps_init(all_colgrp_ranks, tiling->colgrp_nranks);
-        Env::colgrps_init(all_colgrp_ranks, tiling->colgrp_nranks, tiling->rank_ncolgrps);
+        uint32_t ncommunicators = (tiling->rank_ncolgrps >= (uint32_t) Env::nthreads) ? tiling->rank_ncolgrps : Env::nthreads;
+        Env::colgrps_init(all_colgrp_ranks, tiling->colgrp_nranks, ncommunicators);
         Env::set_init_status();
     }
     // Which column index in my rowgrps is mine when I'm the accumulator
@@ -753,6 +756,20 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_matrix() {
     }
     print("rank");
     Env::barrier(); 
+    
+    
+    owned_segments_thread.resize(Env::nsegments);
+    for (uint32_t i = 0; i < nrowgrps; i++) {
+        for (uint32_t j = 0; j < ncolgrps; j++) {
+            auto& tile = tiles[i][j];
+            MPI_Bcast(&tile.thread, 1, MPI_INT, tile.rank, Env::MPI_WORLD);
+        }
+        owned_segments_thread[i] = tiles[i][i].thread;
+    }
+    
+    print("thread");
+    
+    
 }
 
 template<typename Weight, typename Integer_Type, typename Fractional_Type>
@@ -1178,7 +1195,7 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::filter_vertices(Filtering_ty
         accu_segment_row_ = accu_segment_row;
         accu_segment_rows_ = accu_segment_rows;
         leader_ranks_ = leader_ranks_row;
-        owned_segments_ = owned_segments_row;
+        //owned_segments_ = owned_segments_row;
     }
     else if(filtering_type_ == _COLS_) {
         K = J;
@@ -1196,7 +1213,7 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::filter_vertices(Filtering_ty
         accu_segment_row_ = accu_segment_col;
         accu_segment_rows_ = accu_segment_cols;
         leader_ranks_ = leader_ranks_col;
-        owned_segments_ = owned_segments_col;
+        //owned_segments_ = owned_segments_col;
     }
     
     MPI_Datatype TYPE_INT = Types<Weight, Integer_Type, Integer_Type>::get_data_type();
