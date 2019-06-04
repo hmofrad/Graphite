@@ -101,7 +101,6 @@ template<typename Weight, typename Integer_Type, typename Fractional_Type>
 class Deg_Program : public Vertex_Program<Weight, Integer_Type, Fractional_Type, Deg_State, Deg_Methods_Impl> {
     public: 
         using Vertex_Program<Weight, Integer_Type, Fractional_Type, Deg_State, Deg_Methods_Impl>::Vertex_Program;
-        /*
         virtual bool initializer(ip vid, Deg_State& state) {
             state.degree = 0; // Not necessary
             return(true);
@@ -132,6 +131,5 @@ class Deg_Program : public Vertex_Program<Weight, Integer_Type, Fractional_Type,
             state.degree = y;
             return(false);
         }   
-       */
 };
 #endif
