@@ -515,8 +515,8 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_matrix() {
         
         Env::rowgrps_init(all_rowgrp_ranks, tiling->rowgrp_nranks, tiling->rank_nrowgrps);
         //Env::colgrps_init(all_colgrp_ranks, tiling->colgrp_nranks);
-        uint32_t ncommunicators = (tiling->rank_ncolgrps >= (uint32_t) Env::nthreads) ? tiling->rank_ncolgrps : Env::nthreads;
-        Env::colgrps_init(all_colgrp_ranks, tiling->colgrp_nranks, ncommunicators);
+        //uint32_t ncommunicators = (tiling->rank_ncolgrps >= (uint32_t) Env::nthreads) ? tiling->rank_ncolgrps : Env::nthreads;
+        Env::colgrps_init(all_colgrp_ranks, tiling->colgrp_nranks, Env::nthreads);
         Env::set_init_status();
     }
     // Which column index in my rowgrps is mine when I'm the accumulator
