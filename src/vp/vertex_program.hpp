@@ -38,6 +38,22 @@ class Vertex_Program
             Vertex_Methods.set_root(hasher->hash(root_));
         };
         
+        virtual bool initializer(Integer_Type vid, Vertex_State &state) { return(stationary);}
+        virtual bool initializer(Integer_Type vid, Vertex_State &state, const State &other) { return(stationary);}
+        virtual Fractional_Type messenger(Vertex_State &state) { return(1);}
+        virtual void combiner(Fractional_Type &y1, const Fractional_Type &y2, const Fractional_Type &w) { ; }
+        virtual void combiner(Fractional_Type &y1, const Fractional_Type &y2) { ; }
+        virtual bool applicator(Vertex_State &state, const Fractional_Type &y) { return(true); }
+        virtual bool applicator(Vertex_State &state){ return(false); }
+        virtual bool applicator(Vertex_State &state, const Fractional_Type &y, const Integer_Type iteration_) { return(true); }
+        virtual Fractional_Type infinity() { return(0); }
+        virtual bool initializer(Vertex_State &state, const Fractional_Type &v2) { return(stationary);}
+        virtual bool initializer(Fractional_Type &v1, const Fractional_Type &v2) { return(stationary);}
+        virtual Fractional_Type messenger(Fractional_Type &v, Fractional_Type &s) { return(1);}
+        virtual bool applicator(Fractional_Type &v, const Fractional_Type &y) { return(true); }
+        virtual bool applicator(Fractional_Type &v, const Fractional_Type &y, Integer_Type iteration_) { return(true); }
+        
+        
         void execute(Integer_Type num_iterations_ = 0);
         template<typename Weight_, typename Integer_Type_, typename Fractional_Type_, typename Vertex_State_, typename Vertex_Methods_Impl_>
         void initialize(const Vertex_Program<Weight_, Integer_Type_, Fractional_Type_, Vertex_State_, Vertex_Methods_Impl_>& VProgram);
