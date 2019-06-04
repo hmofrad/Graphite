@@ -36,8 +36,9 @@ class Vertex_Program
         Vertex_Program(Vertex_Methods_Impl const &VMs) : Vertex_Methods(VMs) { };
         void set_root(Integer_Type root_) { 
             Vertex_Methods.set_root(hasher->hash(root_));
+            set_root1(hasher->hash(root_));
         };
-        
+        virtual void set_root1(Integer_Type root) { ;}
         virtual bool initializer(Integer_Type vid, Vertex_State &state) { return(stationary);}
         virtual bool initializer(Integer_Type vid, Vertex_State &state, const State &other) { return(stationary);}
         virtual Fractional_Type messenger(Vertex_State &state) { return(1);}
