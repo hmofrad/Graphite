@@ -92,14 +92,7 @@ class BFS_Program : public Vertex_Program<Weight, Integer_Type, Fractional_Type,
     public:  
         Integer_Type root = 0;
         using Vertex_Program<Weight, Integer_Type, Fractional_Type, BFS_State, BFS_Methods_Impl>::Vertex_Program;
-};
 
-/*
-template<typename Weight, typename Integer_Type, typename Fractional_Type>
-class BFS_Program : public Vertex_Program<Weight, Integer_Type, Fractional_Type, BFS_State> {
-    public:  
-        Integer_Type root = 0;
-        using Vertex_Program<Weight, Integer_Type, Fractional_Type, BFS_State>::Vertex_Program;  // inherit constructors
         virtual bool initializer(Integer_Type vid, BFS_State& state) {
             if(vid == root) {
                 state.vid = vid;
@@ -144,6 +137,6 @@ class BFS_Program : public Vertex_Program<Weight, Integer_Type, Fractional_Type,
         virtual Fractional_Type infinity() {
             return(INF);
         }        
+
 };
-*/
 #endif
