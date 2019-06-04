@@ -44,6 +44,7 @@ int main(int argc, char** argv) {
     bool gather_depends_on_apply = true;
     bool apply_depends_on_iter  = false;
     SSSP_Program<wp, ip, fp> V(G, stationary, gather_depends_on_apply, apply_depends_on_iter);   
+    V.root = root;
     V.set_root(root);
     V.execute(num_iterations);
     V.checksum();
