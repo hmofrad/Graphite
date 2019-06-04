@@ -168,7 +168,7 @@ void Env::init() {
     
     MPI_WORLD = MPI_COMM_WORLD;
     L1_CACHE_LINE_SIZE = sysconf(_SC_LEVEL1_DCACHE_LINESIZE);
-    printf("INFO(rank=%d): Hostname=%s, core_id=%d, nthreads=%d\n", rank, core_name, core_id, nthreads);
+    //printf("INFO(rank=%d): Hostname=%s, core_id=%d, nthreads=%d\n", rank, core_name, core_id, nthreads);
     MPI_Barrier(MPI_COMM_WORLD);   
 }
 
