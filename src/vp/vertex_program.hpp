@@ -251,7 +251,7 @@ Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_Metho
     hasher = A->hasher;
     compression_type = A->compression_type;
     num_owned_segments = Graph.A->num_owned_segments;
-    owned_segments_thread = Graph.A->owned_segments_thread
+    owned_segments_thread = Graph.A->owned_segments_thread;
     
     convergence_vec.resize(Env::nthreads);
     out_requests_t.resize(Env::nthreads);
