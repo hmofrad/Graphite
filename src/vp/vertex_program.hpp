@@ -138,6 +138,7 @@ class Vertex_Program
         std::vector<int32_t> rowgrp_owner_thread, colgrp_owner_thread;
         std::vector<std::vector<int32_t>> rowgrp_owner_thread_segments, colgrp_owner_thread_segments;
         std::vector<int32_t> convergence_vec;
+        std::vector<int32_t> owned_segments_thread;
         
         Matrix<Weight, Integer_Type, Fractional_Type>* A; // Adjacency list        
         
@@ -250,6 +251,7 @@ Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_Metho
     hasher = A->hasher;
     compression_type = A->compression_type;
     num_owned_segments = Graph.A->num_owned_segments;
+    owned_segments_thread = Graph.A->owned_segments_thread
     
     convergence_vec.resize(Env::nthreads);
     out_requests_t.resize(Env::nthreads);
@@ -503,20 +505,21 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
         blk.socket_id = y_thread_sockets[i];
     }
     allocate_numa_vector<Integer_Type, Fractional_Type>(&Y, Y_blks);
-    
-    // Partial accumulators
-    Yt.resize(num_owned_segments);
-    Yt_blks.resize(num_owned_segments);
-    for(int32_t i = 0; i < num_owned_segments; i++) {
-        std::vector<Integer_Type> row_size((rowgrp_nranks - 1), nnz_row_sizes_all[owned_segments[i]]);
-        std::vector<int32_t> row_socket((rowgrp_nranks - 1), thread_sockets[i]);
-        Yt_blks[i].resize(rowgrp_nranks - 1);
-        for(uint32_t j = 0; j < (rowgrp_nranks - 1); j++) {
-            auto& blk = Yt_blks[i][j];
-            blk.nitems = row_size[j];
-            blk.socket_id = row_socket[j];
+    if((rowgrp_nranks - 1) > 0) {
+        // Partial accumulators
+        Yt.resize(num_owned_segments);
+        Yt_blks.resize(num_owned_segments);
+        for(int32_t i = 0; i < num_owned_segments; i++) {
+            std::vector<Integer_Type> row_size((rowgrp_nranks - 1), nnz_row_sizes_all[owned_segments[i]]);
+            std::vector<int32_t> row_socket((rowgrp_nranks - 1), thread_sockets[i]);
+            Yt_blks[i].resize(rowgrp_nranks - 1);
+            for(uint32_t j = 0; j < (rowgrp_nranks - 1); j++) {
+                auto& blk = Yt_blks[i][j];
+                blk.nitems = row_size[j];
+                blk.socket_id = row_socket[j];
+            }
+            allocate_numa_vector<Integer_Type, Fractional_Type>(&Yt[i], Yt_blks[i]);
         }
-        allocate_numa_vector<Integer_Type, Fractional_Type>(&Yt[i], Yt_blks[i]);
     }
     
     // Stationary vectors
@@ -547,25 +550,27 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
         allocate_numa_vector<Integer_Type, Integer_Type>(&YI, YI_blks);
         allocate_numa_vector<Integer_Type, Fractional_Type>(&YV, YV_blks);
         
-        YIt.resize(num_owned_segments);
-        YVt.resize(num_owned_segments);
-        YIt_blks.resize(num_owned_segments);
-        YVt_blks.resize(num_owned_segments);
-        for(int32_t i = 0; i < num_owned_segments; i++) {
-            std::vector<Integer_Type> row_size((rowgrp_nranks - 1), nnz_row_sizes_all[owned_segments[i]]);
-            std::vector<int32_t> row_socket((rowgrp_nranks - 1), thread_sockets[i]);
-            YIt_blks[i].resize(rowgrp_nranks - 1);
-            YVt_blks[i].resize(rowgrp_nranks - 1);
-            for(uint32_t j = 0; j < (rowgrp_nranks - 1); j++) {
-                auto& yit_blk = YIt_blks[i][j];
-                yit_blk.nitems = row_size[j];
-                yit_blk.socket_id = row_socket[j];
-                auto& yvt_blk = YVt_blks[i][j];
-                yvt_blk.nitems = row_size[j];
-                yvt_blk.socket_id = row_socket[j];
+        if((rowgrp_nranks - 1) > 0) {
+            YIt.resize(num_owned_segments);
+            YVt.resize(num_owned_segments);
+            YIt_blks.resize(num_owned_segments);
+            YVt_blks.resize(num_owned_segments);
+            for(int32_t i = 0; i < num_owned_segments; i++) {
+                std::vector<Integer_Type> row_size((rowgrp_nranks - 1), nnz_row_sizes_all[owned_segments[i]]);
+                std::vector<int32_t> row_socket((rowgrp_nranks - 1), thread_sockets[i]);
+                YIt_blks[i].resize(rowgrp_nranks - 1);
+                YVt_blks[i].resize(rowgrp_nranks - 1);
+                for(uint32_t j = 0; j < (rowgrp_nranks - 1); j++) {
+                    auto& yit_blk = YIt_blks[i][j];
+                    yit_blk.nitems = row_size[j];
+                    yit_blk.socket_id = row_socket[j];
+                    auto& yvt_blk = YVt_blks[i][j];
+                    yvt_blk.nitems = row_size[j];
+                    yvt_blk.socket_id = row_socket[j];
+                }
+                allocate_numa_vector<Integer_Type, Integer_Type>(&YIt[i], YIt_blks[i]);
+                allocate_numa_vector<Integer_Type, Fractional_Type>(&YVt[i], YVt_blks[i]);
             }
-            allocate_numa_vector<Integer_Type, Integer_Type>(&YIt[i], YIt_blks[i]);
-            allocate_numa_vector<Integer_Type, Fractional_Type>(&YVt[i], YVt_blks[i]);
         }
         
         T_blks.resize(rank_nrowgrps);
@@ -1872,8 +1877,10 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
     deallocate_numa_vector<Integer_Type, char>(&C, C_blks);
     deallocate_numa_vector<Integer_Type, Fractional_Type>(&X, X_blks);
     deallocate_numa_vector<Integer_Type, Fractional_Type>(&Y, Y_blks);
-    for(int i = 0; i < num_owned_segments; i++) {
-        deallocate_numa_vector<Integer_Type, Fractional_Type>(&Yt[i], Yt_blks[i]);
+    if((rowgrp_nranks - 1) > 0) {
+        for(int i = 0; i < num_owned_segments; i++) {
+            deallocate_numa_vector<Integer_Type, Fractional_Type>(&Yt[i], Yt_blks[i]);
+        }
     }
     
     if(not stationary) {
@@ -1881,11 +1888,13 @@ void Vertex_Program<Weight, Integer_Type, Fractional_Type, Vertex_State, Vertex_
         deallocate_numa_vector<Integer_Type, Fractional_Type>(&XV, XV_blks);
         deallocate_numa_vector<Integer_Type, Integer_Type>(&YI, YI_blks);
         deallocate_numa_vector<Integer_Type, Fractional_Type>(&YV, YV_blks);
-        for(int32_t i = 0; i < num_owned_segments; i++) {
-            deallocate_numa_vector<Integer_Type, Integer_Type>(&YIt[i], YIt_blks[i]);
-            deallocate_numa_vector<Integer_Type, Fractional_Type>(&YVt[i], YVt_blks[i]);
+        if((rowgrp_nranks - 1) > 0) {
+            for(int32_t i = 0; i < num_owned_segments; i++) {
+                deallocate_numa_vector<Integer_Type, Integer_Type>(&YIt[i], YIt_blks[i]);
+                deallocate_numa_vector<Integer_Type, Fractional_Type>(&YVt[i], YVt_blks[i]);
+            }
+            deallocate_numa_vector<Integer_Type, char>(&T, T_blks);
         }
-        deallocate_numa_vector<Integer_Type, char>(&T, T_blks);
     }
 }
 
