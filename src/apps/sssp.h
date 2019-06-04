@@ -80,22 +80,9 @@ class SSSP_Methods_Impl {
 template<typename Weight, typename Integer_Type, typename Fractional_Type>
 class SSSP_Program : public Vertex_Program<Weight, Integer_Type, Fractional_Type, SSSP_State, SSSP_Methods_Impl> {
     public: 
-        using Vertex_Program<Weight, Integer_Type, Fractional_Type, SSSP_State, SSSP_Methods_Impl>::Vertex_Program;        
-        //SSSP_Methods_Impl.root = root;
-        
-        
-        //void set_root(Integer_Type root) { 
-        //    SSSP_Methods_Impl::set_root(root);
-        //};
-        
-};
-
-/*
-template<typename Weight, typename Integer_Type, typename Fractional_Type>
-class SSSP_Program : public Vertex_Program<Weight, Integer_Type, Fractional_Type, SSSP_State> {
-    public:  
         Integer_Type root = 0;
-        using Vertex_Program<Weight, Integer_Type, Fractional_Type, SSSP_State>::Vertex_Program;  // inherit constructors
+        using Vertex_Program<Weight, Integer_Type, Fractional_Type, SSSP_State, SSSP_Methods_Impl>::Vertex_Program;        
+
         virtual bool initializer(Integer_Type vid, SSSP_State& state) {
             if(vid == root) {
                 state.distance = 0;
@@ -133,6 +120,7 @@ class SSSP_Program : public Vertex_Program<Weight, Integer_Type, Fractional_Type
         virtual Fractional_Type infinity() {
             return(INF);
         }
+
+
 };
-*/
 #endif
