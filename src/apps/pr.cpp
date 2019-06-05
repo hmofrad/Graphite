@@ -40,8 +40,8 @@ int main(int argc, char** argv) {
     bool apply_depends_on_iter  = false;
 
 
-    /*
-    Ordering_type OT = _COL_;
+    
+    Ordering_type OT = _ROW_;
     Deg_Program<wp, ip, fp> V(G, stationary, gather_depends_on_apply, apply_depends_on_iter, OT);
     V.execute(1);
     V.checksum();
@@ -55,8 +55,8 @@ int main(int argc, char** argv) {
     VR.display();
     VR.free();
     G.free();
-    */
     
+/*    
     Deg_Program<wp, ip, fp> V(G, stationary, gather_depends_on_apply, apply_depends_on_iter);
     V.execute(1);
     V.checksum();    
@@ -75,7 +75,7 @@ int main(int argc, char** argv) {
     VR.display();
     VR.free();
     GR.free();    
-    
+*/    
     double time2 = Env::clock();
     Env::print_time("PageRank end-to-end", time2 - time1);
     Env::finalize();
