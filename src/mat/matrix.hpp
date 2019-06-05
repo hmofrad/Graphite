@@ -768,9 +768,9 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_matrix() {
         owned_segments_thread[i] = tiles[i][i].thread;
     }
     
+    if(!Env::rank)
+        printf("\n");
     print("thread");
-    
-    
 }
 
 template<typename Weight, typename Integer_Type, typename Fractional_Type>
