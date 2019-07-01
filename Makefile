@@ -4,7 +4,7 @@
 # Email (e) m.hasanzadeh.mofrad@gmail.com
 # make TIMING=-DTIMING to enable time counters
 
-#TIMING = -DTIMING
+TIMING = -DTIMING
 
 CXX = g++
 MPI_CXX = mpicxx
@@ -12,10 +12,10 @@ SKIPPED_CXX_WARNINGS = -Wall -Wextra -Wno-unused-parameter -Wno-unused-variable 
 CXX_FLAGS = -std=c++14 -fpermissive $(SKIPPED_CXX_WARNINGS)
 OPTIMIZE = -DNDEBUG -O3 -flto -fwhole-program -march=native -ftree-vectorize -ffast-math -funroll-loops
 THREADED = -fopenmp -D_GLIBCXX_PARALLEL -pthread
-#NUMACTL = /home/moh/numactl/moh18/numactl/libnuma
-#LIBNUMA = /home/moh/numactl/libnuma/usr/local/lib
-NUMACTL = /ihome/rmelhem/moh18/numactl/libnuma
-LIBNUMA = /ihome/rmelhem/moh18/numactl/libnuma/usr/local/lib
+NUMACTL = /home/moh/numactl/moh18/numactl/libnuma
+LIBNUMA = /home/moh/numactl/libnuma/usr/local/lib
+#NUMACTL = /ihome/rmelhem/moh18/numactl/libnuma
+#LIBNUMA = /ihome/rmelhem/moh18/numactl/libnuma/usr/local/lib
 SYSLIBS = -lnuma -I $(NUMACTL) -L$(LIBNUMA)
 
 #DEBUG = -g  -fsanitize=undefined,address -lasan -lubsan
