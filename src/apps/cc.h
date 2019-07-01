@@ -72,7 +72,7 @@ template<typename Weight, typename Integer_Type, typename Fractional_Type>
 class CC_Program : public Vertex_Program<Weight, Integer_Type, Fractional_Type, CC_State, CC_Methods_Impl> {
     public:  
         using Vertex_Program<Weight, Integer_Type, Fractional_Type, CC_State, CC_Methods_Impl>::Vertex_Program;
-   
+        /*
         virtual bool initializer(Integer_Type vid, CC_State& state) {
             state.label = vid;
             return(true);
@@ -100,6 +100,6 @@ class CC_Program : public Vertex_Program<Weight, Integer_Type, Fractional_Type, 
         virtual Fractional_Type infinity() {
             return(INF);
         }
-
+        */
 };
 #endif
