@@ -82,7 +82,7 @@ class SSSP_Program : public Vertex_Program<Weight, Integer_Type, Fractional_Type
     public: 
         Integer_Type root = 0;
         using Vertex_Program<Weight, Integer_Type, Fractional_Type, SSSP_State, SSSP_Methods_Impl>::Vertex_Program;        
-
+        /*
         void set_root1(ip root_) { 
             root = root_; 
         };
@@ -124,7 +124,7 @@ class SSSP_Program : public Vertex_Program<Weight, Integer_Type, Fractional_Type
         virtual Fractional_Type infinity() {
             return(INF);
         }
-
+        */
 
 };
 #endif
