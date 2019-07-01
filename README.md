@@ -1,5 +1,5 @@
 # Graphite
-   Graphite
+   Graphite HPC Graph Analytics System 
 ## Install
     make
 ## Unistall
