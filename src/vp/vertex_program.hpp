@@ -39,6 +39,7 @@ class Vertex_Program
             set_root1(hasher->hash(root_));
         };
         virtual void set_root1(Integer_Type root) { ;}
+        /*
         virtual bool initializer(Integer_Type vid, Vertex_State &state) { return(stationary);}
         virtual bool initializer(Integer_Type vid, Vertex_State &state, const State &other) { return(stationary);}
         virtual Fractional_Type messenger(Vertex_State &state) { return(1);}
@@ -53,7 +54,7 @@ class Vertex_Program
         virtual Fractional_Type messenger(Fractional_Type &v, Fractional_Type &s) { return(1);}
         virtual bool applicator(Fractional_Type &v, const Fractional_Type &y) { return(true); }
         virtual bool applicator(Fractional_Type &v, const Fractional_Type &y, Integer_Type iteration_) { return(true); }
-        
+        */
         
         void execute(Integer_Type num_iterations_ = 0);
         template<typename Weight_, typename Integer_Type_, typename Fractional_Type_, typename Vertex_State_, typename Vertex_Methods_Impl_>
