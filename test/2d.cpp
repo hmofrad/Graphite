@@ -106,94 +106,22 @@ bool TWOD_Staggered() {
     return(ret);
 }
 
-bool TWOD_Staggered_New() {
-    //printf("2D-Staggered-New\n");
-
-    std::vector<std::vector<int>> rowgrp_ranks;
-    rowgrp_ranks.resize(colgrp_nranks);
-    for(int i = 0; i < p; i++) {
-        
-        //for(int j = 0; j < ncolgrps; j++) {
-            
-            //printf("%d %d\n", i, (i / rowgrp_nranks) );
-            int j = i / rowgrp_nranks;
-            rowgrp_ranks[j].push_back(i);
-        //}
-        //printf("\n");
-    }
-    /*
-    for(int i = 0; i < colgrp_nranks; i++) {
-        for(int j = 0; j < rowgrp_nranks; j++) {    
-            printf("%d ", rowgrp_ranks[i][j]);
-        }
-        printf("\n");
-    }
-    */
-    /*
-    for(int r = 0; r < p; r++) {
-        int row = 0;
-        for(int i = 0; i < colgrp_nranks; i++) {
-            auto& rg_ranks = rowgrp_ranks[i];
-            if(std::find(rg_ranks.begin(), rg_ranks.end(), r) != rg_ranks.end()) {
-                row = i;
-                break;
-            }
-        }
-        printf("<%d %d>\n", r, row);
-    }
-    */
-    
-    
-        
-    
-   
-   // for(int i = 0; i < nrowgrps; i++) {
-     //   tiles[i][i].rank = i;
-    //}
-    
-    
-    
-    
-    
+bool TWOD_Staggered_New1() {
+    //printf("2D-Staggered-New1\n");
     for(int i = 0; i < nrowgrps; i++) {
-        //int d = tiles[i][i].rank;
-        int d = i;
-        int row = i/rowgrp_nranks;
-        //for(int r = 0; r < p; r++) {
-            /*
-            for(int ii = 0; ii < colgrp_nranks; ii++) {
-                auto& rg_ranks = rowgrp_ranks[ii];
-                if(std::find(rg_ranks.begin(), rg_ranks.end(), d) != rg_ranks.end()) {
-                    row = ii;
-                    break;
-                }
-            }
-            */
-            //printf("<%d %d>\n", r, row);
-        //}
-        //printf("<%d %d %d>\n", d, row, row * rowgrp_nranks);
-        auto& rg_ranks = rowgrp_ranks[row];
-        
         for(int j = 0; j < ncolgrps; j++) {
             auto& tile = tiles[i][j]; 
-            //int k = j%rowgrp_nranks;
-            //tile.rank = rg_ranks[k];
             tile.rank = ((i / rowgrp_nranks) * rowgrp_nranks) + (j % rowgrp_nranks);
-            //if(i != j) {
-                //tile.rank = (d + ((i % colgrp_nranks) * rowgrp_nranks) + (j % rowgrp_nranks)) % rowgrp_nranks;
-              //  printf("[%d %d]: D=%d, R=%d\n", i, j, d, d % colgrp_nranks);
-            //}
-            
         }
-        //if(i == 0)
-          // break;
     }   
-    
     print("rank"); 
+    bool ret = check_diagonals();
+    return(ret);
     
+}
+
+bool TWOD_Staggered_New() {
     
-    
-    /*
     for(int i = 0; i < nrowgrps; i++) {
         for(int j = 0; j < ncolgrps; j++) {
             auto& tile = tiles[i][j]; 
@@ -203,14 +131,13 @@ bool TWOD_Staggered_New() {
             //printf("%d\n", not(p%2));
            //if(not (rank_ncolgrps%2))
            // if(not ((rank_nrowgrps%2) and (rank_ncolgrps%2)))
-                //tile.rank = ((((i % colgrp_nranks) * rowgrp_nranks) + (j % rowgrp_nranks)) + (((i/colgrp_nranks) * rowgrp_nranks) % p)) % p;
+                tile.rank = ((((i % colgrp_nranks) * rowgrp_nranks) + (j % rowgrp_nranks)) + (((i/colgrp_nranks) * rowgrp_nranks) % p)) % p;
            // else 
              //   tile.rank = ((((i % colgrp_nranks) * rowgrp_nranks) + (j % rowgrp_nranks)) + (((i/rowgrp_nranks) * colgrp_nranks) % p)) % p;
-             //   tile.rank = (((i % colgrp_nranks) * rowgrp_nranks) + (j % rowgrp_nranks));
+               // tile.rank = (((i % colgrp_nranks) * rowgrp_nranks) + (j % rowgrp_nranks));
         }
     }
-    */
-    
+    print("rank"); 
     bool ret = check_diagonals();
     return(ret);
 }
@@ -243,6 +170,8 @@ int main(int argc, char **argv) {
         ret = TWOD_Staggered();
     else if(strcmp(argv[1], "2D-Staggered-New") == 0)
         ret = TWOD_Staggered_New();
+    else if(strcmp(argv[1], "2D-Staggered-New1") == 0)
+        ret = TWOD_Staggered_New1();
     else 
         exit(0);
     
