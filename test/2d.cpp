@@ -127,7 +127,7 @@ bool TWOD_Staggered_New() {
             auto& tile = tiles[i][j]; 
             tile.rg = i;
             tile.cg = j;
-            
+            tile.rank = (i % colgrp_nranks) * rowgrp_nranks + (j % rowgrp_nranks);
             //printf("%d\n", not(p%2));
            //if(not (rank_ncolgrps%2))
            // if(not ((rank_nrowgrps%2) and (rank_ncolgrps%2)))
