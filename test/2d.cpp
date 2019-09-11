@@ -79,7 +79,7 @@ bool check_diagonals() {
 }
 
 bool TOWD_Staggered() {
-    printf("2D-Staggered\n");
+    //printf("2D-Staggered\n");
     for(int i = 0; i < nrowgrps; i++) {
         for(int j = 0; j < ncolgrps; j++) {
             auto& tile = tiles[i][j]; 
@@ -88,8 +88,8 @@ bool TOWD_Staggered() {
             tile.rank = (i % colgrp_nranks) * rowgrp_nranks + (j % rowgrp_nranks);
         }
     }
-    print("rank"); 
-    printf("\n");
+    //print("rank"); 
+    //printf("\n");
     std::vector<int> leader_ranks;
     leader_ranks.resize(nrowgrps, -1);
     for(int i = 0; i < nrowgrps; i++) {
@@ -107,13 +107,19 @@ bool TOWD_Staggered() {
 }
 
 bool TOWD_Staggered_New() {
-    printf("2D-Staggered-New\n");
+    //printf("2D-Staggered-New\n");
     for(int i = 0; i < nrowgrps; i++) {
         for(int j = 0; j < ncolgrps; j++) {
             auto& tile = tiles[i][j]; 
             tile.rg = i;
             tile.cg = j;
-            tile.rank = ((((i % colgrp_nranks) * rowgrp_nranks) + (j % rowgrp_nranks)) + (((i/colgrp_nranks) * rowgrp_nranks) % p)) % p;
+            //printf("%d\n", not(p%2));
+           //if(not (rank_ncolgrps%2))
+           // if(not ((rank_nrowgrps%2) and (rank_ncolgrps%2)))
+                tile.rank = ((((i % colgrp_nranks) * rowgrp_nranks) + (j % rowgrp_nranks)) + (((i/colgrp_nranks) * rowgrp_nranks) % p)) % p;
+           // else 
+             //   tile.rank = ((((i % colgrp_nranks) * rowgrp_nranks) + (j % rowgrp_nranks)) + (((i/rowgrp_nranks) * colgrp_nranks) % p)) % p;
+             //   tile.rank = (((i % colgrp_nranks) * rowgrp_nranks) + (j % rowgrp_nranks));
         }
     }
     print("rank"); 
