@@ -51,6 +51,8 @@ void print(std::string field){
             auto& tile = tiles[i][j]; 
             if(field.compare("rank") == 0) 
                 printf("%d ", tile.rank);
+            else if(field.compare("thread") == 0) 
+                printf("%d ", tile.thread);
             else if(field.compare("rg") == 0) 
                 printf("%d ", tile.rg);
         }
@@ -89,14 +91,18 @@ bool TWOD_Staggered() {
             tile.rank = (i % colgrp_nranks) * rowgrp_nranks + (j % rowgrp_nranks);
         }
     }
-    //print("rank"); 
-    //printf("\n");
+    print("rank"); 
+    printf("\n");
     std::vector<int> leader_ranks;
     leader_ranks.resize(nrowgrps, -1);
     for(int i = 0; i < nrowgrps; i++) {
-        for(int j = i; j < ncolgrps; j++) {
+        for(int j = i; j < nrowgrps; j++) {
             if(not (std::find(leader_ranks.begin(), leader_ranks.end(), tiles[j][i].rank) != leader_ranks.end())) {
-                std::swap(tiles[j], tiles[i]);
+                //if(i != j) {
+                //printf("%d %d %d\n", i, j, tiles[j][i].rank);
+                if(i != j) {
+                    std::swap(tiles[i], tiles[j]);
+                }
                 break;
             }
         }
@@ -105,6 +111,52 @@ bool TWOD_Staggered() {
     print("rank"); 
     bool ret = check_diagonals();
     return(ret);
+}
+
+bool TWOD_TStaggered() {
+    //printf("2D-TStaggered\n");
+    
+    for(int i = 0; i < nrowgrps; i++) {
+        for(int j = 0; j < ncolgrps; j++) {
+            auto& tile = tiles[i][j]; 
+            tile.rg = i;
+            tile.cg = j;
+            tile.rank = (i % colgrp_nranks) * rowgrp_nranks + (j % rowgrp_nranks);
+        }
+    }
+    
+    print("rank"); 
+    printf("\n");
+    std::vector<int32_t> counts(p);
+    //std::vector<int> leader_ranks;
+    //leader_ranks.resize(nrowgrps, -1);
+    for(int i = 0; i < nrowgrps; i++) {
+        for(int j = i; j < nrowgrps; j++) {
+           if(counts[tiles[j][i].rank] < t) {
+               counts[tiles[j][i].rank]++;
+               if(i != j) {
+                 //  printf("Swap(%d %d)\n", i, j);
+                   std::swap(tiles[i], tiles[j]);
+               }
+               break;
+           }
+           //else {
+           
+            //if(i != j)
+               // printf("Swap(%d %d)\n", i, j);
+                //printf("%d %d %d %d\n", j, i, tiles[j][i].rank, counts[tiles[j][i].rank]);
+                //counts[tiles[j][i].rank]++;
+                //std::swap(tiles[j], tiles[i]);
+              //  break;
+            //}
+        }
+        //leader_ranks[i] = tiles[i][i].rank;
+    }
+    printf("\n");
+    print("rank"); 
+    bool ret = check_diagonals();
+    return(ret);
+    
 }
 
 bool TWOD_Staggered_New1() {
@@ -216,31 +268,54 @@ bool TWOD_Staggered_New() {
 }
 
 int main(int argc, char **argv) {
-    if(argc != 4) {
+    if(argc > 4) {
         printf("Usage: %s <tiling_ype> <numProcesses> <numThreads>\n", argv[0]);
         exit(0);
     }
+
     p = atoi(argv[2]);
     t = atoi(argv[3]); 
-    nrowgrps = p;
-    ncolgrps = p;
-    rowgrp_nranks;
-    colgrp_nranks;
-    integer_factorize(p, rowgrp_nranks, colgrp_nranks);
-    rank_nrowgrps = nrowgrps / colgrp_nranks;
-    rank_ncolgrps = ncolgrps / rowgrp_nranks;
+    
+    
+    printf("%d %d\n", p, t);
+    if(not t) {
+        nrowgrps = p;
+        ncolgrps = p;
+        rowgrp_nranks;
+        colgrp_nranks;
+        integer_factorize(p, rowgrp_nranks, colgrp_nranks);
+        rank_nrowgrps = nrowgrps / colgrp_nranks;
+        rank_ncolgrps = ncolgrps / rowgrp_nranks;
+        tiles.resize(p);
+        for(int i = 0; i < p; i++)
+            tiles[i].resize(p);
+        }
+    else {
+        nrowgrps = p * t;
+        ncolgrps = p * t;
+        rowgrp_nranks;
+        colgrp_nranks;
+        integer_factorize(p, rowgrp_nranks, colgrp_nranks);
+        rank_nrowgrps = nrowgrps / colgrp_nranks;
+        rank_ncolgrps = ncolgrps / rowgrp_nranks;
+        tiles.resize(p*t);
+        for(int i = 0; i < p*t; i++)
+            tiles[i].resize(p*t);
+        
+    }
     printf("p=%d, nrowgrps      x ncolgrps      = %d x %d\n", p, nrowgrps, ncolgrps);
     printf("p=%d, rank_nrowgrps x rank_ncolgrps = %d x %d\n", p, rank_nrowgrps, rank_ncolgrps);
     printf("p=%d, rowgrp_nranks x colgrp_nranks = %d x %d\n", p, rowgrp_nranks, colgrp_nranks);
+    
     //printf("t=%d\n", t);
 
-    tiles.resize(p);
-    for(int i = 0; i < p; i++)
-        tiles[i].resize(p);
+
     
     bool ret = false;
     if(strcmp(argv[1], "2D-Staggered") == 0)
         ret = TWOD_Staggered();
+    if(strcmp(argv[1], "2D-TStaggered") == 0)
+        ret = TWOD_TStaggered();
     else if(strcmp(argv[1], "2D-Staggered-New") == 0)
         ret = TWOD_Staggered_New();
     else if(strcmp(argv[1], "2D-Staggered-New1") == 0)
