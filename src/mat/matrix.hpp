@@ -378,7 +378,7 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_matrix() {
             if(counts[tiles[j][i].rank] < num_owned_segments) {        
                 counts[tiles[j][i].rank]++;
                 if(i != j)
-                    std::swap(tiles[j], tiles[i]);
+                    std::swap(tiles[i], tiles[j]);
                 break;
             }
         }
