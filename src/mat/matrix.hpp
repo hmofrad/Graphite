@@ -374,10 +374,11 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_matrix() {
     //}
         
     for (uint32_t i = 0; i < nrowgrps; i++) {
-        for (uint32_t j = i; j < ncolgrps; j++) { 
+        for (uint32_t j = i; j < nrowgrps; j++) { 
             if(counts[tiles[j][i].rank] < num_owned_segments) {        
                 counts[tiles[j][i].rank]++;
-                std::swap(tiles[j], tiles[i]);
+                if(i != j)
+                    std::swap(tiles[j], tiles[i]);
                 break;
             }
         }
