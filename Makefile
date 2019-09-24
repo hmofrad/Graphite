@@ -16,7 +16,7 @@ THREADED = -fopenmp -D_GLIBCXX_PARALLEL -pthread
 #LIBNUMA = /home/moh/numactl/libnuma/usr/local/lib
 NUMACTL = /ihome/rmelhem/moh18/numactl/libnuma
 LIBNUMA = /ihome/rmelhem/moh18/numactl/libnuma/usr/local/lib
-#SYSLIBS = -lnuma #-I $(NUMACTL) -L$(LIBNUMA)
+SYSLIBS = -lnuma -I $(NUMACTL) -L$(LIBNUMA)
 
 #DEBUG = -g  -fsanitize=undefined,address -lasan -lubsan
 
