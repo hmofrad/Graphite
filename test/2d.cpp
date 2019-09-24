@@ -4,7 +4,7 @@
  * (e) m.hasanzadeh.mofrad@gmail.com 
  */
  
-//Compile and run using: g++ -o 2d 2d.cpp && ./2d 4 2
+//Compile and run using: g++ -std=c++17 -o 2d 2d.cpp && ./2d 4 2
 // Unit test using: ./2d_test.sh
 
 #include <stdio.h>
@@ -20,6 +20,8 @@
 struct Tile2D { 
     int rank;
     int thread;
+    int thread_rank;
+    int rank_thread;
 };
 
 int p;
@@ -30,6 +32,11 @@ int rowgrp_nranks;
 int colgrp_nranks;
 int rank_nrowgrps;
 int rank_ncolgrps;
+int rowgrp_nthreads;
+int colgrp_nthreads;
+int thread_nrowgrps;
+int thread_ncolgrps;
+
 std::vector<std::vector<struct Tile2D>> tiles;
 
 void integer_factorize(int n, int& a, int& b) {
@@ -51,7 +58,11 @@ void print(std::string field){
             if(field.compare("rank") == 0) 
                 printf("%02d ", tile.rank);
             else if(field.compare("thread") == 0) 
-                printf("%2d ", tile.thread);
+                printf("%02d ", tile.thread);
+            else if(field.compare("thread_rank") == 0) 
+                printf("%02d ", tile.thread_rank);
+            else if(field.compare("rank_thread") == 0) 
+                printf("%02d ", tile.rank_thread);
         }
         printf("\n");
     }
@@ -75,6 +86,7 @@ bool check_diagonals() {
     
     for(int i = 0; i < p; i++) {
         if(uniques[i] != t) {
+            printf("Processes: \n");
             for(auto u: uniques)
                 printf("%d ", u);
             printf("\n");
@@ -83,6 +95,41 @@ bool check_diagonals() {
         }
     }
     
+    std::vector<int> uniques_thread_rank(p*t);
+    for(int i = 0; i < nrowgrps; i++) {
+        int r = tiles[i][i].thread_rank;
+        uniques_thread_rank[r]++;
+    }
+    
+    for(int i = 0; i < p*t; i++) {
+        if(uniques_thread_rank[i] != 1) {
+            printf("Thread_rank: \n");
+            for(auto u: uniques_thread_rank)
+                printf("%d ", u);
+            printf("\n");
+            ret = false;
+            break;
+        }
+    } 
+
+
+ 
+    std::vector<int> uniques_rank_thread(p);
+    for(int i = 0; i < nrowgrps; i++) {
+        int r = tiles[i][i].rank_thread;
+        uniques_rank_thread[r]++;
+    }
+    
+    for(int i = 0; i < p; i++) {
+        if(uniques_rank_thread[i] != t) {
+            printf("Rank_thread: \n");
+            for(auto u: uniques_rank_thread)
+                printf("%d ", u);
+            printf("\n");
+            ret = false;
+            break;
+        }
+    }       
     
     /*
     std::vector<int> uniques;
@@ -141,9 +188,10 @@ bool TWOD_TStaggered() {
 
 bool TWOD_TStaggered_NEW() {
     //printf("2D-TStaggered\n");
-  //  printf("GCD= %d %d\n", std::gcd(rowgrp_nranks, colgrp_nranks), rank_nrowgrps);
+    printf("GCD= %d %d\n", std::gcd(rowgrp_nranks, colgrp_nranks), rank_nrowgrps);
     //int gcd = std::gcd(rank_nrowgrps, rank_ncolgrps);
-    int gcd = std::gcd(rowgrp_nranks, colgrp_nranks);
+    int gcd_r = std::gcd(rowgrp_nranks, colgrp_nranks);
+    int gcd_t = std::gcd(rowgrp_nthreads, colgrp_nthreads);
     /*
     if(gcd == 1) {
         for(int i = 0; i < nrowgrps; i++) {
@@ -156,6 +204,7 @@ bool TWOD_TStaggered_NEW() {
     }
     else {
       */  
+      //printf("%d %d %d\n", p, t, (p*t) %p);
         for(int i = 0; i < nrowgrps; i++) {
             
            // printf("%d %d\n", (i/(nrowgrps/(gcd * t))), 
@@ -163,13 +212,22 @@ bool TWOD_TStaggered_NEW() {
             
             for(int j = 0; j < ncolgrps; j++) {
                 auto& tile = tiles[i][j]; 
-                tile.rank = (((i % colgrp_nranks) * rowgrp_nranks + (j % rowgrp_nranks)) + ((i / (nrowgrps/(gcd*t))) * (rank_nrowgrps/t))) % p;
+                tile.rank = (((i % colgrp_nranks) * rowgrp_nranks + (j % rowgrp_nranks)) + ((i / (nrowgrps/(gcd_r*t))) * (rank_nrowgrps/t))) % p;
                 //tile.rank += ((i / (nrowgrps/gcd)) * rank_nrowgrps);
                 //tile.rank %= p;
                 tile.thread = (i / colgrp_nranks) % t;
+                tile.thread_rank = (((i % colgrp_nthreads) * rowgrp_nthreads + (j % rowgrp_nthreads)) + ((i / (nrowgrps/gcd_t)) * (thread_nrowgrps))) % (p*t);
+                tile.rank_thread = (((i % colgrp_nthreads) * rowgrp_nthreads + (j % rowgrp_nthreads)) + ((i / (nrowgrps/gcd_t)) * (thread_nrowgrps))) % p;
             }
-            
         }
+        /*
+        for(int i = 0; i < nrowgrps; i++) {
+            for(int j = 0; j < ncolgrps; j++) {
+                auto& tile = tiles[i][j]; 
+                tile.rank_thread = tile.thread_rank % p;
+            }
+        }
+        */
         
     //}
         
@@ -207,9 +265,15 @@ bool TWOD_TStaggered_NEW() {
     }
     print("rank"); 
     */
+    printf("rank\n");
+    print("rank");
+    printf("thread\n");
     print("thread"); 
-   print("rank");
-//printf("XXXXXXXX\n");    
+    printf("thread_rank\n");
+    print("thread_rank");
+    printf("rank_thread\n");
+    print("rank_thread");
+    
     bool ret = check_diagonals();
     return(ret);
     
@@ -231,13 +295,18 @@ int main(int argc, char **argv) {
     integer_factorize(p, rowgrp_nranks, colgrp_nranks);
     rank_nrowgrps = nrowgrps / colgrp_nranks;
     rank_ncolgrps = ncolgrps / rowgrp_nranks;
+    integer_factorize(p*t, rowgrp_nthreads, colgrp_nthreads);
+    thread_nrowgrps = nrowgrps / colgrp_nthreads;
+    thread_ncolgrps = ncolgrps / rowgrp_nthreads;
     tiles.resize(p*t);
     for(int i = 0; i < p*t; i++)
         tiles[i].resize(p*t);
     
-   // printf("p=%d, nrowgrps      x ncolgrps      = %d x %d\n", p, nrowgrps, ncolgrps);
-   // printf("p=%d, rank_nrowgrps x rank_ncolgrps = %d x %d\n", p, rank_nrowgrps, rank_ncolgrps);
-   // printf("p=%d, rowgrp_nranks x colgrp_nranks = %d x %d\n", p, rowgrp_nranks, colgrp_nranks);
+    printf("p=%d, nrowgrps        x ncolgrps          = %d x %d\n", p, nrowgrps, ncolgrps);
+    printf("p=%d, rank_nrowgrps   x rank_ncolgrps     = %d x %d\n", p, rank_nrowgrps, rank_ncolgrps);
+    printf("p=%d, rowgrp_nranks   x colgrp_nranks     = %d x %d\n", p, rowgrp_nranks, colgrp_nranks);
+    printf("p=%d, thread_nrowgrps x thread_ncolgrps   = %d x %d\n", p, thread_nrowgrps, thread_ncolgrps);
+    printf("p=%d, rowgrp_nthreads x colgrp_nthreads   = %d x %d\n", p, rowgrp_nthreads, colgrp_nthreads);
     
     bool ret = false;
     ret = TWOD_TStaggered_NEW();
