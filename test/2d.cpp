@@ -4,7 +4,7 @@
  * (e) m.hasanzadeh.mofrad@gmail.com 
  */
  
-//Compile and run using: g++ -std=c++17 -o 2d 2d.cpp && ./2d 4 2
+// Compile and run using: g++ -std=c++17 -o 2d 2d.cpp && ./2d 4 2 // 4 processes each with 2 threads
 // Unit test using: ./2d_test.sh
 
 #include <stdio.h>
@@ -36,6 +36,8 @@ int rowgrp_nthreads;
 int colgrp_nthreads;
 int thread_nrowgrps;
 int thread_ncolgrps;
+
+std::string tiling_type;
 
 std::vector<std::vector<struct Tile2D>> tiles;
 
@@ -70,201 +72,144 @@ void print(std::string field){
 }
 
 bool check_diagonals() {
-    /*
-    for(int i = 0; i < nrowgrps; i++) {
-        printf("%d ", tiles[i][i].rank);
-    }
-    printf("\n");
-    */
-    
     bool ret = true;
-    std::vector<int> uniques(p);
-    for(int i = 0; i < nrowgrps; i++) {
-        int r = tiles[i][i].rank;
-        uniques[r]++;
-    }
-    
-    for(int i = 0; i < p; i++) {
-        if(uniques[i] != t) {
-            printf("Processes: \n");
-            for(auto u: uniques)
-                printf("%d ", u);
-            printf("\n");
-            ret = false;
-            break;
+       
+    if (tiling_type == "TWOD_Staggered") {
+        std::vector<int> uniques(p);
+        for(int i = 0; i < nrowgrps; i++) {
+            int r = tiles[i][i].rank;
+            uniques[r]++;
         }
-    }
-    
-    std::vector<int> uniques_thread_rank(p*t);
-    for(int i = 0; i < nrowgrps; i++) {
-        int r = tiles[i][i].thread_rank;
-        uniques_thread_rank[r]++;
-    }
-    
-    for(int i = 0; i < p*t; i++) {
-        if(uniques_thread_rank[i] != 1) {
-            printf("Thread_rank: \n");
-            for(auto u: uniques_thread_rank)
-                printf("%d ", u);
-            printf("\n");
-            ret = false;
-            break;
+        for(int i = 0; i < p; i++) {
+            if(uniques[i] != 1) {
+                printf("Processes: \n");
+                for(auto u: uniques)
+                    printf("%d ", u);
+                printf("\n");
+                ret = false;
+                break;
+            }
         }
-    } 
+    }    
+    else if (tiling_type == "TWOD_TStaggered_NEW") {
+        std::vector<int> uniques_thread_rank(p*t);
+        for(int i = 0; i < nrowgrps; i++) {
+            int r = tiles[i][i].thread_rank;
+            uniques_thread_rank[r]++;
+        }
+        
+        for(int i = 0; i < p*t; i++) {
+            if(uniques_thread_rank[i] != 1) {
+                printf("Thread_rank: \n");
+                for(auto u: uniques_thread_rank)
+                    printf("%d ", u);
+                printf("\n");
+                ret = false;
+                break;
+            }
+        } 
 
 
- 
-    std::vector<int> uniques_rank_thread(p);
-    for(int i = 0; i < nrowgrps; i++) {
-        int r = tiles[i][i].rank_thread;
-        uniques_rank_thread[r]++;
-    }
-    
-    for(int i = 0; i < p; i++) {
-        if(uniques_rank_thread[i] != t) {
-            printf("Rank_thread: \n");
-            for(auto u: uniques_rank_thread)
-                printf("%d ", u);
-            printf("\n");
-            ret = false;
-            break;
+     
+        std::vector<int> uniques_rank_thread(p);
+        for(int i = 0; i < nrowgrps; i++) {
+            int r = tiles[i][i].rank_thread;
+            uniques_rank_thread[r]++;
         }
-    }       
-    
-    /*
-    std::vector<int> uniques;
-    for(int i = 0; i < nrowgrps; i++) {
-        int r = tiles[i][i].rank;
-        if(std::find(uniques.begin(), uniques.end(), r) == uniques.end()) {
-            uniques.push_back(r);
-        }
+        
+        for(int i = 0; i < p; i++) {
+            if(uniques_rank_thread[i] != t) {
+                printf("Rank_thread: \n");
+                for(auto u: uniques_rank_thread)
+                    printf("%d ", u);
+                printf("\n");
+                ret = false;
+                break;
+            }
+        }  
     }
-    if(uniques.size() != p) {
-        printf("Diagonal ranks are not unique: ");
-        std::sort(uniques.begin(), uniques.end());
-        for(auto u: uniques)
-            printf("%d ", u);
-        printf("\n");
-        ret = false;
-    }
-    */
     return(ret);
 }
-/* Simplidied 2D-thread-based-Staggered 
-   See Matrix::init_matrix() method for a
-   complete implementation.
-*/
-bool TWOD_TStaggered() {
-    //printf("2D-TStaggered\n");
+/* 2D-process-based-Staggered (LA3) */
+bool TWOD_Staggered() {
+    nrowgrps = p;
+    ncolgrps = p;
+    rowgrp_nranks;
+    colgrp_nranks;
+    integer_factorize(p, rowgrp_nranks, colgrp_nranks);
+    rank_nrowgrps = nrowgrps / colgrp_nranks;
+    rank_ncolgrps = ncolgrps / rowgrp_nranks;
+    
+    printf("p=%d, nrowgrps        x ncolgrps          = %d x %d\n", p, nrowgrps, ncolgrps);
+    printf("p=%d, rank_nrowgrps   x rank_ncolgrps     = %d x %d\n", p, rank_nrowgrps, rank_ncolgrps);
+    printf("p=%d, rowgrp_nranks   x colgrp_nranks     = %d x %d\n", p, rowgrp_nranks, colgrp_nranks);
+
+    tiles.resize(p);
+    for(int i = 0; i < p; i++)
+        tiles[i].resize(p);
     
     for(int i = 0; i < nrowgrps; i++) {
         for(int j = 0; j < ncolgrps; j++) {
             auto& tile = tiles[i][j]; 
             tile.rank = (i % colgrp_nranks) * rowgrp_nranks + (j % rowgrp_nranks);
-            tile.thread = (i / colgrp_nranks) % t;
         }
     }
- //   print("rank"); 
-    
+
     std::vector<int32_t> counts(p);
     for(int i = 0; i < nrowgrps; i++) {
         for(int j = i; j < nrowgrps; j++) {
-           if(counts[tiles[j][i].rank] < t) {
+           if(counts[tiles[j][i].rank] < 1) {
                counts[tiles[j][i].rank]++;
                if(i != j) {
                    std::swap(tiles[i], tiles[j]);
-		   printf("%d <--> %d\n", i, j); 
                }
                break;
            }
         }
     }
     print("rank"); 
-    //print("thread"); 
     bool ret = check_diagonals();
     return(ret);
     
 }
-
+/* 2D-thread-based-Staggered (Graphite)
+   See Matrix::init_matrix() method.
+*/
 bool TWOD_TStaggered_NEW() {
-    //printf("2D-TStaggered\n");
-    printf("GCD= %d %d\n", std::gcd(rowgrp_nranks, colgrp_nranks), rank_nrowgrps);
-    //int gcd = std::gcd(rank_nrowgrps, rank_ncolgrps);
+    nrowgrps = p * t;
+    ncolgrps = p * t;
+    rowgrp_nranks;
+    colgrp_nranks;
+    integer_factorize(p, rowgrp_nranks, colgrp_nranks);
+    rank_nrowgrps = nrowgrps / colgrp_nranks;
+    rank_ncolgrps = ncolgrps / rowgrp_nranks;
+    integer_factorize(p*t, rowgrp_nthreads, colgrp_nthreads);
+    thread_nrowgrps = nrowgrps / colgrp_nthreads;
+    thread_ncolgrps = ncolgrps / rowgrp_nthreads;
+    
     int gcd_r = std::gcd(rowgrp_nranks, colgrp_nranks);
     int gcd_t = std::gcd(rowgrp_nthreads, colgrp_nthreads);
-    /*
-    if(gcd == 1) {
-        for(int i = 0; i < nrowgrps; i++) {
-            for(int j = 0; j < ncolgrps; j++) {
-                auto& tile = tiles[i][j]; 
-                tile.rank = (i % colgrp_nranks) * rowgrp_nranks + (j % rowgrp_nranks);
-                
-            }
-        }
-    }
-    else {
-      */  
-      //printf("%d %d %d\n", p, t, (p*t) %p);
-        for(int i = 0; i < nrowgrps; i++) {
-            
-           // printf("%d %d\n", (i/(nrowgrps/(gcd * t))), 
-           // (i / (nrowgrps/(gcd * t))) * (rank_nrowgrps/t));
-            
-            for(int j = 0; j < ncolgrps; j++) {
-                auto& tile = tiles[i][j]; 
-                tile.rank = (((i % colgrp_nranks) * rowgrp_nranks + (j % rowgrp_nranks)) + ((i / (nrowgrps/(gcd_r*t))) * (rank_nrowgrps/t))) % p;
-                //tile.rank += ((i / (nrowgrps/gcd)) * rank_nrowgrps);
-                //tile.rank %= p;
-                tile.thread = (i / colgrp_nranks) % t;
-                tile.thread_rank = (((i % colgrp_nthreads) * rowgrp_nthreads + (j % rowgrp_nthreads)) + ((i / (nrowgrps/gcd_t)) * (thread_nrowgrps))) % (p*t);
-                tile.rank_thread = (((i % colgrp_nthreads) * rowgrp_nthreads + (j % rowgrp_nthreads)) + ((i / (nrowgrps/gcd_t)) * (thread_nrowgrps))) % p;
-            }
-        }
-        /*
-        for(int i = 0; i < nrowgrps; i++) {
-            for(int j = 0; j < ncolgrps; j++) {
-                auto& tile = tiles[i][j]; 
-                tile.rank_thread = tile.thread_rank % p;
-            }
-        }
-        */
-        
-    //}
-        
-        
-    /*
-    for(int i = 0; i < nrowgrps; i++) {
-          //  printf("%d %d\n", (i % ncolgrps/rank_ncolgrps), 
-            //(i % ncolgrps/rank_ncolgrps) * rank_nrowgrps);
-            for(int j = 0; j < ncolgrps; j++) {
-                auto& tile = tiles[i][j]; 
-                tile.rank = (i % colgrp_nranks) * rowgrp_nranks + (j % rowgrp_nranks);
-                tile.rank += (i % ncolgrps/rank_ncolgrps) * rank_nrowgrps;
-                tile.rank %= p;
-                //tile.thread = (i / colgrp_nranks) % t;
-                
-            }
-        }
-    }
-    */
     
-   // print("rank"); 
-    /*
-    std::vector<int32_t> counts(p);
-    for(int i = 0; i < nrowgrps; i++) {
-        for(int j = i; j < nrowgrps; j++) {
-           if(counts[tiles[j][i].rank] < t) {
-               counts[tiles[j][i].rank]++;
-               if(i != j) {
-                   std::swap(tiles[i], tiles[j]);
-		   printf("%d <--> %d\n", i, j); 
-               }
-               break;
-           }
+    printf("p=%d, nrowgrps        x ncolgrps          = %d x %d\n", p, nrowgrps, ncolgrps);
+    printf("p=%d, rank_nrowgrps   x rank_ncolgrps     = %d x %d\n", p, rank_nrowgrps, rank_ncolgrps);
+    printf("p=%d, rowgrp_nranks   x colgrp_nranks     = %d x %d\n", p, rowgrp_nranks, colgrp_nranks);
+    printf("p=%d, thread_nrowgrps x thread_ncolgrps   = %d x %d\n", p, thread_nrowgrps, thread_ncolgrps);
+    printf("p=%d, rowgrp_nthreads x colgrp_nthreads   = %d x %d\n", p, rowgrp_nthreads, colgrp_nthreads);
+
+    tiles.resize(p*t);
+    for(int i = 0; i < p*t; i++)
+        tiles[i].resize(p*t);
+
+    for(int i = 0; i < nrowgrps; i++) {        
+        for(int j = 0; j < ncolgrps; j++) {
+            auto& tile = tiles[i][j]; 
+            //tile.rank = (((i % colgrp_nranks) * rowgrp_nranks + (j % rowgrp_nranks)) + ((i / (nrowgrps/(gcd_r*t))) * (rank_nrowgrps/t))) % p;
+            tile.thread_rank = (((i % colgrp_nthreads) * rowgrp_nthreads + (j % rowgrp_nthreads)) + ((i / (nrowgrps/gcd_t)) * (thread_nrowgrps))) % (p*t);
+            tile.rank_thread = (((i % colgrp_nthreads) * rowgrp_nthreads + (j % rowgrp_nthreads)) + ((i / (nrowgrps/gcd_t)) * (thread_nrowgrps))) % p;
+            tile.thread = (i / colgrp_nranks) % t;
         }
     }
-    print("rank"); 
-    */
+
     printf("rank\n");
     print("rank");
     printf("thread\n");
@@ -280,36 +225,31 @@ bool TWOD_TStaggered_NEW() {
 }
 
 int main(int argc, char **argv) {
-    if(argc != 3) {
-        printf("Usage: %s <numProcesses> <numThreads>\n", argv[0]);
+    if(argc != 4) {
+        printf("Usage: %s <numProcesses> <numThreads> <tiling_type>\n", argv[0]);
         exit(0);
     }
 
     p = atoi(argv[1]);
     t = atoi(argv[2]); 
     
-    nrowgrps = p * t;
-    ncolgrps = p * t;
-    rowgrp_nranks;
-    colgrp_nranks;
-    integer_factorize(p, rowgrp_nranks, colgrp_nranks);
-    rank_nrowgrps = nrowgrps / colgrp_nranks;
-    rank_ncolgrps = ncolgrps / rowgrp_nranks;
-    integer_factorize(p*t, rowgrp_nthreads, colgrp_nthreads);
-    thread_nrowgrps = nrowgrps / colgrp_nthreads;
-    thread_ncolgrps = ncolgrps / rowgrp_nthreads;
-    tiles.resize(p*t);
-    for(int i = 0; i < p*t; i++)
-        tiles[i].resize(p*t);
+
     
-    printf("p=%d, nrowgrps        x ncolgrps          = %d x %d\n", p, nrowgrps, ncolgrps);
-    printf("p=%d, rank_nrowgrps   x rank_ncolgrps     = %d x %d\n", p, rank_nrowgrps, rank_ncolgrps);
-    printf("p=%d, rowgrp_nranks   x colgrp_nranks     = %d x %d\n", p, rowgrp_nranks, colgrp_nranks);
-    printf("p=%d, thread_nrowgrps x thread_ncolgrps   = %d x %d\n", p, thread_nrowgrps, thread_ncolgrps);
-    printf("p=%d, rowgrp_nthreads x colgrp_nthreads   = %d x %d\n", p, rowgrp_nthreads, colgrp_nthreads);
+    tiling_type = argv[3];
     
     bool ret = false;
-    ret = TWOD_TStaggered_NEW();
+    if(!strcmp(argv[3], "TWOD_Staggered")) {
+        printf("Process-based 2D-Staggered (LA3)\n");
+        ret = TWOD_Staggered();
+    }
+    else if (!strcmp(argv[3], "TWOD_TStaggered_NEW")) {
+        printf("Thread-based 2D-Staggered (Graphite)\n");
+        ret = TWOD_TStaggered_NEW();
+    }
+    else {
+        printf("Incorrect tiling_type = %s\n", argv[3]);
+        exit(0);
+    }
     
     return(ret);
 }
