@@ -34,6 +34,7 @@ struct Tile2D {
     uint32_t mth, kth; // mth local column order tile, and kth global tile
     int32_t rank;
     int32_t thread;
+    int32_t thread_global;
     int32_t leader;
     int32_t leader_rank_rg, leader_rank_cg;
     int32_t rank_rg, rank_cg;
@@ -229,7 +230,7 @@ Matrix<Weight, Integer_Type, Fractional_Type>::Matrix(Integer_Type nrows_,
     transpose = transpose_;
     parallel_edges = parallel_edges_;
     // Initialize tiling 
-    tiling = new Tiling(Env::nranks, ntiles, nrowgrps, ncolgrps, tiling_type_);
+    tiling = new Tiling(Env::nranks, Env::nthreads, ntiles, nrowgrps, ncolgrps, tiling_type_);
     compression_type = compression_type_;
     
     // Initialize hashing
@@ -307,6 +308,9 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_matrix() {
     for (uint32_t i = 0; i < nrowgrps; i++)
         tiles[i].resize(ncolgrps);
     
+    int32_t gcd_r = std::gcd(tiling->rowgrp_nranks, tiling->colgrp_nranks);
+    int32_t gcd_t = std::gcd(tiling->rowgrp_nthreads, tiling->colgrp_nthreads);
+    
     // Initialize tiles 
     for (uint32_t i = 0; i < nrowgrps; i++) {
         for (uint32_t j = 0; j < ncolgrps; j++) {
@@ -317,19 +321,26 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_matrix() {
             //    tile.rank = (i % tiling->colgrp_nranks) * tiling->rowgrp_nranks + (j % tiling->rowgrp_nranks);
             //}
             //else 
-            if(tiling->tiling_type == Tiling_type::_2D_) {
-                tile.rank = (i % tiling->colgrp_nranks) * tiling->rowgrp_nranks + (j % tiling->rowgrp_nranks);
-            }
-            else if(tiling->tiling_type == Tiling_type::_NUMA_) {
-                tile.rank = (i % tiling->colgrp_nranks) * tiling->rowgrp_nranks + (j % tiling->rowgrp_nranks);
+            //tile.rank = (i % tiling->colgrp_nranks) * tiling->rowgrp_nranks + (j % tiling->rowgrp_nranks);
+            tile.rank = (((i % tiling->colgrp_nthreads) * tiling->rowgrp_nthreads + (j % tiling->rowgrp_nthreads)) 
+                      + ((i / (tiling->nrowgrps/gcd_t)) * (tiling->thread_nrowgrps))) % Env::nranks;
+        
+            //if(tiling->tiling_type == Tiling_type::_2D_) {
+                
+            //}
+            //else 
+            if(tiling->tiling_type == Tiling_type::_NUMA_) {
+              //  tile.rank = (i % tiling->colgrp_nranks) * tiling->rowgrp_nranks + (j % tiling->rowgrp_nranks);
                 tile.rank = Env::ranks[tile.rank];
             }
-            else {
-                fprintf(stderr, "ERROR(rank=%d): Invalid tiling type\n", Env::rank);
-                Env::exit(1);
-            }
+            //else {
+            //    fprintf(stderr, "ERROR(rank=%d): Invalid tiling type\n", Env::rank);
+            //    Env::exit(1);
+           // }
                             
             tile.thread = (i / tiling->colgrp_nranks) % Env::nthreads;
+            tile.thread_global = (((i % tiling->colgrp_nthreads) * tiling->rowgrp_nthreads + (j % tiling->rowgrp_nthreads)) 
+                               + ((i / (tiling->nrowgrps/gcd_t)) * (tiling->thread_nrowgrps))) % (Env::nranks * Env::nthreads);
             
             tile.ith = tile.rg / tiling->colgrp_nranks; 
             tile.jth = tile.cg / tiling->rowgrp_nranks;
@@ -349,6 +360,8 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_matrix() {
             //tile.allocate_triples();
         }
     }
+    
+
 
     struct Triple<Weight, Integer_Type> pair;
     std::vector<int32_t> counts(Env::nranks);
@@ -366,11 +379,11 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_matrix() {
     //if(tiling->tiling_type == Tiling_type::_2DGP_)
     //    assert(num_owned_segments == 1);
     //else {
-        if(numa_available() == -1) {
-            Env::nthreads = 1;
-            omp_set_num_threads(Env::nthreads);
-        }
-        assert(num_owned_segments == Env::nthreads);  
+    if(numa_available() == -1) {
+        Env::nthreads = 1;
+        omp_set_num_threads(Env::nthreads);
+    }
+    assert(num_owned_segments == Env::nthreads);  
     //}
         
     for (uint32_t i = 0; i < nrowgrps; i++) {
@@ -755,9 +768,16 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_matrix() {
         printf("INFO(rank=%d): 2D tiling: %d x %d [height x width]\n", Env::rank, tile_height, tile_width);
         printf("INFO(rank=%d): 2D tiling: %d x %d [rowgrp_nranks x colgrp_nranks]\n", Env::rank, tiling->rowgrp_nranks, tiling->colgrp_nranks);
         printf("INFO(rank=%d): 2D tiling: %d x %d [rank_nrowgrps x rank_ncolgrps]\n", Env::rank, tiling->rank_nrowgrps, tiling->rank_ncolgrps);
+        printf("INFO(rank=%d): 2D tiling:         [nthreads (total)] = %d = nsegments = nrowgrps = ncolgrps\n", Env::rank, Env::nsegments);
+        printf("INFO(rank=%d): 2D tiling: %d x %d [rowgrp_nthreads x colgrp_nthreads]\n", Env::rank, tiling->rowgrp_nthreads, tiling->colgrp_nthreads);
+        printf("INFO(rank=%d): 2D tiling: %d x %d [thread_nrowgrps x thread_ncolgrps]\n", Env::rank, tiling->thread_nrowgrps, tiling->thread_ncolgrps);
     }
     print("rank");
+    print("thread");
+    print("thread_global");
+    
     Env::barrier(); 
+    Env::exit(0);
     
     
     owned_segments_thread.resize(Env::nsegments);
@@ -785,6 +805,8 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::print(std::string element) {
                     printf("%02d ", tile.rank);
                 if(element.compare("thread") == 0) 
                     printf("%02d ", tile.thread);
+                if(element.compare("thread_global") == 0) 
+                    printf("%02d ", tile.thread_global);
                 else if(element.compare("kth") == 0) 
                     printf("%3d ", tile.kth);
                 else if(element.compare("ith") == 0) 
@@ -820,6 +842,7 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::print(std::string element) {
                 break;
             }
         }
+        printf("\n");
     }
 }
 
