@@ -40,7 +40,7 @@ void allocate(Vector_Type** ptr, struct blk<Integer_Type>& blk, const bool numa_
             }
         }
         if(status) {
-            memset(*ptr, 0, nbytes);
+            memset((void*) *ptr, 0, nbytes);
             if(memory_prefetching) {
                 madvise(*ptr, nbytes, MADV_SEQUENTIAL);   
             }
@@ -58,7 +58,7 @@ void deallocate(Vector_Type** ptr, struct blk<Integer_Type> blk, bool numa_alloc
     uint64_t nbytes = 0;
     if(blk.nitems) {
         nbytes = blk.nbytes;
-        memset(*ptr, 0, nbytes);    
+        memset((void*) *ptr, 0, nbytes);    
         if(numa_allocation) {
             numa_free(*ptr, nbytes);
             if(*ptr == nullptr)
