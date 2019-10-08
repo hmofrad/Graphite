@@ -68,7 +68,7 @@ Tiling::Tiling(uint32_t nranks_, uint32_t rank_nthreads_, uint32_t ntiles_, uint
     rank_ncolgrps = ncolgrps / rowgrp_nranks;        
     assert(rank_nrowgrps * rank_ncolgrps == rank_ntiles);
     
-    printf("%d %d %d\n", Env::nranks, Env::nthreads, Env::nsegments);
+    //printf("%d %d %d\n", Env::nranks, Env::nthreads, Env::nsegments);
     rank_nthreads = rank_nthreads_;
     nthreads = nranks * rank_nthreads;   
     thread_ntiles = ntiles / nthreads;
