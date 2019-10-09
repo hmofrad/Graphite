@@ -387,7 +387,6 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_matrix() {
     //}
         
     for (uint32_t i = 0; i < nrowgrps; i++) {
-        /*
         for (uint32_t j = i; j < nrowgrps; j++) { 
             if(counts[tiles[j][i].rank] < num_owned_segments) {        
                 counts[tiles[j][i].rank]++;
@@ -396,8 +395,8 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_matrix() {
                 break;
             }
         }
-        */
-        leader_ranks[i] = tiles[i][i].rank;
+        
+	leader_ranks[i] = tiles[i][i].rank;
         leader_ranks_rg[i] = tiles[i][i].rank_rg;
         leader_ranks_cg[i] = tiles[i][i].rank_cg;
     }
