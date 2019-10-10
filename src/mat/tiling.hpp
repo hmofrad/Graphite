@@ -73,12 +73,22 @@ Tiling::Tiling(uint32_t nranks_, uint32_t rank_nthreads_, uint32_t ntiles_, uint
     nthreads = nranks * rank_nthreads;   
     thread_ntiles = ntiles / nthreads;
     assert(thread_ntiles * nthreads == ntiles); 
-
+    
+    /*
     integer_factorize(nthreads, rowgrp_nthreads, colgrp_nthreads);
     assert(rowgrp_nthreads * colgrp_nthreads == nthreads);
     thread_nrowgrps = nrowgrps / colgrp_nthreads;
     thread_ncolgrps = ncolgrps / rowgrp_nthreads;        
     assert(thread_nrowgrps * thread_ncolgrps == thread_ntiles);
+    */
+    
+    rowgrp_nthreads = rowgrp_nranks;
+    colgrp_nthreads = nrowgrps / rowgrp_nthreads;
+    assert(rowgrp_nthreads * colgrp_nthreads == nthreads);
+    thread_nrowgrps = nrowgrps / colgrp_nthreads;
+    thread_ncolgrps = ncolgrps / rowgrp_nthreads;
+    assert(thread_nrowgrps * thread_ncolgrps == thread_ntiles);
+
     
     /*
     //if ((tiling_type == Tiling_type::_2D_) or (tiling_type == Tiling_type::_2DGP_)) {
