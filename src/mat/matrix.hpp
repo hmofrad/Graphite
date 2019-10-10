@@ -321,7 +321,10 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_matrix() {
             //    tile.rank = (i % tiling->colgrp_nranks) * tiling->rowgrp_nranks + (j % tiling->rowgrp_nranks);
             //}
             //else 
-            tile.rank = (i % tiling->colgrp_nranks) * tiling->rowgrp_nranks + (j % tiling->rowgrp_nranks);
+                
+            //tile.rank = (i % tiling->colgrp_nranks) * tiling->rowgrp_nranks + (j % tiling->rowgrp_nranks);
+        
+        
             /*tile.rank = (((i % tiling->colgrp_nthreads) * tiling->rowgrp_nthreads + (j % tiling->rowgrp_nthreads)) 
                       + ((i / (tiling->nrowgrps/gcd_t)) * (tiling->thread_nrowgrps))) % Env::nranks;*/
         
@@ -329,18 +332,21 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_matrix() {
                 
             //}
             //else 
-            if(tiling->tiling_type == Tiling_type::_NUMA_) {
-              //  tile.rank = (i % tiling->colgrp_nranks) * tiling->rowgrp_nranks + (j % tiling->rowgrp_nranks);
-                tile.rank = Env::ranks[tile.rank];
-            }
+            
             //else {
             //    fprintf(stderr, "ERROR(rank=%d): Invalid tiling type\n", Env::rank);
             //    Env::exit(1);
            // }
                             
-            tile.thread = (i / tiling->colgrp_nranks) % Env::nthreads;
             tile.thread_global = (((i % tiling->colgrp_nthreads) * tiling->rowgrp_nthreads + (j % tiling->rowgrp_nthreads)) 
                                + ((i / (tiling->nrowgrps/gcd_t)) * (tiling->thread_nrowgrps))) % (Env::nranks * Env::nthreads);
+            tile.rank = tile.thread_global % Env::nranks;
+            tile.thread = tile.thread_global / Env::nranks;            
+
+            if(tiling->tiling_type == Tiling_type::_NUMA_) {
+              //  tile.rank = (i % tiling->colgrp_nranks) * tiling->rowgrp_nranks + (j % tiling->rowgrp_nranks);
+                tile.rank = Env::ranks[tile.rank];
+            }
             
             tile.ith = tile.rg / tiling->colgrp_nranks; 
             tile.jth = tile.cg / tiling->rowgrp_nranks;
