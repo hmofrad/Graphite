@@ -321,7 +321,7 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_matrix() {
             if(old_formula) {
                 tile.rank = (i % tiling->colgrp_nranks) * tiling->rowgrp_nranks + (j % tiling->rowgrp_nranks);
                 tile.thread = (i / tiling->colgrp_nranks) % Env::nthreads;
-                //tile.rank_cg = i % tiling->colgrp_nranks;
+                tile.rank_cg = i % tiling->colgrp_nranks;
             }
             else {
             
@@ -337,7 +337,7 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_matrix() {
                                + ((i / (tiling->nrowgrps/gcd_t)) * (tiling->thread_nrowgrps))) % (Env::nranks * Env::nthreads);
             tile.rank = tile.thread_global % Env::nranks;
             tile.thread = tile.thread_global / Env::nranks;      
-            //tile.rank_cg = tile.rank / tiling->colgrp_nranks;
+            tile.rank_cg = tile.rank / tiling->rowgrp_nranks;
             }
 
             if(tiling->tiling_type == Tiling_type::_NUMA_) {
@@ -348,7 +348,7 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_matrix() {
             tile.jth = tile.cg / tiling->rowgrp_nranks;
             
             tile.rank_rg = j % tiling->rowgrp_nranks;
-            tile.rank_cg = tile.rank / tiling->colgrp_nranks;
+            //tile.rank_cg = tile.rank / tiling->colgrp_nranks;
             
             
             tile.leader_rank_rg = i;
@@ -390,9 +390,9 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_matrix() {
     //}
     
     
-    //if(!Env::rank) {
-    //    print("rank_cg");
-    //}
+    if(!Env::rank) {
+        print("rank_cg");
+    }
     
     
 if(old_formula) {  
@@ -438,13 +438,13 @@ else {
     }
 }
     
-  //  if(!Env::rank) {
-//        print("rank_cg");
-      //  print("rank");
-    //}
+   if(!Env::rank) {
+        print("rank_cg");
+        print("rank");
+    }
     
-   // Env::barrier();
-   // Env::exit(0);
+    //Env::barrier();
+    //Env::exit(0);
     
     
     
