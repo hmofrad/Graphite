@@ -390,9 +390,9 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_matrix() {
     //}
     
     
-    if(!Env::rank) {
-        print("rank_cg");
-    }
+    //if(!Env::rank) {
+    //    print("rank_cg");
+    //}
     
     
 if(old_formula) {  
@@ -438,10 +438,10 @@ else {
     }
 }
     
-   if(!Env::rank) {
-        print("rank_cg");
-        print("rank");
-    }
+   //if(!Env::rank) {
+    //    print("rank_cg");
+    //    print("rank");
+    //}
     
     //Env::barrier();
     //Env::exit(0);
