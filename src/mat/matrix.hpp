@@ -310,41 +310,37 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_matrix() {
     
     int32_t gcd_r = std::gcd(tiling->rowgrp_nranks, tiling->colgrp_nranks);
     int32_t gcd_t = std::gcd(tiling->rowgrp_nthreads, tiling->colgrp_nthreads);
-    
+    bool old_formula = false;
     // Initialize tiles 
     for (uint32_t i = 0; i < nrowgrps; i++) {
         for (uint32_t j = 0; j < ncolgrps; j++) {
             auto& tile = tiles[i][j];
             tile.rg = i;
             tile.cg = j;
-            //if(tiling->tiling_type == Tiling_type::_2DGP_) {
-            //    tile.rank = (i % tiling->colgrp_nranks) * tiling->rowgrp_nranks + (j % tiling->rowgrp_nranks);
-            //}
-            //else 
-                
-            //tile.rank = (i % tiling->colgrp_nranks) * tiling->rowgrp_nranks + (j % tiling->rowgrp_nranks);
-        
-        
-            /*tile.rank = (((i % tiling->colgrp_nthreads) * tiling->rowgrp_nthreads + (j % tiling->rowgrp_nthreads)) 
-                      + ((i / (tiling->nrowgrps/gcd_t)) * (tiling->thread_nrowgrps))) % Env::nranks;*/
-        
-            //if(tiling->tiling_type == Tiling_type::_2D_) {
-                
-            //}
-            //else 
             
-            //else {
-            //    fprintf(stderr, "ERROR(rank=%d): Invalid tiling type\n", Env::rank);
-            //    Env::exit(1);
-           // }
-                            
+            if(old_formula) {
+                tile.rank = (i % tiling->colgrp_nranks) * tiling->rowgrp_nranks + (j % tiling->rowgrp_nranks);
+                tile.thread = (i / tiling->colgrp_nranks) % Env::nthreads;
+                //tile.rank_cg = i % tiling->colgrp_nranks;
+            }
+            else {
+            
+            /*
+            tile.rank = (((i % tiling->colgrp_nthreads) * tiling->rowgrp_nthreads + (j % tiling->rowgrp_nthreads)) 
+                      + ((i / (tiling->nrowgrps/gcd_t)) * (tiling->thread_nrowgrps))) % Env::nranks;
+                      
+            tile.thread = (i / tiling->colgrp_nranks) % Env::nthreads;
+            */
+
+            
             tile.thread_global = (((i % tiling->colgrp_nthreads) * tiling->rowgrp_nthreads + (j % tiling->rowgrp_nthreads)) 
                                + ((i / (tiling->nrowgrps/gcd_t)) * (tiling->thread_nrowgrps))) % (Env::nranks * Env::nthreads);
             tile.rank = tile.thread_global % Env::nranks;
-            tile.thread = tile.thread_global / Env::nranks;            
+            tile.thread = tile.thread_global / Env::nranks;      
+            //tile.rank_cg = tile.rank / tiling->colgrp_nranks;
+            }
 
             if(tiling->tiling_type == Tiling_type::_NUMA_) {
-              //  tile.rank = (i % tiling->colgrp_nranks) * tiling->rowgrp_nranks + (j % tiling->rowgrp_nranks);
                 tile.rank = Env::ranks[tile.rank];
             }
             
@@ -352,7 +348,8 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_matrix() {
             tile.jth = tile.cg / tiling->rowgrp_nranks;
             
             tile.rank_rg = j % tiling->rowgrp_nranks;
-            tile.rank_cg = i % tiling->colgrp_nranks;
+            tile.rank_cg = tile.rank / tiling->colgrp_nranks;
+            
             
             tile.leader_rank_rg = i;
             tile.leader_rank_cg = j;
@@ -391,8 +388,16 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_matrix() {
     }
     assert(num_owned_segments == Env::nthreads);  
     //}
-        
+    
+    
+    //if(!Env::rank) {
+    //    print("rank_cg");
+    //}
+    
+    
+if(old_formula) {  
     for (uint32_t i = 0; i < nrowgrps; i++) {
+        
         for (uint32_t j = i; j < nrowgrps; j++) { 
             if(counts[tiles[j][i].rank] < num_owned_segments) {        
                 counts[tiles[j][i].rank]++;
@@ -402,10 +407,46 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_matrix() {
             }
         }
         
-	leader_ranks[i] = tiles[i][i].rank;
+        leader_ranks[i] = tiles[i][i].rank;
         leader_ranks_rg[i] = tiles[i][i].rank_rg;
         leader_ranks_cg[i] = tiles[i][i].rank_cg;
     }
+}    
+else {
+    /*
+    std::vector<std::vector<int>> ranks_column_groups(tiling->rank_ncolgrps);
+    for(uint32_t i = 0; i < tiling->rank_ncolgrps; i++)
+        ranks_column_groups[i].resize(tiling->colgrp_nranks);
+    
+    if(!Env::rank) {
+        for (int r = 0; r < Env::nranks; r++) {
+            printf("%d %d\n", r, r/tiling->rowgrp_nranks);
+        }
+    }
+    
+    for (uint32_t i = 0; i < nrowgrps; i++) {
+        for (uint32_t j = 0; j < ncolgrps; j++) { 
+            tiles[i][j].rank_cg = 
+        }
+    }
+    */
+   for (uint32_t i = 0; i < nrowgrps; i++) {
+        counts[tiles[i][i].rank]++;
+        leader_ranks[i] = tiles[i][i].rank;
+        leader_ranks_rg[i] = tiles[i][i].rank_rg;
+        leader_ranks_cg[i] = tiles[i][i].rank_cg;
+    }
+}
+    
+  //  if(!Env::rank) {
+//        print("rank_cg");
+      //  print("rank");
+    //}
+    
+   // Env::barrier();
+   // Env::exit(0);
+    
+    
     
     //Calculate local tiles in row order and local row and columns
     for (uint32_t i = 0; i < nrowgrps; i++) {
@@ -453,6 +494,9 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_matrix() {
         }
     }
 
+    
+    
+
     //Calculate local tiles in column order
     for (uint32_t j = 0; j < ncolgrps; j++) {
         for (uint32_t i = 0; i < nrowgrps; i++) {
@@ -462,6 +506,8 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_matrix() {
             }
         }
     }
+    
+        
     
     // Calculate methadata required for processing tiles in vertex program
     for(uint32_t t: local_tiles_row_order) {
@@ -527,6 +573,15 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_matrix() {
             /* We do not keep iterating as the ranks in row/col groups are the same */
         }
     }
+    
+    
+    
+
+    //Env::barrier();
+    //Env::exit(0);
+    
+    
+    
 
     /* Spilitting communicator among row/col groups and creating
        the methadata required for processing them in vertex program */
@@ -571,6 +626,10 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_matrix() {
             accu_segment_cols.push_back(j);
         }
     } 
+    
+    
+    
+    
 
     /* Distribute tiles among threads in a way that
        each thread is the owner of one row group
@@ -782,7 +841,7 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_matrix() {
     }
     print("rank");
     print("thread");
-    print("thread_global");
+    //print("thread_global");
     
     ///Env::barrier(); 
     //Env::exit(0);
@@ -797,9 +856,160 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_matrix() {
         owned_segments_thread[i] = tiles[i][i].thread;
     }
     
-    if(!Env::rank)
+    //if(!Env::rank)
+    //    printf("\n");
+    //print("thread");
+    /*
+        if(!Env::rank) {
+        print("rank");
+        
+        printf("leader_ranks: ");
+        for(auto l: leader_ranks)
+            printf("%d ", l);
         printf("\n");
-    print("thread");
+        
+        printf("leader_ranks_rg: ");
+        for(auto l: leader_ranks_rg)
+            printf("%d ", l);
+        printf("\n");
+        
+        printf("leader_ranks_cg: ");
+        for(auto l: leader_ranks_cg)
+            printf("%d ", l);
+        printf("\n");
+        
+        printf("owned_segments: ");
+        for(auto l: owned_segments)
+            printf("%d ", l);
+        printf("\n");
+        
+        printf("owned_segments_all: ");
+        for(auto l: owned_segments_all)
+            printf("%d ", l);
+        printf("\n");
+        
+        printf("counts: ");
+        for(auto l: counts)
+            printf("%d ", l);
+        printf("\n");
+        
+        printf("local_tiles_row_order: ");
+        for(auto l: local_tiles_row_order)
+            printf("%d ", l);
+        printf("\n");
+        
+        printf("local_tiles_col_order: ");
+        for(auto l: local_tiles_col_order)
+            printf("%d ", l);
+        printf("\n");
+        
+        printf("local_col_segments: ");
+        for(auto l: local_col_segments)
+            printf("%d ", l);
+        printf("\n");
+        
+        printf("local_row_segments: ");
+        for(auto l: local_row_segments)
+            printf("%d ", l);
+        printf("\n");
+        
+        printf("all_rowgrp_ranks: ");
+        for(auto l: all_rowgrp_ranks)
+            printf("%d ", l);
+        printf("\n");
+        
+        printf("all_rowgrp_ranks_accu_seg: ");
+        for(auto l: all_rowgrp_ranks_accu_seg)
+            printf("%d ", l);
+        printf("\n");
+        
+        printf("all_rowgrp_ranks_rg: ");
+        for(auto l: all_rowgrp_ranks_rg)
+            printf("%d ", l);
+        printf("\n");
+        
+        printf("all_rowgrp_ranks_accu_seg_rg: ");
+        for(auto l: all_rowgrp_ranks_accu_seg_rg)
+            printf("%d ", l);
+        printf("\n");
+        
+        printf("follower_rowgrp_ranks: ");
+        for(auto l: follower_rowgrp_ranks)
+            printf("%d ", l);
+        printf("\n");
+        
+        printf("follower_rowgrp_ranks_accu_seg: ");
+        for(auto l: follower_rowgrp_ranks_accu_seg)
+            printf("%d ", l);
+        printf("\n");
+        
+        printf("follower_rowgrp_ranks_rg: ");
+        for(auto l: follower_rowgrp_ranks_rg)
+            printf("%d ", l);
+        printf("\n");
+        
+        printf("follower_rowgrp_ranks_accu_seg_rg: ");
+        for(auto l: follower_rowgrp_ranks_accu_seg_rg)
+            printf("%d ", l);
+        printf("\n");
+        
+        
+        printf("all_colgrp_ranks: ");
+        for(auto l: all_colgrp_ranks)
+            printf("%d ", l);
+        printf("\n");
+        
+        printf("all_colgrp_ranks_accu_seg: ");
+        for(auto l: all_colgrp_ranks_accu_seg)
+            printf("%d ", l);
+        printf("\n");
+        
+        printf("all_colgrp_ranks_cg: ");
+        for(auto l: all_colgrp_ranks_cg)
+            printf("%d ", l);
+        printf("\n");
+        
+        printf("all_colgrp_ranks_accu_seg_cg: ");
+        for(auto l: all_colgrp_ranks_accu_seg_cg)
+            printf("%d ", l);
+        printf("\n");
+        
+        printf("follower_colgrp_ranks: ");
+        for(auto l: follower_colgrp_ranks)
+            printf("%d ", l);
+        printf("\n");
+        
+        printf("follower_rowgrp_ranks_accu_seg: ");
+        for(auto l: follower_rowgrp_ranks_accu_seg)
+            printf("%d ", l);
+        printf("\n");
+        
+        printf("follower_rowgrp_ranks_rg: ");
+        for(auto l: follower_rowgrp_ranks_rg)
+            printf("%d ", l);
+        printf("\n");
+        
+        printf("follower_rowgrp_ranks_accu_seg_rg: ");
+        for(auto l: follower_rowgrp_ranks_accu_seg_rg)
+            printf("%d ", l);
+        printf("\n");
+        
+        printf("accu_segment_rows: ");
+        for(auto l: accu_segment_rows)
+            printf("%d ", l);
+        printf("\n");
+        
+        printf("accu_segment_cols: ");
+        for(auto l: accu_segment_cols)
+            printf("%d ", l);
+        printf("\n");
+        
+        
+    }
+   */ 
+    
+    
+    
 }
 
 template<typename Weight, typename Integer_Type, typename Fractional_Type>
@@ -875,6 +1085,7 @@ void Matrix<Weight, Integer_Type, Fractional_Type>::init_tiles() {
         tile.nedges = tile.triples.size();
     }
     //balance();
+
 }
 
 
