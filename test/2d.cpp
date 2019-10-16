@@ -145,8 +145,33 @@ bool check_diagonals() {
             }
         }
         
-
-        
+        std::vector<std::vector<int>> uniques_thread_to_rank;
+        uniques_thread_to_rank.resize(p);
+        ///for(int i = 0; i < p; i++) {
+           // uniques_thread_to_rank[i].resize(t);
+        //}
+        for(int i = 0; i < nrowgrps; i++) {
+            int r = tiles[i][i].rank_thread;
+            int rt = tiles[i][i].thread;
+            uniques_thread_to_rank[r].push_back(rt);
+        }
+        bool br = false;
+        for(int i = 0; i < p; i++) {
+            for(int j = 0; j < t; j++) {
+                if(uniques_thread_to_rank[i][j] != j) {
+                    for(int ii = 0; ii < p; ii++) {
+                        printf("%d: ", ii);
+                        for(int jj = 0; jj < t; jj++) {
+                            printf("%d ", uniques_thread_to_rank[ii][jj]);
+                        }
+                        printf("\n");
+                    }
+                    br = true;
+                    break;
+                }
+            }
+            if(br) break;
+        }        
     }
     return(ret);
 }
